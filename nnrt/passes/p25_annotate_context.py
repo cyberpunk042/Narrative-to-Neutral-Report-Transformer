@@ -18,7 +18,8 @@ import re
 from uuid import uuid4
 
 from nnrt.core.context import TransformContext
-from nnrt.ir.enums import SegmentContext
+from nnrt.ir.enums import SegmentContext, UncertaintyType
+from nnrt.ir.schema_v0_1 import UncertaintyMarker
 
 PASS_NAME = "annotate_context"
 
@@ -294,6 +295,16 @@ def annotate_context(ctx: TransformContext) -> TransformContext:
                     source=PASS_NAME,
                     affected_ids=[segment.id],
                 )
+                
+                # Phase 3: Structured Uncertainty
+                ctx.uncertainty.append(UncertaintyMarker(
+                    id=f"unc_{uuid4().hex[:8]}",
+                    type=UncertaintyType.AMBIGUOUS_REFERENCE,
+                    text=text,
+                    description=f"Ambiguous pronoun reference - unclear who did what: '{text[:60]}...'",
+                    affected_ids=[segment.id],
+                    source=PASS_NAME,
+                ))
             if has_vague_references:
                 ctx.add_diagnostic(
                     level="warning",
@@ -302,6 +313,16 @@ def annotate_context(ctx: TransformContext) -> TransformContext:
                     source=PASS_NAME,
                     affected_ids=[segment.id],
                 )
+                
+                # Phase 3: Structured Uncertainty
+                ctx.uncertainty.append(UncertaintyMarker(
+                    id=f"unc_{uuid4().hex[:8]}",
+                    type=UncertaintyType.MISSING_CONTEXT,  # Maps to vague reference
+                    text=text,
+                    description=f"Vague reference - unclear who 'they'/'someone' refers to: '{text[:60]}...'",
+                    affected_ids=[segment.id],
+                    source=PASS_NAME,
+                ))
         
         # Check for biased language (inflammatory, intent, legal conclusions)
         has_biased_content = (
@@ -421,6 +442,16 @@ def _detect_contradictions(ctx: TransformContext) -> None:
                 source=PASS_NAME,
                 affected_ids=[segment.id],
             )
+            
+            # Phase 3: Structured Uncertainty
+            ctx.uncertainty.append(UncertaintyMarker(
+                id=f"unc_{uuid4().hex[:8]}",
+                type=UncertaintyType.CONTRADICTORY,
+                text=segment.text,
+                description=f"Physical contradiction: Action described after being restrained: '{segment.text[:60]}...'",
+                affected_ids=[segment.id],
+                source=PASS_NAME,
+            ))
         
         # Type 2: Said "never touched" but then "after I pushed"
         for negated in negated_actions:
@@ -433,6 +464,16 @@ def _detect_contradictions(ctx: TransformContext) -> None:
                     source=PASS_NAME,
                     affected_ids=[segment.id],
                 )
+
+                # Phase 3: Structured Uncertainty
+                ctx.uncertainty.append(UncertaintyMarker(
+                    id=f"unc_{uuid4().hex[:8]}",
+                    type=UncertaintyType.CONTRADICTORY,
+                    text=segment.text,
+                    description=f"Self-contradiction: Action contradicts earlier denial: '{segment.text[:60]}...'",
+                    affected_ids=[segment.id],
+                    source=PASS_NAME,
+                ))
             if negated == "hit" and ("struck" in text_lower or "punched" in text_lower):
                 segment.contexts.append(SegmentContext.CONTRADICTS_PREVIOUS.value)
                 ctx.add_diagnostic(
@@ -442,6 +483,16 @@ def _detect_contradictions(ctx: TransformContext) -> None:
                     source=PASS_NAME,
                     affected_ids=[segment.id],
                 )
+                
+                # Phase 3: Structured Uncertainty
+                ctx.uncertainty.append(UncertaintyMarker(
+                    id=f"unc_{uuid4().hex[:8]}",
+                    type=UncertaintyType.CONTRADICTORY,
+                    text=segment.text,
+                    description=f"Self-contradiction: Action contradicts earlier denial: '{segment.text[:60]}...'",
+                    affected_ids=[segment.id],
+                    source=PASS_NAME,
+                ))
 
 
 def _matches_any(text: str, patterns: list[str]) -> bool:

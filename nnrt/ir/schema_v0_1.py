@@ -145,6 +145,7 @@ class UncertaintyMarker(BaseModel):
 
     id: str
     type: UncertaintyType
+    text: Optional[str] = Field(None, description="The specific text causing uncertainty")
     description: str
     affected_ids: list[str] = Field(default_factory=list)
     source: str

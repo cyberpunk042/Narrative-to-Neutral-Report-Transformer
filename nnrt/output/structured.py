@@ -149,25 +149,21 @@ def build_structured_output(result: TransformResult, input_text: str) -> Structu
         )
         statements.append(stmt)
     
-    # Build uncertainties from diagnostics
+    # Build uncertainties from Markers (Phase 3)
     uncertainties = []
-    unc_codes = {"AMBIGUOUS_PRONOUN", "VAGUE_REFERENCE", "PHYSICAL_CONTRADICTION", 
-                 "SELF_CONTRADICTION", "SARCASM_DETECTED"}
     
-    for i, diag in enumerate(result.diagnostics):
-        if diag.code in unc_codes:
-            unc_type = _map_diagnostic_to_uncertainty_type(diag.code)
-            unc = UncertaintyOutput(
-                id=f"unc_{i+1:03d}",
-                type=unc_type,
-                text=diag.message.split("'")[1] if "'" in diag.message else diag.message[:60],
-                segment_id=diag.affected_ids[0] if diag.affected_ids else "unknown",
-                description=diag.message,
-                candidates=None,
-                resolution=None,
-                requires_human_review=True,
-            )
-            uncertainties.append(unc)
+    for unc_marker in result.uncertainty:
+        unc = UncertaintyOutput(
+            id=unc_marker.id,
+            type=unc_marker.type.value,
+            text=unc_marker.text or unc_marker.description,
+            segment_id=unc_marker.affected_ids[0] if unc_marker.affected_ids else "unknown",
+            description=unc_marker.description,
+            candidates=None,
+            resolution=None,
+            requires_human_review=True,
+        )
+        uncertainties.append(unc)
     
     # Compute input hash
     input_hash = f"sha256:{hashlib.sha256(input_text.encode()).hexdigest()[:16]}"
