@@ -44,6 +44,27 @@ class RuleDiagnostic:
 
 
 @dataclass
+class RuleCondition:
+    """
+    Context-aware condition for rule application.
+    
+    A rule with a condition will only apply if the condition is met.
+    This enables context-aware transformations without hardcoding in Python.
+    """
+    # Segment must have ALL of these contexts for rule to apply
+    context_includes: list[str] = field(default_factory=list)
+    
+    # Segment must NOT have ANY of these contexts for rule to apply  
+    context_excludes: list[str] = field(default_factory=list)
+    
+    # Span must have this label for rule to apply
+    span_label: Optional[str] = None
+    
+    # Segment must match this regex pattern for rule to apply
+    segment_pattern: Optional[str] = None
+
+
+@dataclass
 class PolicyRule:
     """A single policy rule."""
     id: str
@@ -55,6 +76,7 @@ class PolicyRule:
     replacement: Optional[str] = None
     reframe_template: Optional[str] = None
     diagnostic: Optional[RuleDiagnostic] = None
+    condition: Optional[RuleCondition] = None  # NEW: Context-aware condition
     enabled: bool = True
 
 

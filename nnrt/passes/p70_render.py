@@ -16,7 +16,6 @@ Per LLM policy:
 
 import os
 from nnrt.core.context import TransformContext
-from nnrt.ir.enums import SpanLabel
 from nnrt.policy.engine import get_policy_engine
 
 PASS_NAME = "p70_render"
@@ -104,66 +103,40 @@ def _render_llm(ctx: TransformContext) -> TransformContext:
 
 
 def _render_template(ctx: TransformContext) -> TransformContext:
-    """Render using template-based policy rules."""
+    """
+    Render using template-based policy rules.
+    
+    ARCHITECTURE NOTE (Post-Refactor):
+    - Policy rules are the SINGLE source of transformation decisions
+    - Context annotations (from p25_annotate_context) inform rule conditions
+    - This pass ONLY applies policy decisions, no independent logic
+    - span_decisions and protected_ranges enable cross-pass communication
+    """
     engine = get_policy_engine()
     
     rendered_segments: list[str] = []
-    total_rule_transforms = 0
-    total_span_transforms = 0
+    total_transforms = 0
 
     for segment in ctx.segments:
-        # Apply policy rules
-        rendered, decisions = engine.apply_rules(segment.text)
-        total_rule_transforms += len(decisions)
+        # Apply policy rules WITH segment context
+        # The policy engine will:
+        # 1. Find matching rules
+        # 2. Check rule conditions against segment.contexts
+        # 3. Apply only rules whose conditions are met
+        rendered, decisions = engine.apply_rules_with_context(
+            segment.text, segment.contexts
+        )
+        total_transforms += len(decisions)
         
-        # Apply span-based transformations for content not caught by rules
+        # Record decisions for each affected span (for downstream traceability)
         segment_spans = [s for s in ctx.spans if s.segment_id == segment.id]
-        for span in segment_spans:
-            # NEW: Check if span is protected or has a decision already
-            if ctx.is_protected(segment.id, span.start_char, span.end_char):
-                continue  # Protected - skip transformation
-            
-            existing_decision = ctx.get_span_decision(span.id)
-            if existing_decision and existing_decision.action.value == "preserve":
-                continue  # Policy said preserve - skip
-            
-            if span.label == SpanLabel.LEGAL_CONCLUSION:
-                # REFACTORED: Use context annotation instead of re-analyzing
-                # SegmentContext.CHARGE_DESCRIPTION = "charge"
-                is_charge_context = "charge" in segment.contexts
-                
-                if span.text in rendered and not is_charge_context:
-                    rendered = _remove_phrase(rendered, span.text)
-                    total_span_transforms += 1
-                    ctx.add_trace(
-                        pass_name=PASS_NAME,
-                        action="removed_legal_conclusion",
-                        before=span.text,
-                        affected_ids=[span.id],
-                    )
-            
-            elif span.label == SpanLabel.INTENT_ATTRIBUTION:
-                # REFACTORED: Check for physical attempt context
-                # SegmentContext.PHYSICAL_ATTEMPT = "physical_attempt"
-                is_physical_attempt = "physical_attempt" in segment.contexts
-                
-                if is_physical_attempt:
-                    # Physical attempt (tried to say/breathe) - preserve
-                    continue
-                
-                if span.text in rendered:
-                    replacement = _get_intent_replacement(span.text)
-                    if replacement is not None:
-                        rendered = rendered.replace(span.text, replacement)
-                        total_span_transforms += 1
-                        ctx.add_trace(
-                            pass_name=PASS_NAME,
-                            action="neutralized_intent",
-                            before=span.text,
-                            after=replacement or "(removed)",
-                            affected_ids=[span.id],
-                        )
+        for decision in decisions:
+            # Find spans that overlap with this decision
+            for span in segment_spans:
+                if span.id in decision.affected_ids:
+                    ctx.set_span_decision(span.id, decision)
         
+        # Clean up the rendered text
         rendered = _clean_text(rendered)
         if rendered.strip():
             rendered_segments.append(rendered)
@@ -173,53 +146,10 @@ def _render_template(ctx: TransformContext) -> TransformContext:
     ctx.add_trace(
         pass_name=PASS_NAME,
         action="rendered_template",
-        after=f"{len(rendered_segments)} segments, {total_rule_transforms} rule transforms, {total_span_transforms} span transforms",
+        after=f"{len(rendered_segments)} segments, {total_transforms} policy transforms",
     )
 
     return ctx
-
-
-def _remove_phrase(text: str, phrase: str) -> str:
-    """Remove a phrase from text, cleaning up whitespace."""
-    result = text.replace(phrase, "")
-    while "  " in result:
-        result = result.replace("  ", " ")
-    return result.strip()
-
-
-def _get_intent_replacement(phrase: str) -> str | None:
-    """Get a neutral replacement for intent attribution phrases."""
-    phrase_lower = phrase.lower()
-    
-    # Physical action words - if "tried to" is followed by these, preserve it
-    physical_actions = [
-        "say", "speak", "talk", "call", "shout", "yell",
-        "breathe", "move", "run", "walk", "stand", "sit",
-        "open", "close", "grab", "reach", "pull", "push",
-        "get up", "get away", "get out",
-    ]
-    
-    # Check if this is a physical attempt (not intent attribution)
-    if "tried to" in phrase_lower or "trying to" in phrase_lower:
-        for action in physical_actions:
-            if action in phrase_lower:
-                return None  # Preserve - this is a physical attempt, not intent
-    
-    replacements = {
-        "intentionally": "",
-        "deliberately": "",
-        "purposely": "",
-        "on purpose": "",
-        "wanted to": "appeared to",
-        "meant to": "appeared to",
-        "clearly wanted to": "appeared to",
-    }
-    
-    for intent_phrase, replacement in replacements.items():
-        if intent_phrase in phrase_lower:
-            return replacement
-    
-    return None
 
 
 def _clean_text(text: str) -> str:
@@ -244,3 +174,4 @@ def _clean_text(text: str) -> str:
         result += "."
     
     return result
+

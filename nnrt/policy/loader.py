@@ -13,6 +13,7 @@ from nnrt.policy.models import (
     PolicyRuleset,
     PolicySettings,
     RuleAction,
+    RuleCondition,
     RuleDiagnostic,
     RuleMatch,
     ValidationRule,
@@ -112,6 +113,17 @@ def parse_rule(data: dict) -> Optional[PolicyRule]:
                 message=diag_data["message"],
             )
         
+        # NEW: Parse condition if present
+        condition = None
+        if "condition" in data:
+            cond_data = data["condition"]
+            condition = RuleCondition(
+                context_includes=cond_data.get("context_includes", []),
+                context_excludes=cond_data.get("context_excludes", []),
+                span_label=cond_data.get("span_label"),
+                segment_pattern=cond_data.get("segment_pattern"),
+            )
+        
         return PolicyRule(
             id=data["id"],
             category=data["category"],
@@ -122,6 +134,7 @@ def parse_rule(data: dict) -> Optional[PolicyRule]:
             replacement=data.get("replacement"),
             reframe_template=data.get("reframe_template"),
             diagnostic=diagnostic,
+            condition=condition,
             enabled=data.get("enabled", True),
         )
     except (KeyError, ValueError) as e:

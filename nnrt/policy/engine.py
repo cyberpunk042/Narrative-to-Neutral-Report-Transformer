@@ -153,6 +153,32 @@ class PolicyEngine:
         window = text[window_start:window_end].lower()
         
         return any(ctx.lower() in window for ctx in context)
+    
+    def _check_condition(
+        self, rule: PolicyRule, segment_contexts: list[str]
+    ) -> bool:
+        """
+        Check if a rule's condition is met given segment contexts.
+        
+        Returns True if rule should be applied, False if it should be skipped.
+        """
+        condition = rule.condition
+        if condition is None:
+            return True  # No condition = always apply
+        
+        # Check context_includes: ALL must be present
+        if condition.context_includes:
+            for ctx in condition.context_includes:
+                if ctx not in segment_contexts:
+                    return False
+        
+        # Check context_excludes: NONE must be present
+        if condition.context_excludes:
+            for ctx in condition.context_excludes:
+                if ctx in segment_contexts:
+                    return False
+        
+        return True
 
     def apply_rules(self, text: str) -> tuple[str, list[PolicyDecision]]:
         """
@@ -160,6 +186,21 @@ class PolicyEngine:
         
         Args:
             text: Text to transform
+            
+        Returns:
+            Tuple of (transformed_text, policy_decisions)
+        """
+        return self.apply_rules_with_context(text, [])
+    
+    def apply_rules_with_context(
+        self, text: str, segment_contexts: list[str]
+    ) -> tuple[str, list[PolicyDecision]]:
+        """
+        Apply all matching rules to text, respecting segment contexts.
+        
+        Args:
+            text: Text to transform
+            segment_contexts: Context annotations for this segment
             
         Returns:
             Tuple of (transformed_text, policy_decisions)
@@ -174,6 +215,10 @@ class PolicyEngine:
         transformations: list[tuple[int, int, str, PolicyRule]] = []
         
         for match in matches:
+            # NEW: Check if rule's condition is met
+            if not self._check_condition(match.rule, segment_contexts):
+                continue  # Skip - condition not met
+            
             # Skip if this range overlaps with already modified range
             if any(
                 start <= match.start < end or start < match.end <= end

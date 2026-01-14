@@ -361,6 +361,67 @@ rules:
       patterns: ["\\d{1,2}:\\d{2}\\s*(AM|PM|am|pm)?", "\\d{1,2}/\\d{1,2}/\\d{2,4}"]
     action: preserve
 
+  # ═══════════════════════════════════════════════════════════════════
+  # CONTEXT-AWARE RULES
+  # These rules use conditions to modify behavior based on segment context
+  # ═══════════════════════════════════════════════════════════════════
+
+  # Preserve legal terms when in charge/accusation context
+  - id: ctx_legal_in_charge
+    category: context_aware
+    priority: 250  # Higher than legal_conclusion rules
+    description: "Preserve legal terms when describing charges"
+    match:
+      type: keyword
+      patterns: ["assault", "battery", "robbery", "theft", "resisting"]
+    condition:
+      context_includes: ["charge"]  # Only when segment has charge context
+    action: flag
+    diagnostic:
+      level: info
+      code: CHARGE_TERM_PRESERVED
+      message: "Legal term preserved - part of charge description"
+
+  # Remove legal terms when NOT in charge context (normal behavior)
+  - id: ctx_legal_standalone
+    category: context_aware
+    priority: 240
+    description: "Flag legal conclusions when not describing a charge"
+    match:
+      type: keyword
+      patterns: ["assault", "battery"]
+    condition:
+      context_excludes: ["charge"]  # Only when NOT in charge context
+    action: flag
+    diagnostic:
+      level: warning
+      code: LEGAL_TERM_FLAGGED
+      message: "Legal conclusion language detected"
+
+  # Preserve "tried to" in physical attempt context
+  - id: ctx_physical_attempt_preserve
+    category: context_aware
+    priority: 250
+    description: "Preserve 'tried to' when describing physical attempts"
+    match:
+      type: phrase
+      patterns: ["tried to", "trying to"]
+    condition:
+      context_includes: ["physical_attempt"]
+    action: preserve
+
+  # Flag direct quotes in quote context for extra protection
+  - id: ctx_quote_protection
+    category: context_aware
+    priority: 300
+    description: "Extra protection for content in quote context"
+    match:
+      type: regex
+      patterns: ["['\"].+?['\"]"]
+    condition:
+      context_includes: ["direct_quote"]
+    action: preserve
+
 # Validation rules run after transformation
 validation:
   - id: val_no_new_facts
