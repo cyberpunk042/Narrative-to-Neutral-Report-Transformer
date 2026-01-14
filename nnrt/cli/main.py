@@ -11,6 +11,7 @@ from nnrt import __version__
 from nnrt.core.context import TransformRequest
 from nnrt.core.engine import Engine, Pipeline, get_engine
 from nnrt.ir.serialization import to_json
+from nnrt.output.structured import build_structured_output
 from nnrt.passes import (
     annotate_context,
     augment_ir,
@@ -35,8 +36,8 @@ def setup_default_pipeline(engine: Engine) -> None:
             normalize,
             segment,
             tag_spans,
-            classify_statements,  # Phase 1: Classify as obs/claim/interp/quote
-            annotate_context,     # Context annotations
+            annotate_context,     # Sets context (including quotes)
+            classify_statements,  # Uses context for classification
             extract_identifiers,
             build_ir,
             evaluate_policy,
@@ -78,9 +79,9 @@ def main() -> int:
     )
     transform_parser.add_argument(
         "--format",
-        choices=["text", "json", "ir"],
+        choices=["text", "json", "ir", "structured"],
         default="text",
-        help="Output format (default: text)",
+        help="Output format: text (default), structured (pre-alpha JSON), json, ir",
     )
     transform_parser.add_argument(
         "--pipeline",
@@ -131,7 +132,10 @@ def run_transform(args: argparse.Namespace) -> int:
     result = engine.transform(request, args.pipeline)
 
     # Format output
-    if args.format == "json":
+    if args.format == "structured":
+        structured = build_structured_output(result, text)
+        output = structured.model_dump_json(indent=2)
+    elif args.format == "json":
         output = to_json(result)
     elif args.format == "ir":
         output = to_json(result, indent=4)
