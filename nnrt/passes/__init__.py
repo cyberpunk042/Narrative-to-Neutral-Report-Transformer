@@ -5,6 +5,7 @@ from nnrt.passes.p10_segment import segment
 from nnrt.passes.p20_tag_spans import tag_spans
 from nnrt.passes.p22_classify_statements import classify_statements
 from nnrt.passes.p25_annotate_context import annotate_context
+from nnrt.passes.p26_decompose import decompose  # NEW: Statement decomposition
 from nnrt.passes.p30_extract_identifiers import extract_identifiers
 from nnrt.passes.p32_extract_entities import extract_entities
 from nnrt.passes.p34_extract_events import extract_events
@@ -21,6 +22,7 @@ __all__ = [
     "tag_spans",
     "classify_statements",
     "annotate_context",
+    "decompose",
     "extract_identifiers",
     "extract_entities",
     "extract_events",

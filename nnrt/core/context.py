@@ -61,6 +61,10 @@ class TransformContext:
     speech_acts: list[SpeechAct] = field(default_factory=list)
     uncertainty: list[UncertaintyMarker] = field(default_factory=list)
     policy_decisions: list[PolicyDecision] = field(default_factory=list)
+    
+    # NEW: Atomic statements from p25_decompose
+    # Each segment is decomposed into one or more atomic statements
+    atomic_statements: list = field(default_factory=list)  # list[AtomicStatement]
 
     # NEW: Cross-pass decision communication
     # Maps span_id -> PolicyDecision that applies to this span
