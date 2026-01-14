@@ -62,6 +62,51 @@ def setup_default_pipeline(engine: Engine, profile: str = "law_enforcement") -> 
     engine.register_pipeline(default_pipeline)
 
 
+def setup_raw_pipeline(engine: Engine, profile: str = "law_enforcement") -> None:
+    """
+    Register a RAW pipeline that skips rendering.
+    
+    This is a DEBUG feature that exposes what the pipeline extracts
+    BEFORE any rewriting happens. Useful for:
+    - Debugging information loss
+    - Understanding decomposition
+    - Designing structured output
+    
+    The output includes:
+    - Segments with contexts
+    - Spans with labels
+    - Policy decisions (what would be changed)
+    - Entities and events
+    - NO rendered prose (that's the point)
+    """
+    from nnrt.policy.loader import clear_cache
+    from nnrt.policy.engine import set_default_profile
+    
+    clear_cache()
+    set_default_profile(profile)
+    
+    raw_pipeline = Pipeline(
+        id="raw",
+        name="Raw NNRT Pipeline (No Rewrite)",
+        passes=[
+            normalize,
+            segment,
+            tag_spans,
+            annotate_context,
+            classify_statements,
+            extract_identifiers,
+            extract_entities,
+            extract_events,
+            build_ir,
+            evaluate_policy,
+            # NOTE: No render, no cleanup, no package
+            # This preserves the IR before rewriting
+        ],
+    )
+    engine.register_pipeline(raw_pipeline)
+
+
+
 def main() -> int:
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -114,6 +159,11 @@ def main() -> int:
         choices=["standard", "law_enforcement", "base"],
         help="Policy profile to use (default: law_enforcement)",
     )
+    transform_parser.add_argument(
+        "--raw",
+        action="store_true",
+        help="[DEBUG] Skip rendering, output raw decomposed IR. Shows what pipeline extracts before rewriting.",
+    )
 
     args = parser.parse_args()
 
@@ -141,19 +191,30 @@ def run_transform(args: argparse.Namespace) -> int:
     # Setup engine with selected profile
     engine = get_engine()
     profile = getattr(args, 'profile', 'law_enforcement')
-    setup_default_pipeline(engine, profile=profile)
+    
+    # Choose pipeline based on --raw flag
+    use_raw = getattr(args, 'raw', False)
+    if use_raw:
+        setup_raw_pipeline(engine, profile=profile)
+        pipeline_id = "raw"
+    else:
+        setup_default_pipeline(engine, profile=profile)
+        pipeline_id = args.pipeline
 
-    # Enable LLM rendering if requested
-    if args.llm:
+    # Enable LLM rendering if requested (only for non-raw)
+    if args.llm and not use_raw:
         import os
         os.environ["NNRT_USE_LLM"] = "1"
 
     # Run transformation
     request = TransformRequest(text=text)
-    result = engine.transform(request, args.pipeline)
+    result = engine.transform(request, pipeline_id)
 
     # Format output
-    if args.format == "structured":
+    if use_raw:
+        # RAW mode: output decomposed structure without rewriting
+        output = format_raw_output(result, text)
+    elif args.format == "structured":
         structured = build_structured_output(result, text)
         output = structured.model_dump_json(indent=2)
     elif args.format == "json":
@@ -174,6 +235,79 @@ def run_transform(args: argparse.Namespace) -> int:
         print(output)
 
     return 0 if result.status.value in ("success", "partial") else 1
+
+
+def format_raw_output(result, original_text: str) -> str:
+    """
+    Format raw pipeline output for debugging.
+    
+    Shows what the pipeline extracted WITHOUT any rewriting.
+    This is the foundation for designing proper structured output.
+    """
+    lines = [
+        "=" * 80,
+        "NNRT RAW OUTPUT (DEBUG MODE)",
+        "=" * 80,
+        "",
+        "⚠️  DISCLAIMER: This is raw decomposition output.",
+        "    No rewriting has been applied. This shows what NNRT extracts",
+        "    from the narrative BEFORE any neutralization.",
+        "",
+        "=" * 80,
+        f"SEGMENTS ({len(result.segments)})",
+        "=" * 80,
+    ]
+    
+    for i, seg in enumerate(result.segments):
+        contexts = ", ".join(seg.contexts) if seg.contexts else "(none)"
+        lines.append(f"\n[{i}] {seg.id}")
+        lines.append(f"    Text: {seg.text[:100]}{'...' if len(seg.text) > 100 else ''}")
+        lines.append(f"    Contexts: {contexts}")
+        lines.append(f"    Chars: {seg.start_char}-{seg.end_char}")
+    
+    lines.append("")
+    lines.append("=" * 80)
+    lines.append(f"POLICY DECISIONS ({len(result.policy_decisions)})")
+    lines.append("=" * 80)
+    
+    for decision in result.policy_decisions[:50]:  # Limit to first 50
+        action = decision.action.value if hasattr(decision.action, 'value') else str(decision.action)
+        lines.append(f"\n  [{decision.rule_id}]")
+        lines.append(f"    Action: {action}")
+        lines.append(f"    Reason: {decision.reason}")
+        if decision.affected_ids:
+            lines.append(f"    Affects: {decision.affected_ids}")
+    
+    if len(result.policy_decisions) > 50:
+        lines.append(f"\n  ... and {len(result.policy_decisions) - 50} more decisions")
+    
+    lines.append("")
+    lines.append("=" * 80)
+    lines.append(f"IDENTIFIERS ({len(result.identifiers)})")
+    lines.append("=" * 80)
+    
+    for ident in result.identifiers[:20]:
+        lines.append(f"  [{ident.type.value}] {ident.value}")
+    
+    if len(result.identifiers) > 20:
+        lines.append(f"  ... and {len(result.identifiers) - 20} more")
+    
+    # Summary
+    lines.append("")
+    lines.append("=" * 80)
+    lines.append("SUMMARY")
+    lines.append("=" * 80)
+    lines.append(f"  Segments: {len(result.segments)}")
+    lines.append(f"  Spans: {len(result.spans)}")
+    lines.append(f"  Policy decisions: {len(result.policy_decisions)}")
+    lines.append(f"  Identifiers: {len(result.identifiers)}")
+    lines.append(f"  Diagnostics: {len(result.diagnostics)}")
+    lines.append("")
+    lines.append("NOTE: In raw mode, no prose output is produced.")
+    lines.append("      This is intentional - we're showing WHAT was extracted,")
+    lines.append("      not HOW it would be rewritten.")
+    
+    return "\n".join(lines)
 
 
 if __name__ == "__main__":
