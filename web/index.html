@@ -70,6 +70,39 @@
             </div>
         </header>
 
+        <!-- Sticky Quick Nav Bar - RIGHT UNDER HEADER -->
+        <nav class="sticky-nav" id="stickyNav">
+            <div class="sticky-nav-scroll">
+                <button class="sticky-nav-btn hidden" id="scrollTopBtn" onclick="scrollToTop()" title="Scroll to top">
+                    ↑ Top
+                </button>
+                <button class="sticky-nav-btn hidden" id="scrollSectionBtn" onclick="scrollToCurrentSection()"
+                    title="Scroll to section top">
+                    ↑ Section
+                </button>
+            </div>
+            <div class="sticky-nav-links">
+                <a href="#outputPanel" data-panel="outputPanel"
+                    onclick="event.preventDefault(); scrollToPanel('outputPanel')">Output</a>
+                <a href="#atomicStatementsPanel" data-panel="atomicStatementsPanel"
+                    onclick="event.preventDefault(); scrollToPanel('atomicStatementsPanel')">Atomic</a>
+                <a href="#statementsPanel" data-panel="statementsPanel"
+                    onclick="event.preventDefault(); scrollToPanel('statementsPanel')">Statements</a>
+                <a href="#entitiesPanel" data-panel="entitiesPanel"
+                    onclick="event.preventDefault(); scrollToPanel('entitiesPanel')">Entities</a>
+                <a href="#eventsPanel" data-panel="eventsPanel"
+                    onclick="event.preventDefault(); scrollToPanel('eventsPanel')">Events</a>
+                <a href="#transformsPanel" data-panel="transformsPanel"
+                    onclick="event.preventDefault(); scrollToPanel('transformsPanel')">Transforms</a>
+                <a href="#diagnosticsPanel" data-panel="diagnosticsPanel"
+                    onclick="event.preventDefault(); scrollToPanel('diagnosticsPanel')">Diagnostics</a>
+                <a href="#extractedPanel" data-panel="extractedPanel"
+                    onclick="event.preventDefault(); scrollToPanel('extractedPanel')">Extracted</a>
+                <a href="#metadataPanel" data-panel="metadataPanel"
+                    onclick="event.preventDefault(); scrollToPanel('metadataPanel')">Request</a>
+            </div>
+        </nav>
+
         <!-- Main Content -->
         <main class="main-content">
             <!-- Results Panel - This scrolls! -->
@@ -81,40 +114,6 @@
                     <span id="statusText">Ready to transform</span>
                     <div class="stats" id="stats"></div>
                 </div>
-
-                <!-- Sticky Quick Nav Bar -->
-                <nav class="sticky-nav" id="stickyNav">
-                    <div class="sticky-nav-scroll">
-                        <button class="sticky-nav-btn hidden" id="scrollTopBtn" onclick="scrollToTop()"
-                            title="Scroll to top">
-                            ↑ Top
-                        </button>
-                        <button class="sticky-nav-btn hidden" id="scrollSectionBtn" onclick="scrollToCurrentSection()"
-                            title="Scroll to section top">
-                            ↑ Section
-                        </button>
-                    </div>
-                    <div class="sticky-nav-links">
-                        <a href="#outputPanel" data-panel="outputPanel"
-                            onclick="event.preventDefault(); scrollToPanel('outputPanel')">Output</a>
-                        <a href="#atomicStatementsPanel" data-panel="atomicStatementsPanel"
-                            onclick="event.preventDefault(); scrollToPanel('atomicStatementsPanel')">Atomic</a>
-                        <a href="#statementsPanel" data-panel="statementsPanel"
-                            onclick="event.preventDefault(); scrollToPanel('statementsPanel')">Statements</a>
-                        <a href="#entitiesPanel" data-panel="entitiesPanel"
-                            onclick="event.preventDefault(); scrollToPanel('entitiesPanel')">Entities</a>
-                        <a href="#eventsPanel" data-panel="eventsPanel"
-                            onclick="event.preventDefault(); scrollToPanel('eventsPanel')">Events</a>
-                        <a href="#transformsPanel" data-panel="transformsPanel"
-                            onclick="event.preventDefault(); scrollToPanel('transformsPanel')">Transforms</a>
-                        <a href="#diagnosticsPanel" data-panel="diagnosticsPanel"
-                            onclick="event.preventDefault(); scrollToPanel('diagnosticsPanel')">Diagnostics</a>
-                        <a href="#extractedPanel" data-panel="extractedPanel"
-                            onclick="event.preventDefault(); scrollToPanel('extractedPanel')">Extracted</a>
-                        <a href="#metadataPanel" data-panel="metadataPanel"
-                            onclick="event.preventDefault(); scrollToPanel('metadataPanel')">Request</a>
-                    </div>
-                </nav>
 
                 <!-- Live Logs (at top!) - hidden by default -->
                 <section class="panel panel-logs collapsed hidden" id="logsPanel">
