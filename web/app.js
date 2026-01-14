@@ -222,6 +222,16 @@ function scrollToTop() {
     }
 }
 
+function scrollToPanel(panelId) {
+    const panel = document.getElementById(panelId);
+    if (panel) {
+        // Expand the panel first
+        expandPanel(panelId);
+        // Scroll to it
+        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
 // =============================================================================
 // Filter Functions
 // =============================================================================
@@ -666,8 +676,18 @@ function displayResults(result) {
     expandPanel('outputPanel');
 
     // Atomic Statements with filter
-    renderAtomicStatements(result.atomic_statements || []);
-    if ((result.atomic_statements || []).length) expandPanel('atomicStatementsPanel');
+    const atomicStmts = result.atomic_statements || [];
+    const mode = result.metadata?.mode || outputMode;
+    const atomicPanel = document.getElementById('atomicStatementsPanel');
+
+    if (mode === 'raw' && atomicStmts.length === 0) {
+        // Hide panel in raw mode when no atomic statements
+        atomicPanel?.classList.add('hidden');
+    } else {
+        atomicPanel?.classList.remove('hidden');
+        renderAtomicStatements(atomicStmts);
+        if (atomicStmts.length) expandPanel('atomicStatementsPanel');
+    }
 
     // Statements (Legacy) with filter
     renderStatements(result.statements || []);

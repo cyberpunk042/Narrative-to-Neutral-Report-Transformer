@@ -135,6 +135,19 @@
                         </svg>
                     </div>
                     <div class="panel-content">
+                        <nav class="quick-nav" id="quickNav">
+                            <span class="quick-nav-label">Jump to:</span>
+                            <a href="#atomicStatementsPanel"
+                                onclick="event.preventDefault(); scrollToPanel('atomicStatementsPanel')">Atomic</a>
+                            <a href="#statementsPanel"
+                                onclick="event.preventDefault(); scrollToPanel('statementsPanel')">Statements</a>
+                            <a href="#entitiesPanel"
+                                onclick="event.preventDefault(); scrollToPanel('entitiesPanel')">Entities</a>
+                            <a href="#eventsPanel"
+                                onclick="event.preventDefault(); scrollToPanel('eventsPanel')">Events</a>
+                            <a href="#transformsPanel"
+                                onclick="event.preventDefault(); scrollToPanel('transformsPanel')">Transforms</a>
+                        </nav>
                         <div class="output-text" id="outputText">
                             <span class="placeholder">Neutral output will appear here...</span>
                         </div>
