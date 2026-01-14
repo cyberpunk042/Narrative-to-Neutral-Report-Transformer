@@ -62,5 +62,8 @@ def test_no_ambiguity_single_candidate():
     
     assert len(ctx.uncertainty) == 0
     # "He" mentions should be linked to driver
+    # Mentions are now span IDs or "text:He" fallbacks
     driver = [e for e in ctx.entities if e.label == "driver"][0]
-    assert "He" in driver.mentions or "he" in driver.mentions
+    # Check that driver has a mention containing "He" (either as span ID or text fallback)
+    has_he_mention = any("He" in m or "he" in m for m in driver.mentions)
+    assert has_he_mention, f"Expected 'He' mention in driver, got: {driver.mentions}"

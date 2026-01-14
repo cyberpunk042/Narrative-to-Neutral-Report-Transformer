@@ -6,10 +6,10 @@ All outputs are treated as untrusted input.
 """
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
-from nnrt.ir.enums import EventType, SpanLabel
+from nnrt.ir.enums import EntityRole, EntityType, EventType, SpanLabel
 
 
 @dataclass
@@ -21,6 +21,18 @@ class SpanTagResult:
     text: str
     label: SpanLabel
     confidence: float
+
+
+@dataclass
+class EntityExtractResult:
+    """Result from entity extraction."""
+
+    label: str
+    type: EntityType
+    role: EntityRole
+    confidence: float
+    mentions: list[tuple[int, int, str]] = field(default_factory=list)  # (start, end, text)
+    is_new: bool = True  # Whether this is a new entity or links to existing
 
 
 @dataclass
@@ -66,6 +78,38 @@ class SpanTagger(ABC):
         ...
 
 
+class EntityExtractor(ABC):
+    """
+    Abstract interface for entity extraction.
+    
+    Implementations must:
+    - Return entities with confidence scores
+    - Track mentions with positions
+    - Detect ambiguity without resolving it
+    - Never infer identity beyond evidence
+    """
+
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """Backend name for tracing."""
+        ...
+
+    @abstractmethod
+    def extract(self, text: str, existing_entities: list = None) -> list[EntityExtractResult]:
+        """
+        Extract entities from text.
+        
+        Args:
+            text: Original text
+            existing_entities: Previously extracted entities (for resolution)
+            
+        Returns:
+            List of extracted entities with confidence
+        """
+        ...
+
+
 class EventExtractor(ABC):
     """
     Abstract interface for event extraction.
@@ -95,3 +139,4 @@ class EventExtractor(ABC):
             List of extracted events with confidence
         """
         ...
+

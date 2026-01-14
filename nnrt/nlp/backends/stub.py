@@ -4,8 +4,15 @@ Stub Backend — No-op implementation for testing.
 Used to validate pipeline architecture without real NLP models.
 """
 
-from nnrt.ir.enums import EventType, SpanLabel
-from nnrt.nlp.interfaces import EventExtractResult, EventExtractor, SpanTagResult, SpanTagger
+from nnrt.ir.enums import EntityRole, EntityType, EventType, SpanLabel
+from nnrt.nlp.interfaces import (
+    EntityExtractResult,
+    EntityExtractor,
+    EventExtractResult,
+    EventExtractor,
+    SpanTagResult,
+    SpanTagger,
+)
 
 
 class StubSpanTagger(SpanTagger):
@@ -28,6 +35,18 @@ class StubSpanTagger(SpanTagger):
         ]
 
 
+class StubEntityExtractor(EntityExtractor):
+    """Stub entity extractor that returns nothing."""
+
+    @property
+    def name(self) -> str:
+        return "stub"
+
+    def extract(self, text: str, existing_entities: list = None) -> list[EntityExtractResult]:
+        """Return no entities."""
+        return []
+
+
 class StubEventExtractor(EventExtractor):
     """Stub event extractor that returns nothing."""
 
@@ -35,6 +54,7 @@ class StubEventExtractor(EventExtractor):
     def name(self) -> str:
         return "stub"
 
-    def extract(self, text: str, spans: list[SpanTagResult]) -> list[EventExtractResult]:
+    def extract(self, text: str, spans: list[SpanTagResult] = None) -> list[EventExtractResult]:
         """Return no events."""
         return []
+

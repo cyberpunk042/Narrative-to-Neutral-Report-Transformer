@@ -172,14 +172,30 @@ def build_structured_output(result: TransformResult, input_text: str) -> Structu
     transformed = result.rendered_text != input_text if result.rendered_text else False
     
 
+    # Build span lookup for mention resolution
+    span_lookup = {span.id: span.text for span in result.spans}
+    
     entities_out = []
     for ent in result.entities:
+        # Resolve mentions: span IDs -> actual text
+        resolved_mentions = []
+        for m in ent.mentions:
+            if m.startswith("text:"):
+                # Fallback format: "text:He" -> extract "He"
+                resolved_mentions.append({"text": m[5:]})  # Strip "text:" prefix
+            elif m in span_lookup:
+                # Proper span ID -> look up text
+                resolved_mentions.append({"text": span_lookup[m]})
+            else:
+                # Unknown format, pass through
+                resolved_mentions.append({"text": m})
+        
         entities_out.append(EntityOutput(
             id=ent.id,
             type=ent.type.value if hasattr(ent.type, "value") else str(ent.type),
             label=ent.label or "Unknown",
             role=ent.role.value if hasattr(ent.role, "value") else str(ent.role),
-            mentions=[{"text": m} for m in ent.mentions],
+            mentions=resolved_mentions,
             attributes={}
         ))
         
@@ -193,7 +209,7 @@ def build_structured_output(result: TransformResult, input_text: str) -> Structu
             description=evt.description,
             actors=[evt.actor_id] if evt.actor_id else [],
             targets=[evt.target_id] if evt.target_id else [],
-            source_statement="unknown", # Linking logic to be refined
+            source_statement="unknown",  # Linking logic to be refined
             confidence=evt.confidence
         ))
 

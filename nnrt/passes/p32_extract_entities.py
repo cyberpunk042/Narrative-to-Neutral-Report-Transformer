@@ -3,16 +3,17 @@ Pass 32 — Entity Extraction
 
 Extracts and resolves entities (people, vehicles, objects) from the narrative.
 Resolves pronouns and links mentions to canonical entities.
-Replaces the legacy entity logic in p40.
+Stores span IDs (not text) in Entity.mentions per IR schema contract.
 """
 
 from collections import defaultdict
-from typing import Optional, Dict, List
+from dataclasses import dataclass
+from typing import Optional, Dict, List, Tuple
 from uuid import uuid4
 
 from nnrt.core.context import TransformContext
 from nnrt.ir.enums import EntityRole, EntityType, IdentifierType, UncertaintyType
-from nnrt.ir.schema_v0_1 import Entity, UncertaintyMarker
+from nnrt.ir.schema_v0_1 import Entity, UncertaintyMarker, SemanticSpan
 from nnrt.nlp.spacy_loader import get_nlp
 
 PASS_NAME = "p32_extract_entities"
@@ -34,6 +35,16 @@ RESOLVABLE_PRONOUNS = {
 GENERIC_SUBJECTS = {"subject", "suspect", "individual", "male", "female", "driver", "passenger", "partner", "manager", "employee"}
 AUTHORITY_TITLES = {"officer", "deputy", "sergeant", "detective", "lieutenant", "chief", "sheriff", "trooper"}
 
+
+@dataclass
+class MentionLocation:
+    """Temporary storage for mention location before span ID resolution."""
+    segment_id: str
+    start_char: int
+    end_char: int
+    text: str
+
+
 # -----------------------------------------------------------------------------
 # Pass Implementation
 # -----------------------------------------------------------------------------
@@ -44,6 +55,10 @@ def extract_entities(ctx: TransformContext) -> TransformContext:
     
     # 1. Initialize Canonical Entities
     entities: List[Entity] = []
+    
+    # Track mention locations for later span ID resolution
+    # Maps entity_id -> list of MentionLocation
+    pending_mentions: Dict[str, List[MentionLocation]] = defaultdict(list)
     
     # Always exist: Reporter
     reporter = Entity(
@@ -56,21 +71,16 @@ def extract_entities(ctx: TransformContext) -> TransformContext:
     entities.append(reporter)
     
     # 2. Seed from Identifiers (p30)
-    # Map Identifier ID -> Entity
     identifier_map: Dict[str, Entity] = {}
     
     for ident in ctx.identifiers:
         if ident.type in (IdentifierType.NAME, IdentifierType.BADGE_NUMBER, IdentifierType.EMPLOYEE_ID):
-            # Create Authority/Person entity
-            # Check if likely authority
             is_authority = (
                 ident.type != IdentifierType.NAME or 
                 any(t in ident.value.lower() for t in AUTHORITY_TITLES)
             )
-            role = EntityRole.AUTHORITY if is_authority else EntityRole.WITNESS # Default, refinement later
+            role = EntityRole.AUTHORITY if is_authority else EntityRole.WITNESS
             
-            # Simple deduplication by value (e.g. Badge #123)
-            # Find existing entity with same label?
             existing = next((e for e in entities if e.label == ident.value), None)
             
             if existing:
@@ -88,16 +98,11 @@ def extract_entities(ctx: TransformContext) -> TransformContext:
             identifier_map[ident.id] = ent
 
     # 3. Sequential Processing (for Resolution)
-    # We maintain a "focus" history for pronoun resolution
     recent_entities: List[Entity] = [] 
     
     for segment in ctx.segments:
         doc = nlp(segment.text)
         
-        # We need to map spans in this segment to SemanticSpan IDs eventually,
-        # but for resolution we just need offsets.
-        
-        # Iterate noun chunks and pronouns
         for token in doc:
             text_lower = token.text.lower()
             
@@ -113,11 +118,8 @@ def extract_entities(ctx: TransformContext) -> TransformContext:
             
             # B. Check Pronoun Resolution
             elif text_lower in RESOLVABLE_PRONOUNS:
-                # Find most recent compatible entity
-                # He/Him -> Person, not Reporter (usually)
                 candidates = [e for e in reversed(recent_entities) if e != reporter and e.type == EntityType.PERSON]
                 if candidates:
-                    # Detect Ambiguity (Multiple valid candidates)
                     if len(candidates) > 1:
                         lbls = [c.label or "Unknown" for c in candidates[:3]]
                         marker = UncertaintyMarker(
@@ -132,9 +134,6 @@ def extract_entities(ctx: TransformContext) -> TransformContext:
                         
                     match_entity = candidates[0]
                 else:
-                    # If no candidate, create a generic "Individual"
-                    # But wait, maybe it refers to a new Subject?
-                    # For now, create a new Subject
                     match_entity = Entity(
                         id=f"ent_{uuid4().hex[:8]}",
                         type=EntityType.PERSON,
@@ -146,26 +145,17 @@ def extract_entities(ctx: TransformContext) -> TransformContext:
             
             # C. Check Named Entities / Nouns
             elif token.pos_ in ("PROPN", "NOUN"):
-                # Check for overlap with Identifiers
-                # TODO: This requires span mapping which is complex here.
-                # Simplified: Label matching
-                
-                # Check labels of existing entities
                 for ent in entities:
-                    if ent.label and ent.label.lower() in text_lower: # "Smith" in "Officer Smith"
+                    if ent.label and ent.label.lower() in text_lower:
                          match_entity = ent
                          break
                 
                 if not match_entity:
-                    # New Entity?
-                    # If "Officer", "The Officer" -> Authority
                     if text_lower in AUTHORITY_TITLES:
-                         # Link to most recent Authority?
                          candidates = [e for e in reversed(recent_entities) if e.role == EntityRole.AUTHORITY]
                          if candidates:
                              match_entity = candidates[0]
                          else:
-                             # New Authority
                              match_entity = Entity(
                                  id=f"ent_{uuid4().hex[:8]}",
                                  type=EntityType.PERSON,
@@ -175,7 +165,6 @@ def extract_entities(ctx: TransformContext) -> TransformContext:
                              )
                              entities.append(match_entity)
                     elif text_lower in GENERIC_SUBJECTS:
-                        # Create New Subject (Do not merge distinct generic terms)
                         match_entity = Entity(
                             id=f"ent_{uuid4().hex[:8]}",
                             type=EntityType.PERSON,
@@ -185,21 +174,23 @@ def extract_entities(ctx: TransformContext) -> TransformContext:
                         )
                         entities.append(match_entity)
 
-            # If we found or created an entity
+            # If we found or created an entity, record the mention location
             if match_entity:
-                # Add mention text (temporary, IR expects span IDs)
-                match_entity.mentions.append(token.text) # Placeholder
+                # Record mention location for later span ID resolution
+                pending_mentions[match_entity.id].append(MentionLocation(
+                    segment_id=segment.id,
+                    start_char=token.idx,
+                    end_char=token.idx + len(token.text),
+                    text=token.text
+                ))
+                
                 if match_entity not in recent_entities:
                     recent_entities.append(match_entity)
-                # Keep history short-ish
                 if len(recent_entities) > 5:
                     recent_entities.pop(0)
 
-    # 4. Final Cleanup
-    # Deduplicate entities with same label? Done during creation.
-    # Convert 'mentions' which are currently texts to span IDs? 
-    # Current IR expects span IDs. This pass logic doesn't easily map token->span_id without re-scanning ctx.spans.
-    # We will settle for just having the entity list populated for now, matching p40's level of 'mentions' (which p40 did by checking overlap).
+    # 4. Resolve mention locations to span IDs
+    _resolve_mentions_to_spans(entities, pending_mentions, ctx.spans)
 
     ctx.entities = entities
     
@@ -210,3 +201,71 @@ def extract_entities(ctx: TransformContext) -> TransformContext:
     )
     
     return ctx
+
+
+def _resolve_mentions_to_spans(
+    entities: List[Entity],
+    pending_mentions: Dict[str, List[MentionLocation]],
+    spans: List[SemanticSpan]
+) -> None:
+    """
+    Resolve pending mention locations to span IDs.
+    
+    For each mention, find the span that contains or overlaps with it.
+    Store the span ID (not text) in Entity.mentions.
+    """
+    # Build span index by segment for efficient lookup
+    spans_by_segment: Dict[str, List[SemanticSpan]] = defaultdict(list)
+    for span in spans:
+        spans_by_segment[span.segment_id].append(span)
+    
+    for entity in entities:
+        resolved_span_ids = []
+        
+        for mention in pending_mentions.get(entity.id, []):
+            # Find span that contains this mention
+            matching_span = _find_overlapping_span(
+                mention.segment_id,
+                mention.start_char,
+                mention.end_char,
+                spans_by_segment
+            )
+            
+            if matching_span:
+                # Avoid duplicates
+                if matching_span.id not in resolved_span_ids:
+                    resolved_span_ids.append(matching_span.id)
+            else:
+                # No matching span found - store as text fallback with marker
+                # This preserves behavior while indicating it's not a proper span ID
+                fallback = f"text:{mention.text}"
+                if fallback not in resolved_span_ids:
+                    resolved_span_ids.append(fallback)
+        
+        entity.mentions = resolved_span_ids
+
+
+def _find_overlapping_span(
+    segment_id: str,
+    start_char: int,
+    end_char: int,
+    spans_by_segment: Dict[str, List[SemanticSpan]]
+) -> Optional[SemanticSpan]:
+    """Find a span that overlaps with the given character range."""
+    for span in spans_by_segment.get(segment_id, []):
+        # Check if ranges overlap
+        if span.start_char <= start_char and end_char <= span.end_char:
+            # Mention is fully contained in span
+            return span
+        elif start_char <= span.start_char and span.end_char <= end_char:
+            # Span is fully contained in mention
+            return span
+        elif span.start_char <= start_char < span.end_char:
+            # Mention starts within span
+            return span
+        elif span.start_char < end_char <= span.end_char:
+            # Mention ends within span
+            return span
+    
+    return None
+
