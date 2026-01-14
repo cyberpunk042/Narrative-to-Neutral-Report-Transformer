@@ -1,0 +1,344 @@
+# NNRT Output Schema v0.1
+# This is the target output format for NNRT decomposition.
+# Prose is a DERIVED view, not the primary output.
+
+$schema: "http://json-schema.org/draft-07/schema#"
+title: "NNRT Decomposed Output"
+version: "0.1.0"
+description: |
+  NNRT transforms narratives into structured, typed statements.
+  
+  Core principles:
+  1. Every statement has an explicit type
+  2. Sources are tracked (who is making this claim?)
+  3. Provenance is maintained (interpretations link to observations)
+  4. Prose is derived, never primary
+  
+  This schema represents the DECOMPOSITION output, not the
+  rewritten prose output.
+
+# =============================================================================
+# STATEMENT TYPES
+# =============================================================================
+statement_types:
+  observation:
+    description: "Factual, verifiable action or state"
+    examples:
+      - "Officer Jenkins grabbed reporter's left arm"
+      - "Vehicle stopped at intersection"
+      - "Reporter was handcuffed"
+    characteristics:
+      - Can be verified by video/witnesses
+      - No judgment or inference
+      - Physical actions, positions, times
+
+  reported_speech:
+    description: "Direct quote from any speaker"
+    examples:
+      - '"STOP RIGHT THERE!"'
+      - '"What problem, officer?"'
+    characteristics:
+      - Must be in quotes in original
+      - Preserves exact wording
+      - Speaker is identified
+
+  claim:
+    description: "Reporter's assertion that cannot be independently verified"
+    examples:
+      - "Force caused pain"
+      - "Handcuffs were too tight"
+      - "Call was mysteriously lost"
+    characteristics:
+      - Reporter asserts something as fact
+      - Cannot verify without reporter testimony
+      - Often about internal states (pain, fear)
+
+  interpretation:
+    description: "Reporter's inference about intent, motive, or meaning"
+    examples:
+      - "Reporter believes officers intended harm"
+      - "Reporter perceives this as racial profiling"
+      - "Reporter interprets silence as conspiracy"
+    characteristics:
+      - Explicitly framed as reporter's interpretation
+      - About mental states, motives, intentions
+      - Derived from observations/claims
+
+  medical_record:
+    description: "Documented medical finding"
+    examples:
+      - "ER documented bruises on both wrists"
+      - "Doctor diagnosed sprained shoulder"
+    characteristics:
+      - From official medical source
+      - Objective clinical finding
+      - Timestamped and attributable
+
+  third_party_claim:
+    description: "Statement attributed to someone other than reporter"
+    examples:
+      - "Witness Marcus Johnson states he saw officers approach"
+      - "Doctor stated injuries were consistent with force"
+    characteristics:
+      - Attributable to named third party
+      - May be observation or claim from their perspective
+
+  unknown:
+    description: "Cannot be confidently classified"
+    examples:
+      - Complex mixed statements
+      - Ambiguous phrasing
+    characteristics:
+      - Fallback category
+      - Should trigger review flag
+
+# =============================================================================
+# SCHEMA DEFINITION
+# =============================================================================
+definitions:
+  Statement:
+    type: object
+    required: [id, type, content, source]
+    properties:
+      id:
+        type: string
+        description: "Unique identifier for this statement"
+        examples: ["stmt_001", "stmt_002"]
+      
+      type:
+        type: string
+        enum: [observation, reported_speech, claim, interpretation, medical_record, third_party_claim, unknown]
+        description: "Classification of this statement"
+      
+      content:
+        type: string
+        description: "The statement content, normalized but not neutralized"
+      
+      source:
+        type: object
+        properties:
+          type:
+            type: string
+            enum: [reporter, witness, officer, document, unknown]
+          name:
+            type: string
+            description: "Name if identified (e.g., 'Marcus Johnson')"
+          role:
+            type: string
+            description: "Role if applicable (e.g., 'neighbor', 'ER physician')"
+      
+      original_span:
+        type: object
+        properties:
+          start:
+            type: integer
+          end:
+            type: integer
+        description: "Character offsets in original input"
+      
+      confidence:
+        type: string
+        enum: [high, medium, low, unknown]
+        description: "Confidence in classification"
+      
+      derived_from:
+        type: array
+        items:
+          type: string
+        description: "IDs of statements this is derived from (for interpretations)"
+      
+      flags:
+        type: array
+        items:
+          type: string
+        description: "Review flags (e.g., 'needs_human_review', 'ambiguous')"
+      
+      speaker:
+        type: string
+        description: "For reported_speech, who said this"
+
+  Entity:
+    type: object
+    properties:
+      id:
+        type: string
+      type:
+        type: string
+        enum: [person, location, organization, vehicle, time, date]
+      name:
+        type: string
+      role:
+        type: string
+        enum: [officer, reporter, witness, authority, medical, legal, unknown]
+      identifiers:
+        type: object
+        additionalProperties: true
+        description: "Badge numbers, addresses, etc."
+
+  Timeline:
+    type: object
+    properties:
+      events:
+        type: array
+        items:
+          type: object
+          properties:
+            time:
+              type: string
+              description: "ISO timestamp or relative time"
+            precision:
+              type: string
+              enum: [exact, approximate, relative, unknown]
+            statement_ids:
+              type: array
+              items:
+                type: string
+
+# =============================================================================
+# ROOT OUTPUT OBJECT
+# =============================================================================
+type: object
+required: [version, statements]
+properties:
+  version:
+    type: string
+    const: "0.1.0"
+  
+  request_id:
+    type: string
+    description: "Unique identifier for this transformation"
+  
+  input_hash:
+    type: string
+    description: "Hash of original input for verification"
+  
+  statements:
+    type: array
+    items:
+      $ref: "#/definitions/Statement"
+    description: "The decomposed, typed statements"
+  
+  entities:
+    type: array
+    items:
+      $ref: "#/definitions/Entity"
+    description: "Extracted entities with roles"
+  
+  timeline:
+    $ref: "#/definitions/Timeline"
+    description: "Optional temporal ordering"
+  
+  metadata:
+    type: object
+    properties:
+      processing_time_ms:
+        type: integer
+      segment_count:
+        type: integer
+      statement_count:
+        type: integer
+      profile_used:
+        type: string
+  
+  diagnostics:
+    type: array
+    items:
+      type: object
+      properties:
+        level:
+          type: string
+          enum: [info, warning, error]
+        code:
+          type: string
+        message:
+          type: string
+  
+  # OPTIONAL: Derived prose view
+  # This is explicitly secondary and optional
+  derived_prose:
+    type: string
+    description: |
+      Optional rendered prose. This is a DERIVED view of the statements,
+      NOT the primary output. May be omitted in structured-output mode.
+
+# =============================================================================
+# EXAMPLE OUTPUT
+# =============================================================================
+examples:
+  - version: "0.1.0"
+    request_id: "abc123"
+    statements:
+      - id: "stmt_001"
+        type: "observation"
+        content: "Officer Jenkins grabbed reporter's left arm and twisted it behind reporter's back."
+        source:
+          type: "reporter"
+        original_span:
+          start: 1523
+          end: 1601
+        confidence: "high"
+      
+      - id: "stmt_002"
+        type: "reported_speech"
+        content: "STOP RIGHT THERE! DON'T YOU DARE MOVE!"
+        source:
+          type: "reporter"
+        speaker: "Officer Jenkins"
+        original_span:
+          start: 245
+          end: 283
+        confidence: "high"
+      
+      - id: "stmt_003"
+        type: "claim"
+        content: "Force caused pain to reporter."
+        source:
+          type: "reporter"
+        original_span:
+          start: 1601
+          end: 1650
+        confidence: "high"
+        derived_from: ["stmt_001"]
+      
+      - id: "stmt_004"
+        type: "interpretation"
+        content: "Reporter believes force was excessive."
+        source:
+          type: "reporter"
+        original_span:
+          start: 1601
+          end: 1700
+        confidence: "medium"
+        derived_from: ["stmt_001", "stmt_003"]
+        flags: ["subjective_judgment"]
+      
+      - id: "stmt_005"
+        type: "medical_record"
+        content: "ER documented bruises on both wrists and sprained left shoulder."
+        source:
+          type: "document"
+          role: "medical"
+          name: "St. Mary's Hospital ER"
+        original_span:
+          start: 2100
+          end: 2180
+        confidence: "high"
+    
+    entities:
+      - id: "ent_001"
+        type: "person"
+        name: "Officer Jenkins"
+        role: "officer"
+        identifiers:
+          badge: "4821"
+      
+      - id: "ent_002"
+        type: "person"
+        name: "Marcus Johnson"
+        role: "witness"
+    
+    metadata:
+      processing_time_ms: 1234
+      segment_count: 24
+      statement_count: 5
+      profile_used: "law_enforcement"
