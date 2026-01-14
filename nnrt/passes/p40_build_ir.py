@@ -256,7 +256,7 @@ def _build_neutral_description(verb_token, doc) -> str:
     # Subject
     for child in verb_token.children:
         if child.dep_ in ("nsubj", "nsubjpass"):
-            parts.append(f"[{child.text}]")
+            parts.append(child.text)
     
     # Verb phrase
     parts.append(verb_token.text)

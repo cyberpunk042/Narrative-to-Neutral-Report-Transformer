@@ -14,8 +14,8 @@ import spacy
 from spacy.tokens import Doc, span
 
 from nnrt.core.context import TransformContext
-from nnrt.ir.enums import EntityRole, EntityType, IdentifierType
-from nnrt.ir.schema_v0_1 import Entity
+from nnrt.ir.enums import EntityRole, EntityType, IdentifierType, UncertaintyType
+from nnrt.ir.schema_v0_1 import Entity, UncertaintyMarker
 
 PASS_NAME = "p32_extract_entities"
 
@@ -33,7 +33,7 @@ RESOLVABLE_PRONOUNS = {
 }
 
 # Generic terms that usually map to new entities if not determining
-GENERIC_SUBJECTS = {"subject", "suspect", "individual", "male", "female", "driver", "passenger"}
+GENERIC_SUBJECTS = {"subject", "suspect", "individual", "male", "female", "driver", "passenger", "partner", "manager", "employee"}
 AUTHORITY_TITLES = {"officer", "deputy", "sergeant", "detective", "lieutenant", "chief", "sheriff", "trooper"}
 
 _nlp = None
@@ -126,6 +126,19 @@ def extract_entities(ctx: TransformContext) -> TransformContext:
                 # He/Him -> Person, not Reporter (usually)
                 candidates = [e for e in reversed(recent_entities) if e != reporter and e.type == EntityType.PERSON]
                 if candidates:
+                    # Detect Ambiguity (Multiple valid candidates)
+                    if len(candidates) > 1:
+                        lbls = [c.label or "Unknown" for c in candidates[:3]]
+                        marker = UncertaintyMarker(
+                            id=f"unc_{uuid4().hex[:8]}",
+                            type=UncertaintyType.AMBIGUOUS_REFERENCE,
+                            text=token.text,
+                            description=f"Ambiguous pronoun '{token.text}' could refer to: {', '.join(lbls)}",
+                            affected_ids=[segment.id],
+                            source=PASS_NAME,
+                        )
+                        ctx.uncertainty.append(marker)
+                        
                     match_entity = candidates[0]
                 else:
                     # If no candidate, create a generic "Individual"
@@ -171,20 +184,15 @@ def extract_entities(ctx: TransformContext) -> TransformContext:
                              )
                              entities.append(match_entity)
                     elif text_lower in GENERIC_SUBJECTS:
-                        # Link to most recent Subject
-                        candidates = [e for e in reversed(recent_entities) if e.role == EntityRole.SUBJECT]
-                        if candidates:
-                            match_entity = candidates[0]
-                        else:
-                            # New Subject
-                            match_entity = Entity(
-                                id=f"ent_{uuid4().hex[:8]}",
-                                type=EntityType.PERSON,
-                                role=EntityRole.SUBJECT,
-                                label=token.text,
-                                mentions=[]
-                             )
-                            entities.append(match_entity)
+                        # Create New Subject (Do not merge distinct generic terms)
+                        match_entity = Entity(
+                            id=f"ent_{uuid4().hex[:8]}",
+                            type=EntityType.PERSON,
+                            role=EntityRole.SUBJECT,
+                            label=token.text,
+                            mentions=[]
+                        )
+                        entities.append(match_entity)
 
             # If we found or created an entity
             if match_entity:

@@ -13,6 +13,7 @@ import yaml
 
 from nnrt.core.context import TransformRequest
 from nnrt.core.engine import Engine, Pipeline
+from nnrt.cli.main import setup_default_pipeline
 from nnrt.passes import (
     augment_ir,
     build_ir,
@@ -33,22 +34,7 @@ GOLDEN_DIR = Path(__file__).parent.parent / "data" / "golden"
 def engine():
     """Create an engine with the default pipeline."""
     eng = Engine()
-    pipeline = Pipeline(
-        id="default",
-        name="Default NNRT Pipeline",
-        passes=[
-            normalize,
-            segment,
-            tag_spans,
-            extract_identifiers,
-            build_ir,
-            evaluate_policy,
-            augment_ir,
-            render,
-            package,
-        ],
-    )
-    eng.register_pipeline(pipeline)
+    setup_default_pipeline(eng)
     return eng
 
 

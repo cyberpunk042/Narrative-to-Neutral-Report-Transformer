@@ -42,6 +42,7 @@ VERB_TYPES = {
     "restrain": EventType.ACTION,
     "cuff": EventType.ACTION,
     "handcuff": EventType.ACTION,
+    "resist": EventType.ACTION,
     
     # Movement
     "walk": EventType.MOVEMENT,
