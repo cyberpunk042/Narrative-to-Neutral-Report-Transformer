@@ -493,7 +493,7 @@ function displayResults(result) {
         `).join('') : '<div class="empty-state">No statements</div>';
     }
     // Don't auto-expand legacy statements if we have atomic ones
-    if (statements.length && !atomicStatements.length) expandPanel('statementsPanel');
+    if (statements.length && !(result.atomic_statements || []).length) expandPanel('statementsPanel');
 
     // Entities with filter
     renderEntities(result.entities || []);

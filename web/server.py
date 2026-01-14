@@ -365,15 +365,33 @@ def transform_stream():
                     'atomic_statements': len(atomic_statements_output),
                     'entities': len(structured.entities),
                     'events': len(structured.events),
+                    'transformations': sum(len(s.transformations) for s in structured.statements),
+                    'identifiers': len(result.identifiers),
                 },
                 'metadata': {
                     'request_id': str(uuid4()),
+                    'processing_time_ms': 0,  # TODO: track actual time
+                    'input_length': len(text),
+                    'output_length': len(result.rendered_text or ''),
                     'pipeline': mode,
                     'no_prose': no_prose,
                     'llm_mode': use_llm,
                     'version': '0.3.0',
                 },
+                # Extracted identifiers by type (same as regular endpoint)
+                'extracted': {},
             }
+            
+            # Build extracted identifiers by type
+            for ident in result.identifiers:
+                ident_type = ident.type.value if hasattr(ident.type, 'value') else str(ident.type)
+                if ident_type not in output['extracted']:
+                    output['extracted'][ident_type] = []
+                output['extracted'][ident_type].append({
+                    'value': ident.value,
+                    'confidence': ident.confidence,
+                })
+            
             yield f"data: {json.dumps(output)}\n\n"
     
     return Response(generate(), mimetype='text/event-stream')
