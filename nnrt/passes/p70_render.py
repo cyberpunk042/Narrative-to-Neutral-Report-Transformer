@@ -119,13 +119,18 @@ def _render_template(ctx: TransformContext) -> TransformContext:
         # Apply span-based transformations for content not caught by rules
         segment_spans = [s for s in ctx.spans if s.segment_id == segment.id]
         for span in segment_spans:
+            # NEW: Check if span is protected or has a decision already
+            if ctx.is_protected(segment.id, span.start_char, span.end_char):
+                continue  # Protected - skip transformation
+            
+            existing_decision = ctx.get_span_decision(span.id)
+            if existing_decision and existing_decision.action.value == "preserve":
+                continue  # Policy said preserve - skip
+            
             if span.label == SpanLabel.LEGAL_CONCLUSION:
-                # Check if this is part of a charge description (should be preserved)
-                charge_contexts = [
-                    "charged with", "charge of", "accused of", "accused me of",
-                    "charged me with", "arrested for"
-                ]
-                is_charge_context = any(ctx_phrase in segment.text.lower() for ctx_phrase in charge_contexts)
+                # REFACTORED: Use context annotation instead of re-analyzing
+                # SegmentContext.CHARGE_DESCRIPTION = "charge"
+                is_charge_context = "charge" in segment.contexts
                 
                 if span.text in rendered and not is_charge_context:
                     rendered = _remove_phrase(rendered, span.text)
@@ -138,6 +143,14 @@ def _render_template(ctx: TransformContext) -> TransformContext:
                     )
             
             elif span.label == SpanLabel.INTENT_ATTRIBUTION:
+                # REFACTORED: Check for physical attempt context
+                # SegmentContext.PHYSICAL_ATTEMPT = "physical_attempt"
+                is_physical_attempt = "physical_attempt" in segment.contexts
+                
+                if is_physical_attempt:
+                    # Physical attempt (tried to say/breathe) - preserve
+                    continue
+                
                 if span.text in rendered:
                     replacement = _get_intent_replacement(span.text)
                     if replacement is not None:

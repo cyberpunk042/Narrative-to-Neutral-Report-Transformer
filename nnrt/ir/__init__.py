@@ -11,6 +11,7 @@ from nnrt.ir.enums import (
     EventType,
     IdentifierType,
     PolicyAction,
+    SegmentContext,
     SpanLabel,
     SpeechActType,
     TransformStatus,
@@ -34,6 +35,7 @@ from nnrt.ir.schema_v0_1 import (
 __all__ = [
     # Enums
     "SpanLabel",
+    "SegmentContext",
     "EntityRole",
     "IdentifierType",
     "EventType",

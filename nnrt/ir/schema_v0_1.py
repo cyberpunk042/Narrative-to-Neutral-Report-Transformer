@@ -32,6 +32,20 @@ class Segment(BaseModel):
     start_char: int = Field(..., description="Character offset in original input")
     end_char: int = Field(..., description="Character offset end")
     source_line: Optional[int] = Field(None, description="Line number if available")
+    
+    # NEW: Context annotations (set by p25_annotate_context)
+    contexts: list[str] = Field(
+        default_factory=list,
+        description="Context classifications for this segment (SegmentContext values)"
+    )
+    quote_depth: int = Field(
+        default=0,
+        description="Nesting level of quotes (0 = not in quote, 1 = direct quote, 2 = quote in quote)"
+    )
+    source_type: str = Field(
+        default="narrator",
+        description="Who is the source of this content (narrator, subject, officer, witness)"
+    )
 
 
 class SemanticSpan(BaseModel):

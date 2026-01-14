@@ -62,6 +62,14 @@ class TransformContext:
     uncertainty: list[UncertaintyMarker] = field(default_factory=list)
     policy_decisions: list[PolicyDecision] = field(default_factory=list)
 
+    # NEW: Cross-pass decision communication
+    # Maps span_id -> PolicyDecision that applies to this span
+    span_decisions: dict[str, PolicyDecision] = field(default_factory=dict)
+    
+    # NEW: Protected character ranges per segment
+    # Maps segment_id -> list of (start, end) ranges that should not be modified
+    protected_ranges: dict[str, list[tuple[int, int]]] = field(default_factory=dict)
+
     # Trace and diagnostics
     trace: list[TraceEntry] = field(default_factory=list)
     diagnostics: list[Diagnostic] = field(default_factory=list)
@@ -72,6 +80,68 @@ class TransformContext:
 
     # Internal
     start_time: datetime = field(default_factory=datetime.now)
+    
+    # =========================================================================
+    # Cross-Pass Communication Helpers
+    # =========================================================================
+    
+    def set_span_decision(self, span_id: str, decision: PolicyDecision) -> None:
+        """
+        Record a policy decision for a specific span.
+        
+        This allows downstream passes to know what was decided about a span
+        without re-analyzing the text.
+        """
+        self.span_decisions[span_id] = decision
+    
+    def get_span_decision(self, span_id: str) -> Optional[PolicyDecision]:
+        """Get the policy decision for a span, if any was recorded."""
+        return self.span_decisions.get(span_id)
+    
+    def protect_span(self, span: SemanticSpan) -> None:
+        """
+        Mark a span's character range as protected from modification.
+        
+        Protected ranges will not be transformed by the render pass.
+        """
+        seg_id = span.segment_id
+        if seg_id not in self.protected_ranges:
+            self.protected_ranges[seg_id] = []
+        self.protected_ranges[seg_id].append((span.start_char, span.end_char))
+    
+    def protect_range(self, segment_id: str, start: int, end: int) -> None:
+        """Directly protect a character range in a segment."""
+        if segment_id not in self.protected_ranges:
+            self.protected_ranges[segment_id] = []
+        self.protected_ranges[segment_id].append((start, end))
+    
+    def is_protected(self, segment_id: str, start: int, end: int) -> bool:
+        """
+        Check if a character range overlaps with any protected range.
+        
+        Returns True if ANY part of [start, end) overlaps with a protected range.
+        """
+        if segment_id not in self.protected_ranges:
+            return False
+        for pstart, pend in self.protected_ranges[segment_id]:
+            # Check for overlap
+            if start < pend and end > pstart:
+                return True
+        return False
+    
+    def has_context(self, segment_id: str, context: str) -> bool:
+        """Check if a segment has a specific context annotation."""
+        for seg in self.segments:
+            if seg.id == segment_id:
+                return context in seg.contexts
+        return False
+    
+    def get_segment_contexts(self, segment_id: str) -> list[str]:
+        """Get all context annotations for a segment."""
+        for seg in self.segments:
+            if seg.id == segment_id:
+                return seg.contexts
+        return []
 
     @classmethod
     def from_request(cls, request: TransformRequest) -> "TransformContext":

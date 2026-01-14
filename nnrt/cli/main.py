@@ -12,6 +12,7 @@ from nnrt.core.context import TransformRequest
 from nnrt.core.engine import Engine, Pipeline, get_engine
 from nnrt.ir.serialization import to_json
 from nnrt.passes import (
+    annotate_context,
     augment_ir,
     build_ir,
     evaluate_policy,
@@ -33,6 +34,7 @@ def setup_default_pipeline(engine: Engine) -> None:
             normalize,
             segment,
             tag_spans,
+            annotate_context,  # NEW: Annotate segment contexts
             extract_identifiers,
             build_ir,
             evaluate_policy,

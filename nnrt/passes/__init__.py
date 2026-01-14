@@ -3,6 +3,7 @@
 from nnrt.passes.p00_normalize import normalize
 from nnrt.passes.p10_segment import segment
 from nnrt.passes.p20_tag_spans import tag_spans
+from nnrt.passes.p25_annotate_context import annotate_context
 from nnrt.passes.p30_extract_identifiers import extract_identifiers
 from nnrt.passes.p40_build_ir import build_ir
 from nnrt.passes.p50_policy import evaluate_policy
@@ -14,6 +15,7 @@ __all__ = [
     "normalize",
     "segment",
     "tag_spans",
+    "annotate_context",
     "extract_identifiers",
     "build_ir",
     "evaluate_policy",
@@ -21,3 +23,4 @@ __all__ = [
     "render",
     "package",
 ]
+

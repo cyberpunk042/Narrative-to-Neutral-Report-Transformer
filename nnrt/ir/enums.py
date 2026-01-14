@@ -35,6 +35,43 @@ class SpanLabel(str, Enum):
     UNKNOWN = "unknown"
 
 
+class SegmentContext(str, Enum):
+    """
+    High-level context classification for segments.
+    
+    This tells downstream passes HOW to interpret content,
+    enabling context-aware transformation decisions.
+    """
+    
+    # Speech contexts
+    DIRECT_QUOTE = "direct_quote"          # Exact words spoken (must preserve)
+    REPORTED_SPEECH = "reported_speech"    # Paraphrased speech
+    
+    # Legal/Accusation contexts
+    CHARGE_DESCRIPTION = "charge"          # "charged me with X" - preserve X
+    ACCUSATION = "accusation"              # "accused me of X" - preserve X
+    OFFICIAL_REPORT = "official_report"    # Police report language
+    
+    # Physical description
+    PHYSICAL_FORCE = "physical_force"      # Observable physical actions
+    PHYSICAL_ATTEMPT = "physical_attempt"  # "tried to move/say/breathe"
+    INJURY_DESCRIPTION = "injury"          # Description of injuries
+    
+    # Narrator contexts
+    EMOTIONAL_IMPACT = "emotional"         # Narrator's emotional state
+    TIMELINE = "timeline"                  # Temporal sequence
+    OBSERVATION = "observation"            # Factual observation
+    INTERPRETATION = "interpretation"      # Narrator's interpretation
+    
+    # Meta contexts
+    CREDIBILITY_ASSERTION = "credibility"  # "I swear I'm telling the truth"
+    SARCASM = "sarcasm"                    # Detected sarcasm/irony
+    
+    # Neutral
+    NEUTRAL = "neutral"                    # Already neutral content
+    UNKNOWN = "unknown"
+
+
 class EntityRole(str, Enum):
     """Roles entities can play in a narrative."""
 

@@ -1,0 +1,178 @@
+"""
+Pass 25: Annotate Context — Detect segment-level contexts.
+
+This pass analyzes segments and annotates them with context classifications:
+- CHARGE_DESCRIPTION: "charged with", "accused of" 
+- DIRECT_QUOTE: Content in quotation marks
+- PHYSICAL_FORCE: Observable physical actions
+- PHYSICAL_ATTEMPT: "tried to say/breathe/move"
+- INJURY_DESCRIPTION: Injuries described
+- TIMELINE: Temporal markers
+- etc.
+
+These context annotations enable downstream passes (especially render)
+to make context-aware decisions WITHOUT re-analyzing the text.
+"""
+
+import re
+from uuid import uuid4
+
+from nnrt.core.context import TransformContext
+from nnrt.ir.enums import SegmentContext
+
+PASS_NAME = "annotate_context"
+
+
+# ============================================================================
+# Context Detection Patterns
+# ============================================================================
+
+# Charge/accusation language
+CHARGE_PATTERNS = [
+    r"\bcharged?\s+(me\s+)?with\b",
+    r"\baccused?\s+(me\s+)?of\b",
+    r"\barrested?\s+(me\s+)?for\b",
+    r"\bcharg(e|es|ing)\s+of\b",
+]
+
+# Physical force descriptors
+PHYSICAL_FORCE_PATTERNS = [
+    r"\b(grabbed|yanked|pulled|pushed|shoved|threw|slammed|tackled)\b",
+    r"\b(punched|struck|hit|kicked|beat|choked|strangled)\b",
+    r"\b(handcuff|cuff|restrain|pin|knee)\b",
+    r"\b(ground|floor|wall|hood|pavement|asphalt)\b",
+]
+
+# Physical attempt (NOT intent attribution)
+PHYSICAL_ATTEMPT_PATTERNS = [
+    r"\btried?\s+to\s+(say|speak|talk|yell|scream|shout)\b",
+    r"\btried?\s+to\s+(breathe|breath|move|stand|sit|run|walk)\b",
+    r"\btried?\s+to\s+(open|close|reach|grab|pull|push)\b",
+    r"\btrying\s+to\s+(say|speak|talk|breathe|move)\b",
+    r"\bcouldn'?t\s+(breathe|move|speak|see)\b",
+]
+
+# Injury descriptions
+INJURY_PATTERNS = [
+    r"\b(bleed|bleeding|blood|bruise|bruises|bruising)\b",
+    r"\b(broken|fractured|cracked|swollen|swelling)\b",
+    r"\b(pain|hurt|hurts|painful|injury|injuries)\b",
+    r"\b(hospital|doctor|medical|ER|emergency)\b",
+    r"\b(nerve\s+damage|permanent|surgery)\b",
+]
+
+# Timeline/temporal markers
+TIMELINE_PATTERNS = [
+    r"\b\d{1,2}:\d{2}\s*(AM|PM|am|pm)?\b",
+    r"\b\d{1,2}\s*(AM|PM|am|pm)\b",
+    r"\b\d{4}\s*hours?\b",
+    r"\b(before|after|then|during|while|when)\b",
+    r"\b(first|next|finally|immediately|eventually)\b",
+    r"\b\d+\s*(second|minute|hour|day|week|month)s?\b",
+]
+
+# Credibility assertions (meta-commentary)
+CREDIBILITY_PATTERNS = [
+    r"\bi\s+swear\b",
+    r"\bi'?m\s+(not\s+)?lying\b",
+    r"\bi'?m\s+telling\s+(you\s+)?the\s+truth\b",
+    r"\byou\s+(probably\s+)?won'?t\s+believe\b",
+    r"\bthis\s+sounds\s+crazy\b",
+]
+
+# Official/neutral report language
+OFFICIAL_REPORT_PATTERNS = [
+    r"\b\d{4}\s*hours\b",  # Military time
+    r"\bsubject\s+(was|is|did)\b",
+    r"\bI\s+observed\b",
+    r"\bupon\s+arrival\b",
+    r"\bthe\s+vehicle\s+(was|is)\b",
+]
+
+
+def annotate_context(ctx: TransformContext) -> TransformContext:
+    """
+    Annotate segments with context classifications.
+    
+    This pass does NOT transform text. It only adds metadata
+    that downstream passes can use to make decisions.
+    """
+    total_annotations = 0
+    
+    for segment in ctx.segments:
+        text = segment.text
+        text_lower = text.lower()
+        contexts: list[str] = []
+        
+        # Check for charge/accusation context
+        if _matches_any(text_lower, CHARGE_PATTERNS):
+            contexts.append(SegmentContext.CHARGE_DESCRIPTION.value)
+        
+        # Check for physical force
+        if _matches_any(text_lower, PHYSICAL_FORCE_PATTERNS):
+            contexts.append(SegmentContext.PHYSICAL_FORCE.value)
+        
+        # Check for physical attempt (NOT intent attribution)
+        if _matches_any(text_lower, PHYSICAL_ATTEMPT_PATTERNS):
+            contexts.append(SegmentContext.PHYSICAL_ATTEMPT.value)
+        
+        # Check for injury description
+        if _matches_any(text_lower, INJURY_PATTERNS):
+            contexts.append(SegmentContext.INJURY_DESCRIPTION.value)
+        
+        # Check for timeline markers
+        if _matches_any(text_lower, TIMELINE_PATTERNS):
+            contexts.append(SegmentContext.TIMELINE.value)
+        
+        # Check for credibility assertions
+        if _matches_any(text_lower, CREDIBILITY_PATTERNS):
+            contexts.append(SegmentContext.CREDIBILITY_ASSERTION.value)
+        
+        # Check for official report language
+        if _matches_any(text_lower, OFFICIAL_REPORT_PATTERNS):
+            contexts.append(SegmentContext.OFFICIAL_REPORT.value)
+        
+        # Detect direct quotes (straight and curly)
+        quote_count = (
+            text.count('"') +      # Straight double
+            text.count("'") +      # Straight single
+            text.count('\u201c') + # Left curly double "
+            text.count('\u201d') + # Right curly double "
+            text.count('\u2018') + # Left curly single '
+            text.count('\u2019')   # Right curly single '
+        )
+        if quote_count >= 2:  # At least one pair of quotes
+            contexts.append(SegmentContext.DIRECT_QUOTE.value)
+            segment.quote_depth = 1
+        
+        # If no specific context, mark as observation (default)
+        if not contexts:
+            contexts.append(SegmentContext.OBSERVATION.value)
+        
+        # Update segment
+        segment.contexts = contexts
+        total_annotations += len(contexts)
+        
+        # Add trace
+        ctx.add_trace(
+            pass_name=PASS_NAME,
+            action="annotated_contexts",
+            after=f"{segment.id}: {contexts}",
+            affected_ids=[segment.id],
+        )
+    
+    ctx.add_trace(
+        pass_name=PASS_NAME,
+        action="completed",
+        after=f"{len(ctx.segments)} segments, {total_annotations} context annotations",
+    )
+    
+    return ctx
+
+
+def _matches_any(text: str, patterns: list[str]) -> bool:
+    """Check if text matches any of the regex patterns."""
+    for pattern in patterns:
+        if re.search(pattern, text, re.IGNORECASE):
+            return True
+    return False
