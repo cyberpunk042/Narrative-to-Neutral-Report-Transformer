@@ -12,6 +12,7 @@ from nnrt.passes.p40_build_ir import build_ir
 from nnrt.passes.p50_policy import evaluate_policy
 from nnrt.passes.p60_augment_ir import augment_ir
 from nnrt.passes.p70_render import render
+from nnrt.passes.p75_cleanup_punctuation import cleanup_punctuation
 from nnrt.passes.p80_package import package
 
 __all__ = [
@@ -27,5 +28,7 @@ __all__ = [
     "evaluate_policy",
     "augment_ir",
     "render",
+    "cleanup_punctuation",
     "package",
 ]
+

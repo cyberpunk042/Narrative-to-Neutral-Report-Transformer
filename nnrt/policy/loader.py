@@ -101,6 +101,7 @@ def parse_rule(data: dict) -> Optional[PolicyRule]:
             patterns=match_data["patterns"],
             context=match_data.get("context", []),
             case_sensitive=match_data.get("case_sensitive", False),
+            exempt_following=match_data.get("exempt_following", []),
         )
         
         # Parse diagnostic if present

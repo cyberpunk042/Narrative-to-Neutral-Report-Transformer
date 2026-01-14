@@ -31,6 +31,8 @@ from nnrt.passes import (
 
 def setup_default_pipeline(engine: Engine) -> None:
     """Register the default pipeline."""
+    from nnrt.passes import cleanup_punctuation
+    
     default_pipeline = Pipeline(
         id="default",
         name="Default NNRT Pipeline",
@@ -47,6 +49,7 @@ def setup_default_pipeline(engine: Engine) -> None:
             evaluate_policy,
             augment_ir,
             render,
+            cleanup_punctuation,  # NEW: Fix punctuation artifacts
             package,
         ],
     )

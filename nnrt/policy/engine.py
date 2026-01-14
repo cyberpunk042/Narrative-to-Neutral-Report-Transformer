@@ -104,12 +104,15 @@ class PolicyEngine:
                     pos = search_text.find(search_pattern, idx)
                     if pos == -1:
                         break
-                    matches.append(RuleMatch(
-                        rule=rule,
-                        matched_text=text[pos:pos + len(pattern)],
-                        start=pos,
-                        end=pos + len(pattern),
-                    ))
+                    match_end = pos + len(pattern)
+                    # Check exempt_following
+                    if not self._check_exempt_following(text, match_end, rule.match.exempt_following):
+                        matches.append(RuleMatch(
+                            rule=rule,
+                            matched_text=text[pos:match_end],
+                            start=pos,
+                            end=match_end,
+                        ))
                     idx = pos + 1
                     
             elif rule.match.type == MatchType.REGEX:
@@ -139,6 +142,30 @@ class PolicyEngine:
                         ))
         
         return matches
+    
+    def _check_exempt_following(
+        self, text: str, match_end: int, exempt_following: list[str]
+    ) -> bool:
+        """
+        Check if the match is followed by an exempt word.
+        
+        Returns True if exempt (should skip this match), False if not exempt.
+        """
+        if not exempt_following:
+            return False
+        
+        # Look at the next 30 characters after the match
+        lookahead = text[match_end:match_end + 30].lower().strip()
+        
+        # Check if any exempt word appears at the start of lookahead
+        for exempt in exempt_following:
+            exempt_lower = exempt.lower()
+            if lookahead.startswith(exempt_lower):
+                # Verify it's a word boundary (not part of a longer word)
+                if len(lookahead) == len(exempt_lower) or not lookahead[len(exempt_lower)].isalpha():
+                    return True
+        
+        return False
 
     def _check_context(
         self, text: str, start: int, end: int, context: list[str]
@@ -198,6 +225,12 @@ class PolicyEngine:
         """
         Apply all matching rules to text, respecting segment contexts.
         
+        Uses Token Group Merging with Protected Ranges:
+        - First, identify PRESERVE matches (quotes, etc.) and protect their ranges
+        - Any match inside a protected range is skipped
+        - Group adjacent non-protected matches with same target
+        - Merge each group into a single transformation
+        
         Args:
             text: Text to transform
             segment_contexts: Context annotations for this segment
@@ -208,47 +241,150 @@ class PolicyEngine:
         decisions: list[PolicyDecision] = []
         matches = self.find_matches(text)
         
-        # Track which positions have been modified
-        modified_ranges: list[tuple[int, int]] = []
-        
-        # Build list of transformations to apply
-        transformations: list[tuple[int, int, str, PolicyRule]] = []
-        
+        # Filter matches by condition
+        valid_matches: list[RuleMatch] = []
         for match in matches:
-            # NEW: Check if rule's condition is met
-            if not self._check_condition(match.rule, segment_contexts):
-                continue  # Skip - condition not met
-            
-            # Skip if this range overlaps with already modified range
-            if any(
-                start <= match.start < end or start < match.end <= end
-                for start, end in modified_ranges
-            ):
-                continue
-            
-            # Determine replacement
-            replacement = self._get_replacement(match)
+            if self._check_condition(match.rule, segment_contexts):
+                valid_matches.append(match)
+        
+        # STEP 1: Find protected ranges from PRESERVE rules
+        # These are ranges (like quote content) that should not be modified
+        protected_ranges: list[tuple[int, int]] = []
+        preserve_decisions: list[PolicyDecision] = []
+        
+        for match in valid_matches:
+            if match.rule.action == RuleAction.PRESERVE:
+                protected_ranges.append((match.start, match.end))
+                preserve_decisions.append(self._create_decision(match))
+        
+        decisions.extend(preserve_decisions)
+        
+        # STEP 2: Filter out matches that fall inside protected ranges
+        unprotected_matches: list[RuleMatch] = []
+        for match in valid_matches:
+            if match.rule.action == RuleAction.PRESERVE:
+                continue  # Already handled
+            if not self._is_protected(match.start, match.end, protected_ranges):
+                unprotected_matches.append(match)
+        
+        # STEP 3: Group adjacent unprotected matches with same target
+        match_groups = self._group_adjacent_matches(text, unprotected_matches)
+        
+        # Build transformations from groups
+        transformations: list[tuple[int, int, str, list[PolicyRule]]] = []
+        
+        for group in match_groups:
+            # All matches in group have same replacement - use first
+            first_match = group[0]
+            replacement = self._get_replacement(first_match)
             
             if replacement is not None:
+                # Span covers entire group (first start to last end)
+                group_start = min(m.start for m in group)
+                group_end = max(m.end for m in group)
+                
                 transformations.append((
-                    match.start,
-                    match.end,
+                    group_start,
+                    group_end,
                     replacement,
-                    match.rule,
+                    [m.rule for m in group],
                 ))
-                modified_ranges.append((match.start, match.end))
             
-            # Create policy decision
-            decisions.append(self._create_decision(match))
+            # Create decisions for each match in group
+            for match in group:
+                decisions.append(self._create_decision(match))
         
         # Apply transformations in reverse order (to preserve positions)
         result = text
-        for start, end, replacement, rule in sorted(
+        for start, end, replacement, rules in sorted(
             transformations, key=lambda t: t[0], reverse=True
         ):
             result = result[:start] + replacement + result[end:]
         
         return result, decisions
+    
+    def _group_adjacent_matches(
+        self, text: str, matches: list[RuleMatch]
+    ) -> list[list[RuleMatch]]:
+        """
+        Group adjacent matches that have the same replacement target.
+        
+        Two matches are considered adjacent if they're separated only by whitespace.
+        Matches with the same target (replacement text) are merged into groups.
+        
+        Returns list of groups, where each group's matches should be merged.
+        """
+        if not matches:
+            return []
+        
+        # Sort by position
+        sorted_matches = sorted(matches, key=lambda m: m.start)
+        
+        # Get replacement for each match
+        match_replacements: list[tuple[RuleMatch, Optional[str]]] = [
+            (m, self._get_replacement(m)) for m in sorted_matches
+        ]
+        
+        groups: list[list[RuleMatch]] = []
+        consumed_positions: set[int] = set()
+        
+        for i, (match, replacement) in enumerate(match_replacements):
+            if i in consumed_positions:
+                continue
+            
+            if replacement is None:
+                # Non-modifying matches stay solo
+                groups.append([match])
+                consumed_positions.add(i)
+                continue
+            
+            # Start a new group with this match
+            current_group = [match]
+            consumed_positions.add(i)
+            current_end = match.end
+            
+            # Look ahead for adjacent matches with same replacement
+            for j in range(i + 1, len(match_replacements)):
+                if j in consumed_positions:
+                    continue
+                    
+                next_match, next_replacement = match_replacements[j]
+                
+                # Check if adjacent (only whitespace between)
+                gap = text[current_end:next_match.start]
+                if gap.strip() != "":
+                    # Non-whitespace gap - not adjacent
+                    break
+                
+                # Check if same replacement target
+                if next_replacement == replacement:
+                    current_group.append(next_match)
+                    consumed_positions.add(j)
+                    current_end = next_match.end
+                else:
+                    # Different replacement - can't merge
+                    break
+            
+            groups.append(current_group)
+        
+        return groups
+    
+    def _is_protected(
+        self, start: int, end: int, protected_ranges: list[tuple[int, int]]
+    ) -> bool:
+        """
+        Check if a span falls inside any protected range.
+        
+        A span is protected if it overlaps with (is contained in) a protected range.
+        Protected ranges come from PRESERVE rules (e.g., quote content).
+        """
+        for p_start, p_end in protected_ranges:
+            # Check if match is fully or partially inside the protected range
+            if start >= p_start and end <= p_end:
+                return True  # Fully contained
+            if start < p_end and end > p_start:
+                return True  # Partially overlapping
+        return False
 
     def _get_replacement(self, match: RuleMatch) -> Optional[str]:
         """Get the replacement text for a match."""

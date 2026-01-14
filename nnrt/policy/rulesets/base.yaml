@@ -61,10 +61,16 @@ rules:
   - id: intent_wanted_to
     category: intent_attribution
     priority: 90
-    description: "Replace 'wanted to' with 'appeared to'"
+    description: "Replace 'wanted to' with 'appeared to' (except benign verbs)"
     match:
       type: phrase
       patterns: ["wanted to", "meant to"]
+      # Skip when followed by benign verbs (describing the narrator's own desires)
+      exempt_following: [
+        "go", "get", "leave", "return", "sleep", "eat", "rest", "walk", "run",
+        "work", "find", "make", "see", "be", "feel", "stay", "live", "move",
+        "have", "take", "keep", "know", "help", "talk", "call", "ask"
+      ]
     action: replace
     replacement: "appeared to"
 
@@ -244,29 +250,55 @@ rules:
     action: reframe
     reframe_template: "described as {original}"
 
-  - id: interp_aggressive
+  # Adjectives get "described as X"
+  - id: interp_aggressive_adj
     category: interpretation
     priority: 80
-    description: "Reframe aggressive language (except in quotes)"
+    description: "Reframe aggressive (adjective)"
     match:
       type: keyword
-      patterns: ["aggressive", "aggressively"]
+      patterns: ["aggressive"]
     condition:
-      context_excludes: ["direct_quote"]  # Don't reframe inside quotes
+      context_excludes: ["direct_quote"]
     action: reframe
     reframe_template: "described as {original}"
 
-  - id: interp_threatening
+  # Adverbs get "in a manner described as [adjective]"
+  - id: interp_aggressively_adv
     category: interpretation
     priority: 80
-    description: "Reframe threatening language (except in quotes)"
+    description: "Reframe aggressively (adverb)"
+    match:
+      type: keyword
+      patterns: ["aggressively"]
+    condition:
+      context_excludes: ["direct_quote"]
+    action: reframe
+    reframe_template: "in a manner described as aggressive"
+
+  - id: interp_threatening_adj
+    category: interpretation
+    priority: 80
+    description: "Reframe threatening/intimidating/hostile (adjectives)"
     match:
       type: keyword
       patterns: ["threatening", "intimidating", "hostile"]
     condition:
-      context_excludes: ["direct_quote"]  # Don't reframe inside quotes
+      context_excludes: ["direct_quote"]
     action: reframe
     reframe_template: "described as {original}"
+
+  - id: interp_threateningly_adv
+    category: interpretation
+    priority: 80
+    description: "Reframe threateningly/menacingly (adverbs)"
+    match:
+      type: keyword
+      patterns: ["threateningly", "menacingly", "hostilely"]
+    condition:
+      context_excludes: ["direct_quote"]
+    action: reframe
+    reframe_template: "in a manner described as threatening"
 
   # ═══════════════════════════════════════════════════════════════════
   # INFLAMMATORY
@@ -300,7 +332,7 @@ rules:
       patterns: ["viciously", "ruthlessly", "savagely", "mercilessly"]
     action: remove
 
-  - id: inflam_cop
+  - id: inflam_cop_singular
     category: inflammatory
     priority: 60
     description: "Replace 'cop' with 'officer'"
@@ -309,6 +341,16 @@ rules:
       patterns: ["cop"]
     action: replace
     replacement: "officer"
+
+  - id: inflam_cop_plural
+    category: inflammatory
+    priority: 60
+    description: "Replace 'cops' with 'officers'"
+    match:
+      type: keyword
+      patterns: ["cops"]
+    action: replace
+    replacement: "officers"
 
   - id: inflam_derogatory_officer
     category: inflammatory

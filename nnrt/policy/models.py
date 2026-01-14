@@ -52,6 +52,9 @@ class RuleMatch:
     patterns: list[str]
     context: list[str] = field(default_factory=list)
     case_sensitive: bool = False
+    # Skip rule if match is followed by any of these words (within 20 chars)
+    # Used to prevent "wanted to go home" from being transformed
+    exempt_following: list[str] = field(default_factory=list)
 
 
 @dataclass
