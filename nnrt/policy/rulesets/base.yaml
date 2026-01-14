@@ -1,0 +1,213 @@
+# NNRT Base Policy Ruleset
+# 
+# This is the default policy configuration.
+# Rules are evaluated in priority order (higher = first).
+# 
+# Rule actions:
+#   - remove: Remove the matched content entirely
+#   - replace: Replace with specified text
+#   - reframe: Add qualifying language
+#   - flag: Add diagnostic but don't modify
+#   - refuse: Block transformation if matched
+
+version: "1.0"
+name: "base"
+description: "Default NNRT policy ruleset for neutral transformation"
+
+# Global settings
+settings:
+  # Minimum confidence to apply automatic transformations
+  min_confidence: 0.7
+  # Generate diagnostics for all matches
+  always_diagnose: true
+  # Allow manual override of rules
+  allow_override: true
+
+# Rules are organized by category
+rules:
+  # ═══════════════════════════════════════════════════════════════════
+  # INTENT ATTRIBUTION
+  # Remove language that asserts intent or motive
+  # ═══════════════════════════════════════════════════════════════════
+  
+  - id: intent_clearly
+    category: intent_attribution
+    priority: 100
+    description: "Remove 'clearly' as intent intensifier"
+    match:
+      type: keyword
+      patterns: ["clearly"]
+      context: ["wanted", "intended", "meant", "tried"]
+    action: remove
+    
+  - id: intent_obviously
+    category: intent_attribution
+    priority: 100
+    description: "Remove 'obviously' as intent intensifier"
+    match:
+      type: keyword
+      patterns: ["obviously"]
+    action: remove
+
+  - id: intent_intentionally
+    category: intent_attribution
+    priority: 100
+    description: "Remove 'intentionally'"
+    match:
+      type: keyword
+      patterns: ["intentionally", "deliberately", "purposely"]
+    action: remove
+
+  - id: intent_wanted_to
+    category: intent_attribution
+    priority: 90
+    description: "Replace 'wanted to' with 'appeared to'"
+    match:
+      type: phrase
+      patterns: ["wanted to", "tried to", "meant to", "was trying to"]
+    action: replace
+    replacement: "appeared to"
+
+  - id: intent_on_purpose
+    category: intent_attribution
+    priority: 90
+    description: "Remove 'on purpose'"
+    match:
+      type: phrase
+      patterns: ["on purpose"]
+    action: remove
+
+  # ═══════════════════════════════════════════════════════════════════
+  # LEGAL CONCLUSIONS
+  # Remove or flag language that asserts legal conclusions
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: legal_guilty
+    category: legal_conclusion
+    priority: 200  # High priority - always flag
+    description: "Flag assertion of guilt"
+    match:
+      type: keyword
+      patterns: ["guilty", "innocent"]
+    action: flag
+    diagnostic:
+      level: error
+      code: LEGAL_CONCLUSION
+      message: "Text contains legal conclusion that cannot be transformed"
+
+  - id: legal_criminal
+    category: legal_conclusion
+    priority: 150
+    description: "Reframe criminal terminology"
+    match:
+      type: keyword
+      patterns: ["criminal", "illegal", "unlawful"]
+    action: reframe
+    reframe_template: "alleged {original}"
+
+  - id: legal_assault
+    category: legal_conclusion
+    priority: 150
+    description: "Replace assault terminology"
+    match:
+      type: keyword
+      patterns: ["assaulted", "attacked"]
+    action: replace
+    replacement: "made physical contact with"
+
+  - id: legal_brutality
+    category: legal_conclusion
+    priority: 150
+    description: "Replace brutality terminology"
+    match:
+      type: keyword
+      patterns: ["brutality"]
+    action: replace
+    replacement: "use of force"
+
+  # ═══════════════════════════════════════════════════════════════════
+  # INTERPRETATION
+  # Reframe subjective interpretations as observations
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: interp_suspicious
+    category: interpretation
+    priority: 80
+    description: "Reframe 'suspicious'"
+    match:
+      type: keyword
+      patterns: ["suspicious"]
+    action: reframe
+    reframe_template: "described as {original}"
+
+  - id: interp_aggressive
+    category: interpretation
+    priority: 80
+    description: "Reframe aggressive language"
+    match:
+      type: keyword
+      patterns: ["aggressive", "aggressively"]
+    action: reframe
+    reframe_template: "described as {original}"
+
+  - id: interp_threatening
+    category: interpretation
+    priority: 80
+    description: "Reframe threatening language"
+    match:
+      type: keyword
+      patterns: ["threatening", "intimidating", "hostile"]
+    action: reframe
+    reframe_template: "described as {original}"
+
+  # ═══════════════════════════════════════════════════════════════════
+  # INFLAMMATORY
+  # Neutralize inflammatory language
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: inflam_profanity
+    category: inflammatory
+    priority: 50
+    description: "Remove profanity (preserve meaning)"
+    match:
+      type: regex
+      patterns: ["\\b(damn|hell|crap)\\b"]
+    action: remove
+
+  # ═══════════════════════════════════════════════════════════════════
+  # PRESERVATION
+  # Rules that ensure certain content is preserved
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: preserve_quotes
+    category: preservation
+    priority: 1000  # Highest priority
+    description: "Preserve direct quotes verbatim"
+    match:
+      type: quoted
+      patterns: ["\".*?\"", "'.*?'"]
+    action: preserve
+    
+  - id: preserve_timestamps
+    category: preservation
+    priority: 900
+    description: "Preserve timestamps"
+    match:
+      type: regex
+      patterns: ["\\d{1,2}:\\d{2}\\s*(AM|PM|am|pm)?", "\\d{1,2}/\\d{1,2}/\\d{2,4}"]
+    action: preserve
+
+# Validation rules run after transformation
+validation:
+  - id: val_no_new_facts
+    description: "Output must not contain facts not in input"
+    type: subset_check
+    
+  - id: val_no_legal_conclusions
+    description: "Output must not contain legal conclusions"
+    type: forbidden_terms
+    terms: ["guilty", "innocent", "convicted"]
+    
+  - id: val_first_person
+    description: "First-person perspective must be maintained"
+    type: perspective_check

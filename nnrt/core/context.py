@@ -13,6 +13,7 @@ from nnrt.ir.schema_v0_1 import (
     Diagnostic,
     Entity,
     Event,
+    Identifier,
     PolicyDecision,
     Segment,
     SemanticSpan,
@@ -54,6 +55,7 @@ class TransformContext:
     # IR components (populated by passes)
     segments: list[Segment] = field(default_factory=list)
     spans: list[SemanticSpan] = field(default_factory=list)
+    identifiers: list[Identifier] = field(default_factory=list)
     entities: list[Entity] = field(default_factory=list)
     events: list[Event] = field(default_factory=list)
     speech_acts: list[SpeechAct] = field(default_factory=list)
@@ -122,6 +124,7 @@ class TransformContext:
             timestamp=self.start_time,
             segments=self.segments,
             spans=self.spans,
+            identifiers=self.identifiers,
             entities=self.entities,
             events=self.events,
             speech_acts=self.speech_acts,

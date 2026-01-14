@@ -97,7 +97,10 @@ class PolicyAction(str, Enum):
     ACCEPT = "accept"
     FLAG = "flag"
     TRANSFORM = "transform"
+    MODIFY = "modify"
     STRIP = "strip"
+    REMOVE = "remove"
+    PRESERVE = "preserve"
     REFUSE = "refuse"
     WARN = "warn"
 

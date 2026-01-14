@@ -48,13 +48,26 @@ class SemanticSpan(BaseModel):
 
 
 class ExtractedIdentifier(BaseModel):
-    """An identifier extracted from text."""
+    """An identifier extracted from text (deprecated, use Identifier)."""
 
     id: str
     type: IdentifierType
     value: str
     span_id: str
     confidence: float = Field(..., ge=0.0, le=1.0)
+
+
+class Identifier(BaseModel):
+    """A structured identifier extracted from the narrative."""
+
+    id: str = Field(..., description="Unique identifier")
+    type: IdentifierType = Field(..., description="The type of identifier")
+    value: str = Field(..., description="The extracted value")
+    original_text: str = Field(..., description="Original text as it appeared")
+    start_char: int = Field(..., description="Start position in segment")
+    end_char: int = Field(..., description="End position in segment")
+    source_segment_id: str = Field(..., description="Segment this was extracted from")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Extraction confidence")
 
 
 class Entity(BaseModel):
@@ -154,6 +167,7 @@ class TransformResult(BaseModel):
     # Core IR
     segments: list[Segment] = Field(default_factory=list)
     spans: list[SemanticSpan] = Field(default_factory=list)
+    identifiers: list["Identifier"] = Field(default_factory=list)
     entities: list[Entity] = Field(default_factory=list)
     events: list[Event] = Field(default_factory=list)
     speech_acts: list[SpeechAct] = Field(default_factory=list)

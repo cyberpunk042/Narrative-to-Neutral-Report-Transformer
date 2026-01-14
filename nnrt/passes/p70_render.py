@@ -3,52 +3,29 @@ Pass 70 — Constrained Rendering
 
 Renders the IR into neutral narrative text.
 
-This pass uses template-based rendering to produce neutral output:
-- Transforms interpretive language to observational
-- Removes legal conclusions
-- Preserves factual content
-- Maintains first-person perspective
+This pass now uses the policy engine to apply transformations
+based on YAML-defined rules. It also supports span-based
+transformations for NLP-detected content.
 
 The generator can ONLY render what the IR contains.
 It cannot add meaning, resolve ambiguity, or infer intent.
 """
 
 from nnrt.core.context import TransformContext
-from nnrt.ir.enums import SpanLabel, EventType
+from nnrt.ir.enums import SpanLabel
+from nnrt.policy.engine import get_policy_engine
 
 PASS_NAME = "p70_render"
-
-# Neutral reframings for common interpretive phrases
-NEUTRAL_REFRAMINGS = {
-    "suspicious": "described as suspicious",
-    "aggressive": "described as aggressive",
-    "threatening": "described as threatening",
-    "hostile": "described as hostile",
-    "intimidating": "described as intimidating",
-    "clearly": "",  # Remove intensifier
-    "obviously": "",
-    "definitely": "",
-    "certainly": "",
-}
-
-# Templates for neutral rendering by event type
-EVENT_TEMPLATES = {
-    EventType.ACTION: "{actor} {verb} {target}",
-    EventType.VERBAL: "{actor} {verb}",
-    EventType.MOVEMENT: "{actor} {verb}",
-    EventType.OBSERVATION: "It was observed that {description}",
-    EventType.STATE_CHANGE: "{actor} {verb}",
-}
 
 
 def render(ctx: TransformContext) -> TransformContext:
     """
-    Render IR to neutral text.
+    Render IR to neutral text using policy rules.
     
     This pass:
-    - Transforms each segment based on span tags
-    - Removes or reframes problematic content
-    - Preserves observations and factual statements
+    - Applies policy rules from YAML configuration
+    - Handles span-based transformations from NLP
+    - Cleans up artifacts from transformations
     - Produces reviewable neutral output
     """
     if not ctx.segments:
@@ -60,70 +37,49 @@ def render(ctx: TransformContext) -> TransformContext:
         )
         return ctx
 
+    # Get policy engine
+    engine = get_policy_engine()
+    
     rendered_segments: list[str] = []
-    transformations = 0
+    total_rule_transforms = 0
+    total_span_transforms = 0
 
     for segment in ctx.segments:
-        # Get spans for this segment
+        # Apply policy rules
+        rendered, decisions = engine.apply_rules(segment.text)
+        total_rule_transforms += len(decisions)
+        
+        # Apply span-based transformations for content not caught by rules
         segment_spans = [s for s in ctx.spans if s.segment_id == segment.id]
-        
-        # Start with original text
-        rendered = segment.text
-        
-        # Check for problematic spans and transform
         for span in segment_spans:
             if span.label == SpanLabel.LEGAL_CONCLUSION:
-                # Remove or flag legal conclusions
-                rendered = _remove_phrase(rendered, span.text)
-                transformations += 1
-                ctx.add_trace(
-                    pass_name=PASS_NAME,
-                    action="removed_legal_conclusion",
-                    before=span.text,
-                    affected_ids=[span.id],
-                )
-            
-            elif span.label == SpanLabel.INTENT_ATTRIBUTION:
-                # Replace intent attribution with neutral observation
-                neutral_replacement = _get_neutral_replacement(span.text)
-                if neutral_replacement:
-                    rendered = rendered.replace(span.text, neutral_replacement)
-                else:
+                # Remove legal conclusions not caught by rules
+                if span.text in rendered:
                     rendered = _remove_phrase(rendered, span.text)
-                transformations += 1
-                ctx.add_trace(
-                    pass_name=PASS_NAME,
-                    action="neutralized_intent_attribution",
-                    before=span.text,
-                    after=neutral_replacement or "(removed)",
-                    affected_ids=[span.id],
-                )
-            
-            elif span.label == SpanLabel.INTERPRETATION:
-                # Reframe interpretive language
-                new_text = _reframe_interpretation(span.text)
-                if new_text != span.text:
-                    rendered = rendered.replace(span.text, new_text)
-                    transformations += 1
+                    total_span_transforms += 1
                     ctx.add_trace(
                         pass_name=PASS_NAME,
-                        action="reframed_interpretation",
+                        action="removed_legal_conclusion",
                         before=span.text,
-                        after=new_text,
                         affected_ids=[span.id],
                     )
             
-            elif span.label == SpanLabel.INFLAMMATORY:
-                # Neutralize inflammatory language
-                new_text = _neutralize_inflammatory(span.text)
-                if new_text != span.text:
-                    rendered = rendered.replace(span.text, new_text)
-                    transformations += 1
-
-        # Apply general neutralization
-        rendered = _apply_neutral_reframings(rendered)
+            elif span.label == SpanLabel.INTENT_ATTRIBUTION:
+                # Handle intent not caught by rules
+                if span.text in rendered:
+                    replacement = _get_intent_replacement(span.text)
+                    if replacement is not None:
+                        rendered = rendered.replace(span.text, replacement)
+                        total_span_transforms += 1
+                        ctx.add_trace(
+                            pass_name=PASS_NAME,
+                            action="neutralized_intent",
+                            before=span.text,
+                            after=replacement or "(removed)",
+                            affected_ids=[span.id],
+                        )
         
-        # Clean up any double spaces or artifacts
+        # Clean up artifacts
         rendered = _clean_text(rendered)
         
         if rendered.strip():
@@ -135,7 +91,7 @@ def render(ctx: TransformContext) -> TransformContext:
     ctx.add_trace(
         pass_name=PASS_NAME,
         action="rendered",
-        after=f"{len(rendered_segments)} segments, {transformations} transformations",
+        after=f"{len(rendered_segments)} segments, {total_rule_transforms} rule transforms, {total_span_transforms} span transforms",
     )
 
     return ctx
@@ -144,19 +100,17 @@ def render(ctx: TransformContext) -> TransformContext:
 def _remove_phrase(text: str, phrase: str) -> str:
     """Remove a phrase from text, cleaning up whitespace."""
     result = text.replace(phrase, "")
-    # Clean up double spaces
     while "  " in result:
         result = result.replace("  ", " ")
     return result.strip()
 
 
-def _get_neutral_replacement(phrase: str) -> str:
+def _get_intent_replacement(phrase: str) -> str | None:
     """Get a neutral replacement for intent attribution phrases."""
     phrase_lower = phrase.lower()
     
-    # Intent phrases with grammatically correct replacements
     replacements = {
-        "intentionally": "",  # Just remove
+        "intentionally": "",
         "deliberately": "",
         "purposely": "",
         "on purpose": "",
@@ -171,57 +125,7 @@ def _get_neutral_replacement(phrase: str) -> str:
         if intent_phrase in phrase_lower:
             return replacement
     
-    return ""  # No replacement found, will remove
-
-
-def _reframe_interpretation(text: str) -> str:
-    """Reframe interpretive language to be more observational."""
-    result = text
-    
-    # Add "appeared to" or "seemed to" for strong statements
-    for word in ["clearly", "obviously", "definitely"]:
-        if word in result.lower():
-            result = result.replace(word, "").replace(word.capitalize(), "")
-    
-    return result.strip()
-
-
-def _neutralize_inflammatory(text: str) -> str:
-    """Neutralize inflammatory language."""
-    result = text.lower()
-    
-    replacements = {
-        "brutality": "use of force",
-        "attacked": "made contact with",
-        "assaulted": "made physical contact with",
-        "abuse": "conduct",
-    }
-    
-    for old, new in replacements.items():
-        if old in result:
-            result = result.replace(old, new)
-            # Preserve original case for start of sentence
-            if text[0].isupper():
-                result = result[0].upper() + result[1:]
-    
-    return result
-
-
-def _apply_neutral_reframings(text: str) -> str:
-    """Apply neutral reframings for common interpretive words."""
-    result = text
-    
-    for original, replacement in NEUTRAL_REFRAMINGS.items():
-        # Case-insensitive replacement
-        import re
-        pattern = re.compile(re.escape(original), re.IGNORECASE)
-        if replacement:
-            result = pattern.sub(replacement, result)
-        else:
-            # Remove the word
-            result = pattern.sub("", result)
-    
-    return result
+    return None
 
 
 def _clean_text(text: str) -> str:
@@ -234,6 +138,9 @@ def _clean_text(text: str) -> str:
     
     # Remove orphaned punctuation
     result = result.replace(" .", ".").replace(" ,", ",")
+    
+    # Fix common grammar issues from removals
+    result = result.replace("He  ", "He ").replace("She  ", "She ")
     
     # Trim
     result = result.strip()
