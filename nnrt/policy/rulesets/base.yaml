@@ -64,9 +64,32 @@ rules:
     description: "Replace 'wanted to' with 'appeared to'"
     match:
       type: phrase
-      patterns: ["wanted to", "tried to", "meant to", "was trying to"]
+      patterns: ["wanted to", "meant to"]
     action: replace
     replacement: "appeared to"
+
+  - id: intent_tried_harm
+    category: intent_attribution
+    priority: 90
+    description: "Replace intent attribution in 'tried to [harm]'"
+    match:
+      type: phrase
+      patterns: ["tried to hurt", "tried to intimidate", "tried to scare", "tried to provoke"]
+    action: replace
+    replacement: "appeared to harm"
+
+  - id: intent_trying_harm
+    category: intent_attribution
+    priority: 90
+    description: "Replace intent attribution in 'trying to [harm]'"
+    match:
+      type: phrase
+      patterns: ["trying to hurt", "trying to intimidate", "trying to scare", "trying to provoke"]
+    action: replace
+    replacement: "appearing to harm"
+
+  # Note: "tried to say/speak/breathe/move" describes actual attempts, NOT intent
+  # These are preserved as factual observations
 
   - id: intent_on_purpose
     category: intent_attribution
@@ -105,15 +128,28 @@ rules:
     action: reframe
     reframe_template: "alleged {original}"
 
-  - id: legal_assault
+  - id: legal_assault_verb
     category: legal_conclusion
     priority: 150
-    description: "Replace assault terminology"
+    description: "Replace assault used as action verb"
     match:
-      type: keyword
-      patterns: ["assaulted", "attacked"]
+      type: phrase
+      patterns: ["assaulted me", "attacked me", "assaulted him", "assaulted her"]
     action: replace
-    replacement: "made physical contact with"
+    replacement: "made physical contact with me"
+
+  - id: legal_assault_charge
+    category: legal_terms
+    priority: 200  # Higher priority - preserve charge language
+    description: "Preserve assault when part of legal charge"
+    match:
+      type: phrase
+      patterns: ["charged with assault", "charge of assault", "assault on", "assaulting an officer"]
+    action: flag
+    diagnostic:
+      level: info
+      code: LEGAL_CHARGE_PRESERVED
+      message: "Legal charge language preserved for accuracy"
 
   - id: legal_brutality
     category: legal_conclusion
@@ -124,6 +160,74 @@ rules:
       patterns: ["brutality"]
     action: replace
     replacement: "use of force"
+
+  # Physical force - keep facts, neutral frame
+  - id: physical_slam
+    category: physical_force
+    priority: 120
+    description: "Preserve physical force facts neutrally"
+    match:
+      type: keyword
+      patterns: ["slammed", "threw", "tackled", "shoved"]
+    action: flag
+    diagnostic:
+      level: info
+      code: PHYSICAL_FORCE_DESCRIBED
+      message: "Physical force described - preserving factual content"
+
+  - id: physical_struck
+    category: physical_force
+    priority: 120
+    description: "Preserve being struck"
+    match:
+      type: keyword
+      patterns: ["punched", "struck", "hit", "kicked"]
+    action: flag
+    diagnostic:
+      level: info
+      code: PHYSICAL_FORCE_DESCRIBED
+      message: "Strike described - preserving factual content"
+
+  - id: physical_grab
+    category: physical_force
+    priority: 120
+    description: "Preserve grabbing/yanking"
+    match:
+      type: keyword
+      patterns: ["grabbed", "yanked", "pulled", "dragged"]
+    action: flag
+    diagnostic:
+      level: info
+      code: PHYSICAL_FORCE_DESCRIBED
+      message: "Physical contact described - preserving factual content"
+
+  - id: physical_choke
+    category: physical_force
+    priority: 200
+    description: "Preserve choking/neck restraint"
+    match:
+      type: keyword
+      patterns: ["choked", "strangled", "neck"]
+      context: ["hands", "arm", "around", "couldn't breathe"]
+    action: flag
+    diagnostic:
+      level: warning
+      code: NECK_RESTRAINT_DESCRIBED
+      message: "Neck restraint described - critical evidence preserved"
+
+  # Charges and accusations
+  - id: charge_accused
+    category: accusations
+    priority: 100
+    description: "Flag accusation language"
+    match:
+      type: keyword
+      patterns: ["accused me of", "charged me with", "claimed I"]
+    action: flag
+    diagnostic:
+      level: info
+      code: ACCUSATION_NOTED
+      message: "Accusation/charge noted - both perspectives preserved"
 
   # ═══════════════════════════════════════════════════════════════════
   # INTERPRETATION
@@ -173,6 +277,66 @@ rules:
       type: regex
       patterns: ["\\b(damn|hell|crap)\\b"]
     action: remove
+
+  - id: inflam_brutal
+    category: inflammatory
+    priority: 80
+    description: "Remove 'brutal' modifier"
+    match:
+      type: keyword
+      patterns: ["brutal", "vicious", "ruthless"]
+    action: remove
+
+  - id: inflam_manner
+    category: inflammatory
+    priority: 80
+    description: "Remove inflammatory manner adverbs"
+    match:
+      type: keyword
+      patterns: ["viciously", "ruthlessly", "savagely", "mercilessly"]
+    action: remove
+
+  - id: inflam_cop
+    category: inflammatory
+    priority: 60
+    description: "Replace 'cop' with 'officer'"
+    match:
+      type: keyword
+      patterns: ["cop"]
+    action: replace
+    replacement: "officer"
+
+  - id: inflam_derogatory_officer
+    category: inflammatory
+    priority: 80
+    description: "Replace derogatory terms for officers"
+    match:
+      type: keyword
+      patterns: ["thug", "pig", "goon", "bully"]
+    action: replace
+    replacement: "officer"
+
+  - id: inflam_violent_modifier
+    category: inflammatory
+    priority: 70
+    description: "Remove 'violent' as modifier (unless describing specific action)"
+    match:
+      type: keyword
+      patterns: ["violent", "crazy", "insane", "psycho"]
+    action: remove
+
+  - id: inflam_emotional_extreme
+    category: inflammatory
+    priority: 60
+    description: "Flag extreme emotional language"
+    match:
+      type: keyword
+      patterns: ["destroyed my life", "ruined my life", "traumatized"]
+    action: flag
+    diagnostic:
+      level: info
+      code: EMOTIONAL_IMPACT_STATED
+      message: "Emotional impact statement - preserved but noted"
 
   # ═══════════════════════════════════════════════════════════════════
   # PRESERVATION

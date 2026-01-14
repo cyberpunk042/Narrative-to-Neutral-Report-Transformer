@@ -1,0 +1,351 @@
+# Hard Test Cases for NNRT
+#
+# These cases are designed to expose weaknesses and drive improvements.
+# Each case has a difficulty rating and expected challenges.
+
+version: "1.0"
+created: "2026-01-13"
+
+cases:
+  # ═══════════════════════════════════════════════════════════════════
+  # LEVEL 1: Intent Attribution (Baseline)
+  # ═══════════════════════════════════════════════════════════════════
+  
+  - id: hard_001
+    name: "Multiple Intent Attributions"
+    difficulty: 1
+    input: |
+      He intentionally blocked my path and deliberately ignored my requests.
+      She obviously tried to provoke me into responding aggressively.
+    challenges:
+      - "Multiple intent words in same sentence"
+      - "Chained attributions"
+    expected_removed:
+      - "intentionally"
+      - "deliberately"
+      - "obviously"
+    expected_transformed:
+      - "'tried to' becomes 'appeared to'"
+      - "'aggressively' becomes 'described as aggressively'"
+
+  # ═══════════════════════════════════════════════════════════════════
+  # LEVEL 2: Ambiguous References
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: hard_002
+    name: "Pronoun Ambiguity"
+    difficulty: 2
+    input: |
+      Officer Smith and his partner arrived. He approached my vehicle.
+      He said I was speeding. He wrote me a ticket.
+    challenges:
+      - "Who is 'he'? Smith or partner?"
+      - "Must preserve ambiguity, not resolve it"
+    expected_behavior:
+      - "Should NOT assume which officer did what"
+      - "Should flag ambiguous references"
+      - "May suggest 'the officer' instead of 'he'"
+
+  - id: hard_003
+    name: "Unclear Antecedent"
+    difficulty: 2
+    input: |
+      The manager told the employee that he would be fired.
+      I witnessed this interaction and he seemed upset.
+    challenges:
+      - "'he' could refer to manager or employee"
+      - "Second 'he' has same ambiguity"
+    expected_behavior:
+      - "Flag as ambiguous reference"
+      - "Preserve original wording if unclear"
+
+  # ═══════════════════════════════════════════════════════════════════
+  # LEVEL 3: Complex Speech Acts
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: hard_004
+    name: "Nested Quotations"
+    difficulty: 3
+    input: |
+      He said "She told me 'Get out of here' and then she left."
+      I asked him "Did she really say that?" and he confirmed it.
+    challenges:
+      - "Quotes within quotes"
+      - "Attribution chains"
+      - "Must preserve exact quoted text"
+    expected_behavior:
+      - "Inner quotes preserved exactly"
+      - "Outer quotes preserved exactly"
+      - "'really' might be flagged but kept in question context"
+
+  - id: hard_005
+    name: "Reported vs Direct Speech"
+    difficulty: 3
+    input: |
+      He claimed that I had stolen his wallet.
+      He said "You stole my wallet."
+      He told the officer that I was a thief.
+    challenges:
+      - "'claimed' vs 'said' have different implications"
+      - "Direct quote vs reported speech"
+      - "'thief' is a conclusion"
+    expected_behavior:
+      - "'claimed' becomes 'stated' or keep with flag"
+      - "Direct quote preserved"
+      - "'thief' flagged as legal conclusion"
+
+  # ═══════════════════════════════════════════════════════════════════
+  # LEVEL 4: Sarcasm and Irony
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: hard_006
+    name: "Obvious Sarcasm"
+    difficulty: 4
+    input: |
+      Oh sure, the officer was being really "helpful" when he made me wait 3 hours.
+      He was so "professional" that he laughed while I explained my situation.
+    challenges:
+      - "Scare quotes indicate opposite meaning"
+      - "Sarcasm inverts sentiment"
+      - "Must detect meta-commentary"
+    expected_behavior:
+      - "Flag possible sarcasm/irony"
+      - "Cannot neutralize without changing meaning"
+      - "May need human review"
+
+  - id: hard_007
+    name: "Understatement"
+    difficulty: 4
+    input: |
+      He wasn't exactly friendly when he threw me against the wall.
+      The detention was somewhat uncomfortable given I was left in the heat for 6 hours.
+    challenges:
+      - "Understatement obscures severity"
+      - "'wasn't exactly' = very unfriendly"
+      - "'somewhat uncomfortable' = serious harm"
+    expected_behavior:
+      - "Flag understatement pattern"
+      - "Core facts (threw against wall, 6 hours in heat) must be preserved"
+
+  # ═══════════════════════════════════════════════════════════════════
+  # LEVEL 5: Double Negatives and Complex Logic
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: hard_008
+    name: "Double Negatives"
+    difficulty: 5
+    input: |
+      I'm not saying he didn't try to help, but he wasn't exactly cooperative.
+      It's not that I don't believe him, but I can't say he was being honest.
+    challenges:
+      - "Double negatives create confusion"
+      - "True meaning is obscured"
+      - "Cannot simplify without interpretation"
+    expected_behavior:
+      - "Flag as complex logical structure"
+      - "Preserve original wording"
+      - "Add uncertainty marker"
+
+  - id: hard_009
+    name: "Hedged Statements"
+    difficulty: 5
+    input: |
+      It seemed like he might have possibly been trying to reach for something.
+      I think I may have heard what could have been a threat.
+    challenges:
+      - "Multiple layers of hedging"
+      - "Uncertainty is the content itself"
+      - "Removing hedges changes meaning"
+    expected_behavior:
+      - "Preserve all hedging language"
+      - "Flag high uncertainty"
+      - "Do not remove 'might', 'possibly', 'could have'"
+
+  # ═══════════════════════════════════════════════════════════════════
+  # LEVEL 6: Legal and Technical Language
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: hard_010
+    name: "Mixed Legal Conclusions"
+    difficulty: 6
+    input: |
+      He committed battery when he pushed me, which constitutes assault under state law.
+      This was clearly excessive force and a violation of my Fourth Amendment rights.
+    challenges:
+      - "'battery', 'assault', 'excessive force' are legal conclusions"
+      - "Legal framework references"
+      - "Must transform without removing core facts"
+    expected_behavior:
+      - "Transform 'committed battery' becomes 'pushed me'"
+      - "Transform 'constitutes assault' becomes 'may be considered...'"
+      - "Flag 'excessive force' and 'Fourth Amendment violation'"
+
+  - id: hard_011
+    name: "Technical Police Language"
+    difficulty: 6
+    input: |
+      The subject was noncompliant and actively resisted lawful orders.
+      Use of force was justified under department policy.
+    challenges:
+      - "'noncompliant', 'actively resisted' are conclusions"
+      - "'lawful orders' assumes legality"
+      - "'justified' is a legal determination"
+    expected_behavior:
+      - "Transform to observable behavior"
+      - "Flag assumed conclusions"
+      - "'actively resisted' becomes specific observable actions"
+
+  # ═══════════════════════════════════════════════════════════════════
+  # LEVEL 7: Emotional and Inflammatory
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: hard_012
+    name: "Highly Emotional Language"
+    difficulty: 7
+    input: |
+      I was absolutely terrified when the brutal cop viciously attacked me.
+      He ruthlessly beat me while I screamed in agony and terror.
+    challenges:
+      - "Emotionally charged throughout"
+      - "Inflammatory language ('brutal', 'viciously', 'ruthlessly')"
+      - "Must preserve factual core while neutralizing tone"
+    expected_behavior:
+      - "'brutal cop' becomes 'officer'"
+      - "'viciously attacked' becomes 'made physical contact'"
+      - "'ruthlessly beat' becomes 'struck repeatedly'"
+      - "Core fact of physical force preserved"
+
+  - id: hard_013
+    name: "Victim Blame Language"
+    difficulty: 7
+    input: |
+      She was asking for it by walking through that neighborhood at night.
+      He shouldn't have resisted if he didn't want to get hurt.
+    challenges:
+      - "Victim-blaming construction"
+      - "Moral judgments embedded"
+      - "Cannot simply neutralize without removing judgment"
+    expected_behavior:
+      - "Flag victim-blame pattern"
+      - "May refuse to transform"
+      - "Output should not repeat victim-blame"
+
+  # ═══════════════════════════════════════════════════════════════════
+  # LEVEL 8: Contradictions and Inconsistencies
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: hard_014
+    name: "Self-Contradiction"
+    difficulty: 8
+    input: |
+      I was standing still when he tackled me while I was running away.
+      He never touched me, but the bruises on my arm are from when he grabbed me.
+    challenges:
+      - "Logical contradictions"
+      - "Cannot both be true"
+      - "Must preserve both statements, flag inconsistency"
+    expected_behavior:
+      - "Flag as contradictory statements"
+      - "Preserve both versions"
+      - "Add diagnostic for inconsistency"
+
+  - id: hard_015
+    name: "Timeline Inconsistency"
+    difficulty: 8
+    input: |
+      At 3 PM, he arrived at my door. Before that, at 4 PM, I called 911.
+      After he left at 2 PM, I noticed the damage he caused during his 3 PM visit.
+    challenges:
+      - "Impossible timeline"
+      - "Events can't occur in stated order"
+    expected_behavior:
+      - "Flag timeline inconsistency"
+      - "Preserve all timestamps"
+      - "Do not 'fix' the timeline"
+
+  # ═══════════════════════════════════════════════════════════════════
+  # LEVEL 9: Already Neutral (False Positive Prevention)
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: hard_016
+    name: "Already Neutral Report"
+    difficulty: 9
+    input: |
+      At approximately 1430 hours, I observed a vehicle traveling northbound on Main Street.
+      The vehicle was exceeding the posted speed limit of 35 mph by approximately 15 mph.
+      I activated my emergency equipment and conducted a traffic stop.
+    challenges:
+      - "Text is already neutral"
+      - "Should NOT over-transform"
+      - "Should recognize neutral input"
+    expected_behavior:
+      - "Minimal or no transformation"
+      - "Meta-detection: 'input appears neutral'"
+      - "Preserve police report style"
+
+  - id: hard_017
+    name: "Mixed Neutral and Biased"
+    difficulty: 9
+    input: |
+      At 1430 hours, the suspect exited the vehicle in an aggressive manner.
+      He made furtive movements toward his waistband, clearly reaching for a weapon.
+      I observed a rectangular object in his right hand.
+    challenges:
+      - "Neutral ('1430 hours', 'rectangular object')"
+      - "Biased ('suspect', 'aggressive manner', 'clearly reaching for weapon')"
+      - "Must selectively transform"
+    expected_behavior:
+      - "'suspect' becomes 'individual' or 'the driver'"
+      - "'aggressive manner' becomes 'quickly' or flag"
+      - "'clearly reaching for a weapon' requires transformation"
+      - "'rectangular object' preserved (neutral observation)"
+
+  # ═══════════════════════════════════════════════════════════════════
+  # LEVEL 10: Extreme Edge Cases
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: hard_018
+    name: "All Conclusions, No Facts"
+    difficulty: 10
+    input: |
+      He was guilty of assault, harassment, and false imprisonment.
+      His criminal behavior was intentional and malicious.
+    challenges:
+      - "No observable facts to preserve"
+      - "Entire text is conclusions"
+      - "Cannot transform without content"
+    expected_behavior:
+      - "Flag: 'No factual content found'"
+      - "Output should be empty or minimal"
+      - "Diagnostic: 'Input contains only conclusions'"
+
+  - id: hard_019
+    name: "Code-Switching / Multiple Languages"
+    difficulty: 10
+    input: |
+      He said "Vete de aquí" which obviously meant he wanted me gone.
+      I didn't understand but it was clearly a threat.
+    challenges:
+      - "Non-English content"
+      - "Narrator interpretation of foreign phrase"
+      - "'obviously' and 'clearly' on interpretations"
+    expected_behavior:
+      - "Preserve foreign phrase exactly"
+      - "Flag interpretation as unverified"
+      - "Note: narrator admits not understanding"
+
+  - id: hard_020
+    name: "Meta-Commentary"
+    difficulty: 10
+    input: |
+      I know this sounds crazy, but I'm telling you the truth.
+      You probably won't believe me, but he really did say that.
+      I swear I'm not making this up.
+    challenges:
+      - "Commentary about believability is not evidence"
+      - "Emphasis ('really', 'swear') doesn't add facts"
+      - "Should preserve factual claims, not meta-commentary"
+    expected_behavior:
+      - "Remove meta-commentary about truth/belief"
+      - "Preserve core factual claims"
+      - "Flag: 'Input contains credibility assertions'"

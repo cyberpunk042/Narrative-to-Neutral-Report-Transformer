@@ -1,0 +1,345 @@
+# EXTREME CASES - Real-World Police Encounter Narratives
+#
+# These are templates for REAL scenarios. 
+# Fill in the [PLACEHOLDER] sections with authentic language.
+# The transformation system needs to handle the raw truth.
+#
+# INSTRUCTIONS:
+# 1. Replace [DESCRIBE_...] with raw, unfiltered narrative
+# 2. Keep the structure (input/expected_behavior/expected_preserved)
+# 3. Run: nnrt transform "your text" to test
+#
+# Remember: The goal is NEUTRAL output, not sanitized silence.
+# Facts must survive. Only bias/conclusions should transform.
+
+version: "1.0"
+created: "2026-01-13"
+author: "Fill with real experiences"
+
+cases:
+
+  # ═══════════════════════════════════════════════════════════════════
+  # PHYSICAL FORCE - Ground Takedowns
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: extreme_001
+    name: "Thrown to Ground"
+    category: physical_force
+    input: |
+      [DESCRIBE: Being thrown to the ground - the grab, the force, the impact]
+      [DESCRIBE: What you felt, what hit the ground first, injuries]
+      [DESCRIBE: What was said during/after]
+    expected_preserved:
+      - The physical action (thrown, slammed, etc)
+      - Body parts involved
+      - Surface hit (concrete, asphalt, grass)
+      - Injuries sustained
+      - Exact words spoken (in quotes)
+    expected_removed:
+      - Intent attributions ("he wanted to hurt me")
+      - Legal conclusions ("assault", "excessive force")
+      - Inflammatory modifiers ("viciously", "brutally")
+    expected_transformed:
+      - "attacked me" becomes "made contact with"
+      - Emotional language becomes observational
+
+  - id: extreme_002
+    name: "Punched/Struck"
+    category: physical_force
+    input: |
+      [DESCRIBE: The strike - where, how hard, with what]
+      [DESCRIBE: Your position when struck (hands up? cuffed?)]
+      [DESCRIBE: Aftermath - bleeding, swelling, pain]
+    expected_preserved:
+      - "struck in [body part]"
+      - "with [fist/baton/flashlight]"
+      - Physical evidence (blood, bruising)
+      - Medical treatment received
+    expected_removed:
+      - "for no reason" (conclusion about justification)
+      - Intent language
+    expected_transformed:
+      - Keep the FACT of being struck, neutral the framing
+
+  - id: extreme_003
+    name: "Choking/Neck Restraint"
+    category: physical_force
+    input: |
+      [DESCRIBE: Hands/arm around neck, pressure, duration]
+      [DESCRIBE: Breathing, vision, consciousness effects]
+      [DESCRIBE: What you said/tried to say]
+    expected_preserved:
+      - "[hands/arm] around [neck/throat]"
+      - Duration if known
+      - "I couldn't breathe / I said I couldn't breathe"
+      - Loss of consciousness if applicable
+    expected_removed:
+      - "tried to kill me" (conclusion)
+      - "strangled" (may be legal term)
+    expected_transformed:
+      - Keep physical description, neutral legal terms
+
+  # ═══════════════════════════════════════════════════════════════════
+  # UNLAWFUL ENTRY / SEARCH
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: extreme_004
+    name: "Forced Entry - No Warrant"
+    category: unlawful_search
+    input: |
+      [DESCRIBE: How they entered - kicked door, flashlight through window]
+      [DESCRIBE: What was demanded, what was shown/not shown]
+      [DESCRIBE: Your response, their response to your response]
+    expected_preserved:
+      - "entered through [door/window]"
+      - "I asked if they had a warrant"
+      - Exact response to warrant question
+      - Property damaged
+    expected_removed:
+      - "illegally entered" (legal conclusion)
+      - "violated my rights" (conclusion)
+    expected_transformed:
+      - Facts preserved, legal characterization flagged
+
+  - id: extreme_005
+    name: "Fake K9 Alert / Dog Sweep"
+    category: unlawful_search
+    input: |
+      [DESCRIBE: Dog handler behavior, dog behavior observed]
+      [DESCRIBE: Any signals given to dog you noticed]
+      [DESCRIBE: What was "found" vs what was actually present]
+    expected_preserved:
+      - Observations of dog behavior
+      - Handler actions you witnessed
+      - What was claimed vs reality
+    expected_removed:
+      - "fake alert" (conclusion)
+      - "planted" (accusation without proof)
+    expected_transformed:
+      - "The handler [observed actions]. The dog [observed behavior]."
+      - Observations preserved, conclusions flagged
+
+  # ═══════════════════════════════════════════════════════════════════
+  # PROFILING / PRETEXTUAL STOPS
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: extreme_006
+    name: "Racial/Ethnic Profiling"
+    category: profiling
+    input: |
+      [DESCRIBE: The stated reason for stop vs what you believe was the real reason]
+      [DESCRIBE: Questions asked that seemed irrelevant to stated reason]
+      [DESCRIBE: Treatment compared to others in similar situations]
+    expected_preserved:
+      - Stated reason for stop (exact quote if possible)
+      - Questions actually asked
+      - Your demographic information (if relevant to claim)
+      - Observable disparate treatment
+    expected_removed:
+      - "because I'm [race/ethnicity]" (conclusion about motive)
+      - "racist" (characterization)
+    expected_transformed:
+      - Facts of what happened preserved
+      - Pattern observations preserved
+      - Motive conclusions flagged but facts kept
+
+  - id: extreme_007
+    name: "Neighborhood Profiling"
+    category: profiling
+    input: |
+      [DESCRIBE: "You don't belong here" or similar statements]
+      [DESCRIBE: Questions about where you live, what you're doing there]
+      [DESCRIBE: Demands for ID without legal basis given]
+    expected_preserved:
+      - Exact quotes
+      - Questions asked
+      - Your responses
+      - Time, location
+    expected_removed:
+      - Conclusions about legality
+    expected_transformed:
+      - Dialogue preserved exactly
+
+  # ═══════════════════════════════════════════════════════════════════
+  # VERBAL ABUSE / THREATS / INTIMIDATION
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: extreme_008
+    name: "Threatening Voice/Yelling"
+    category: verbal_intimidation
+    input: |
+      [DESCRIBE: The volume, tone, words used]
+      [DESCRIBE: Physical positioning during yelling - distance, stance]
+      [DESCRIBE: Your reaction, others' reactions if witnesses present]
+    expected_preserved:
+      - Exact words in quotes
+      - Volume description ("shouted", "yelled")
+      - Distance/positioning
+      - Physical reactions (flinched, stepped back)
+    expected_removed:
+      - "intimidating" (interpretation)
+      - "threatening" (legal term)
+    expected_transformed:
+      - "shouted [exact words]" not "threatened me"
+      - Observable behavior, not characterization
+
+  - id: extreme_009
+    name: "Viking Roar / War Cry"
+    category: verbal_intimidation
+    input: |
+      [DESCRIBE: The sound - was it words or just sound?]
+      [DESCRIBE: Context - while approaching? while taking action?]
+      [DESCRIBE: Your physical reaction]
+    expected_preserved:
+      - Description of sound made
+      - Timing/context
+      - Your reaction
+    expected_removed:
+      - Characterizations of intent
+    expected_transformed:
+      - "made a loud [guttural/bellowing] sound" (observable)
+
+  - id: extreme_010
+    name: "Explicit Threats"
+    category: verbal_intimidation
+    input: |
+      [DESCRIBE: Exact words of threat - "I will..." / "If you don't..."]
+      [DESCRIBE: Context and delivery]
+      [DESCRIBE: Any weapons displayed during threat]
+    expected_preserved:
+      - EXACT WORDS IN QUOTES - this is critical
+      - Weapon presence
+      - Context
+    expected_removed:
+      - Your interpretation
+    expected_transformed:
+      - The quote IS the evidence - preserve it exactly
+
+  # ═══════════════════════════════════════════════════════════════════
+  # PHYSICAL GRABBING / RESTRAINT
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: extreme_011
+    name: "Grabbed and Yanked"
+    category: physical_restraint
+    input: |
+      [DESCRIBE: Where grabbed - arm, collar, hair]
+      [DESCRIBE: Direction pulled/yanked]
+      [DESCRIBE: Your body position before/after]
+    expected_preserved:
+      - Body part grabbed
+      - Direction of force
+      - Result (fell, stumbled, pain)
+    expected_removed:
+      - Intent language
+    expected_transformed:
+      - "[Officer] grabbed my [arm] and pulled [direction]"
+
+  - id: extreme_012
+    name: "Cuffed Too Tight / Injury from Cuffs"
+    category: physical_restraint
+    input: |
+      [DESCRIBE: The application of cuffs]
+      [DESCRIBE: Complaints made, response to complaints]
+      [DESCRIBE: Resulting injuries - marks, numbness, cuts]
+    expected_preserved:
+      - Your verbal complaints (quoted)
+      - Officer response to complaints
+      - Physical evidence/injuries
+      - Duration in cuffs
+    expected_removed:
+      - "torture" (unless quoted as exact word used)
+    expected_transformed:
+      - Facts of injury preserved
+
+  # ═══════════════════════════════════════════════════════════════════
+  # FALSE ACCUSATIONS / CHARGES
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: extreme_013
+    name: "Accused Then Charged Falsely"
+    category: false_charges
+    input: |
+      [DESCRIBE: What you were accused of - exact words]
+      [DESCRIBE: What actually happened - the facts]
+      [DESCRIBE: What you were charged with vs reality]
+    expected_preserved:
+      - Exact accusation (quoted)
+      - Your account of events
+      - Charges filed
+      - Contradicting evidence if any
+    expected_removed:
+      - "lied" (conclusion - unless you have proof)
+      - "false arrest" (legal conclusion)
+    expected_transformed:
+      - "I was charged with [X]. My account: [Y]."
+      - Both versions preserved, no resolution
+
+  - id: extreme_014
+    name: "Resisting Arrest - Created Situation"
+    category: false_charges
+    input: |
+      [DESCRIBE: What led to "resisting" charge]
+      [DESCRIBE: Your actual actions - flinching, protecting self, etc]
+      [DESCRIBE: How it was characterized in report/charges]
+    expected_preserved:
+      - Your actions as you describe them
+      - Official characterization
+      - Physical reality (handcuffed, on ground, etc)
+    expected_removed:
+      - "set me up" (accusation)
+    expected_transformed:
+      - Both narratives preserved without resolution
+
+  # ═══════════════════════════════════════════════════════════════════
+  # AFTERMATH / COVER-UP
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: extreme_015
+    name: "Delayed/Denied Medical Care"
+    category: aftermath
+    input: |
+      [DESCRIBE: Injuries visible/felt]
+      [DESCRIBE: Requests for medical attention]
+      [DESCRIBE: Response to requests, delay duration]
+    expected_preserved:
+      - Injuries described
+      - Requests made (quoted if possible)
+      - Timeline of delay
+      - Eventually received care? Where?
+    expected_removed:
+      - "deliberate" (unless you have proof)
+    expected_transformed:
+      - Facts with timeline preserved
+
+  - id: extreme_016
+    name: "Camera Conveniently Off"
+    category: aftermath
+    input: |
+      [DESCRIBE: When you noticed/mentioned camera]
+      [DESCRIBE: Response about camera status]
+      [DESCRIBE: What happened in the "unrecorded" time]
+    expected_preserved:
+      - Your question about camera
+      - Response received
+      - Timeline of events
+    expected_removed:
+      - "cover-up" (conclusion)
+      - "destroyed evidence" (legal accusation)
+    expected_transformed:
+      - Observable facts about camera status
+
+# ═══════════════════════════════════════════════════════════════════
+# FILL THIS SECTION WITH YOUR RAW NARRATIVES
+# I'll help transform them once you add them
+# ═══════════════════════════════════════════════════════════════════
+
+real_cases_to_add:
+  # Copy the structure above and paste your real narrative in "input"
+  # Example:
+  # - id: real_001
+  #   name: "My Experience"
+  #   input: |
+  #     [Your full narrative here - as raw and detailed as you remember]
+  #   expected_preserved:
+  #     - [What facts MUST survive transformation]

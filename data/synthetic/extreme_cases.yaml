@@ -1,0 +1,400 @@
+# EXTREME CASES - Filled Narratives for NNRT Testing
+#
+# These are realistic police encounter narratives designed to
+# stress-test the transformation system.
+#
+# The goal: Transform raw emotional accounts into neutral factual
+# documentation while PRESERVING the evidence.
+
+version: "1.0"
+created: "2026-01-13"
+
+cases:
+
+  # ═══════════════════════════════════════════════════════════════════
+  # PHYSICAL FORCE - Ground Takedowns
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: extreme_001
+    name: "Thrown to Ground - Traffic Stop"
+    category: physical_force
+    input: |
+      I was pulled over for a broken taillight. The cop approached my window 
+      screaming at me to get out. Before I could even unbuckle my seatbelt, 
+      he yanked the door open, grabbed me by my shirt collar, and threw me 
+      face-first onto the asphalt. My face hit the ground hard. I felt my 
+      teeth cut into my lip. Blood started pooling under my face. He put 
+      his knee in my back and wrenched my arms behind me. I kept saying 
+      "I'm not resisting, I'm not resisting" but he just kept pressing 
+      harder. My glasses were broken on the ground next to me.
+    expected_preserved:
+      - "broken taillight"
+      - "grabbed me by my shirt collar"
+      - "threw me face-first onto the asphalt"
+      - "face hit the ground"
+      - "teeth cut into my lip"
+      - "Blood"
+      - "knee in my back"
+      - "I'm not resisting"
+      - "glasses were broken"
+
+  - id: extreme_002
+    name: "Punched While Handcuffed"
+    category: physical_force
+    input: |
+      I was already in handcuffs, sitting on the curb. I asked why I was 
+      being detained and the officer told me to shut up. I asked again, 
+      because I have a right to know. He walked over, grabbed my hair, 
+      pulled my head back, and punched me in the face. My nose started 
+      bleeding immediately. He said "That's for not shutting up when I 
+      told you." There were three other officers there. None of them 
+      did anything. I have it on video from my dashcam.
+    expected_preserved:
+      - "already in handcuffs"
+      - "sitting on the curb"
+      - "asked why I was being detained"
+      - "grabbed my hair"
+      - "pulled my head back"
+      - "punched me in the face"
+      - "nose started bleeding"
+      - Exact quote preserved
+      - "three other officers"
+      - "video from my dashcam"
+
+  - id: extreme_003
+    name: "Chokehold During Arrest"
+    category: physical_force
+    input: |
+      He came up behind me and put his arm around my neck. Not like a 
+      headlock, but directly on my throat. I immediately couldn't breathe. 
+      I tried to say "I can't breathe" but nothing came out. My vision 
+      started going dark around the edges. I grabbed at his arm trying to 
+      get air. That's when they said I was "actively resisting." I was 
+      trying not to die. The whole thing lasted maybe 30 seconds but it 
+      felt like forever. When he finally let go I collapsed and vomited. 
+      I had bruises on my neck for two weeks.
+    expected_preserved:
+      - "arm around my neck"
+      - "directly on my throat"
+      - "couldn't breathe"
+      - "vision started going dark"
+      - "grabbed at his arm"
+      - "30 seconds"
+      - "collapsed and vomited"
+      - "bruises on my neck for two weeks"
+
+  # ═══════════════════════════════════════════════════════════════════
+  # UNLAWFUL ENTRY / SEARCH
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: extreme_004
+    name: "No-Knock Entry Wrong Address"
+    category: unlawful_entry
+    input: |
+      I was asleep at 3 AM when I heard my front door explode. They came 
+      in screaming with flashlights and guns. I had no idea what was 
+      happening. I thought it was a home invasion. They threw me out of 
+      bed onto the floor and zip-tied my hands. My girlfriend was screaming. 
+      They had her face-down on the hallway floor in her underwear. It 
+      took them 20 minutes to figure out they had the wrong apartment. 
+      The guy they wanted lived two floors up. They just left. Didn't 
+      apologize. Didn't fix my door. I couldn't sleep for months.
+    expected_preserved:
+      - "3 AM"
+      - "front door"
+      - "guns"
+      - "threw me out of bed onto the floor"
+      - "zip-tied my hands"
+      - "face-down on the hallway floor"
+      - "20 minutes"
+      - "wrong apartment"
+      - "two floors up"
+
+  - id: extreme_005
+    name: "K9 False Alert"
+    category: unlawful_search
+    input: |
+      The dog walked around my car twice and didn't react to anything. 
+      Then the handler walked him past the driver door again and I saw 
+      him tap his leg. The dog sat down. The handler said "that's an 
+      alert." I said "he didn't alert until you tapped your leg." The 
+      officer told me to shut up or I'd be arrested for obstruction. 
+      They searched my entire car for 45 minutes. Found nothing. But now 
+      I have a "K9 alert" on my record and I got a ticket for expired 
+      registration which wasn't even why they stopped me.
+    expected_preserved:
+      - "walked around my car twice"
+      - "didn't react"
+      - "tapped his leg"
+      - "dog sat down"
+      - Handler's quote
+      - My observation about the tap
+      - "45 minutes"
+      - "Found nothing"
+      - "expired registration"
+
+  # ═══════════════════════════════════════════════════════════════════
+  # PROFILING / PRETEXTUAL STOPS
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: extreme_006
+    name: "Walking While Black"
+    category: profiling
+    input: |
+      I was walking home from work at 11 PM. I work night shift at the 
+      hospital, still had my scrubs on. Two cops pulled up and asked me 
+      what I was doing in "this neighborhood." I said I live here. They 
+      asked for ID. I asked if I was being detained. They said they had 
+      reports of a burglary. I'm a 45-year-old nurse walking home with 
+      a backpack. They ran my ID for 20 minutes while I stood there. 
+      Then they said I could go. No apology. This was the fourth time 
+      this year.
+    expected_preserved:
+      - "11 PM"
+      - "night shift at the hospital"
+      - "scrubs on"
+      - Exact quote about neighborhood
+      - "I live here"
+      - "asked for ID"
+      - "reports of a burglary"
+      - "45-year-old nurse"
+      - "20 minutes"
+      - "fourth time this year"
+
+  - id: extreme_007
+    name: "DWB - Driving While Black"
+    category: profiling
+    input: |
+      They said they stopped me because I "didn't signal long enough" 
+      before changing lanes. Then they asked if there were drugs or 
+      weapons in the car. Then they asked where I was coming from and 
+      where I was going. Then they asked whose car it was. It's my car. 
+      I've owned it for 6 years. Then they asked if I'd consent to a 
+      search. I said no. Then they made me wait 45 minutes for a K9 
+      unit. I was going to pick up my daughter from dance class. She 
+      waited alone in the parking lot.
+    expected_preserved:
+      - Stated reason for stop
+      - All questions asked
+      - "my car"
+      - "6 years"
+      - "I said no"
+      - "45 minutes"
+      - "daughter from dance class"
+
+  # ═══════════════════════════════════════════════════════════════════
+  # VERBAL ABUSE / THREATS
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: extreme_008
+    name: "Death Threat During Stop"
+    category: verbal_threat
+    input: |
+      He had his hand on his gun the entire time. When I reached for my 
+      registration in the glove box, he screamed "DON'T FUCKING MOVE" 
+      and drew his weapon. He pointed it at my head and said "If you 
+      move again I will blow your fucking brains out, do you understand 
+      me?" I was shaking so hard I couldn't respond. He kept screaming 
+      "DO YOU UNDERSTAND ME" over and over. I finally managed to say 
+      yes. My registration was in the glove box where he told me to 
+      put my hands.
+    expected_preserved:
+      - "hand on his gun"
+      - "reached for my registration"
+      - "glove box"
+      - "DON'T FUCKING MOVE" (exact quote critical)
+      - "drew his weapon"
+      - "pointed it at my head"
+      - The threat (exact words critical)
+      - "shaking"
+      - "registration was in the glove box"
+
+  - id: extreme_009
+    name: "Aggressive Approach - Viking Roar"
+    category: verbal_intimidation
+    input: |
+      I was sitting in my car in a parking lot eating lunch. The cop 
+      pulled up behind me, got out, and approached my window. Before 
+      I could even roll it down he started banging on the glass and 
+      screaming this guttural yell - not words, just this aggressive 
+      war-cry sound. Like he was trying to intimidate me before 
+      anything even happened. I opened the door with my hands up and 
+      he immediately grabbed my wrist and twisted it behind my back.
+    expected_preserved:
+      - "sitting in my car"
+      - "parking lot"
+      - "eating lunch"
+      - "banging on the glass"
+      - Description of the yell/cry
+      - "hands up"
+      - "grabbed my wrist"
+      - "twisted it behind my back"
+
+  # ═══════════════════════════════════════════════════════════════════
+  # FALSE CHARGES / COVER-UP
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: extreme_010
+    name: "Resisting Charge from Flinching"
+    category: false_charges
+    input: |
+      He swung at me with his baton and I flinched back. That's it. I 
+      didn't touch him, didn't swing back, just instinctively moved 
+      away from something coming at my face. They charged me with 
+      resisting arrest with violence. The DA dropped it but I still 
+      lost my job because I was arrested. The bodycam footage shows 
+      exactly what happened but it took 14 months to get it. By then 
+      the damage was done.
+    expected_preserved:
+      - "swung at me with his baton"
+      - "flinched back"
+      - "didn't touch him"
+      - "resisting arrest with violence"
+      - "DA dropped it"
+      - "lost my job"
+      - "bodycam footage"
+      - "14 months"
+
+  - id: extreme_011
+    name: "Accused of Assault - He Hit Me"
+    category: false_charges
+    input: |
+      He punched me in the stomach while I was cuffed. I doubled over 
+      and stumbled into him. He then accused me of assaulting an officer. 
+      His report says I "lunged aggressively" at him. I was vomiting from 
+      getting hit in the stomach. How is that an aggressive lunge? He 
+      charged me with assault on a peace officer. I faced 5 years. The 
+      charges were dropped when a witness came forward with cell phone 
+      video.
+    expected_preserved:
+      - "punched me in the stomach"
+      - "cuffed"
+      - "doubled over"
+      - "stumbled into him"
+      - "accused me of assaulting an officer"
+      - His report's language
+      - "vomiting"
+      - "assault on a peace officer"
+      - "5 years"
+      - "witness... cell phone video"
+
+  # ═══════════════════════════════════════════════════════════════════
+  # AFTERMATH / INJURY
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: extreme_012
+    name: "Denied Medical After Beating"
+    category: aftermath
+    input: |
+      I kept telling them I needed a doctor. My ribs hurt so bad I 
+      couldn't breathe deep. I was spitting blood. They left me in the 
+      holding cell for 8 hours. When I finally got to the hospital, 
+      they found two cracked ribs and a punctured lung. The doctors 
+      asked what happened and the officers told them I "fell during 
+      arrest." I tried to tell them the truth but the cops stayed in 
+      the room the whole time. I was afraid to say anything.
+    expected_preserved:
+      - "needed a doctor"
+      - "ribs hurt"
+      - "spitting blood"
+      - "8 hours"
+      - "two cracked ribs"
+      - "punctured lung"
+      - Officers' false explanation
+      - "cops stayed in the room"
+
+  - id: extreme_013
+    name: "Cuffs Too Tight - Nerve Damage"
+    category: aftermath
+    input: |
+      I told him the cuffs were too tight. He said "they're supposed 
+      to hurt." I asked him at least three more times over the next 
+      hour. Each time he ignored me or laughed. By the time they took 
+      them off my hands were blue and I couldn't feel my fingers. I 
+      still can't feel two fingers on my right hand. The nerve damage 
+      is permanent according to my doctor.
+    expected_preserved:
+      - "cuffs were too tight"
+      - His response quoted
+      - "three more times"
+      - "hour"
+      - "hands were blue"
+      - "couldn't feel my fingers"
+      - "still can't feel two fingers"
+      - "permanent"
+      - "doctor"
+
+  - id: extreme_014
+    name: "Camera Off During Force"
+    category: aftermath
+    input: |
+      I asked if his bodycam was on. He said yes. Later I found out 
+      it was "malfunctioning" during the exact time when he had me 
+      on the ground. It started working again right after. Same with 
+      his partner's camera. Both cameras malfunctioned at the exact 
+      same time and came back on at the exact same time. The supervisor 
+      said there was "no evidence of misconduct" because there was 
+      no video.
+    expected_preserved:
+      - Asked about bodycam
+      - His response
+      - "malfunctioning"
+      - Timeline of malfunction
+      - Both cameras
+      - Same timing
+      - Supervisor's statement
+
+  # ═══════════════════════════════════════════════════════════════════
+  # COMPLEX SCENARIOS
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: extreme_015
+    name: "Wellness Check Gone Wrong"
+    category: complex
+    input: |
+      My mom called for a wellness check because she couldn't reach me. 
+      I was taking a nap. I woke up to cops pounding on my door screaming 
+      to open up. I opened it confused and half-asleep. They immediately 
+      grabbed me, threw me against the wall, and cuffed me in my own 
+      apartment. They searched my place without asking. One of them 
+      broke my laptop "checking for weapons." They were there for an 
+      hour. When they finally left they said "tell your mom to mind 
+      her own business."
+    expected_preserved:
+      - "wellness check"
+      - "mom called"
+      - "taking a nap"
+      - "pounding on my door"
+      - "confused and half-asleep"
+      - "threw me against the wall"
+      - "cuffed me in my own apartment"
+      - "searched... without asking"
+      - "broke my laptop"
+      - "hour"
+      - Officer's quote about mom
+
+  - id: extreme_016
+    name: "Mental Health Crisis Response"
+    category: complex
+    input: |
+      I was having a panic attack. My neighbor called 911 thinking I 
+      needed medical help. Instead of paramedics, four cops showed up. 
+      They pointed guns at me while I was hyperventilating on my kitchen 
+      floor. One of them kept yelling "calm down" which made it worse. 
+      I couldn't respond, I couldn't breathe. They tackled me and held 
+      me down. I was involuntarily committed for 72 hours. They wrote 
+      that I was "aggressive and non-compliant." I was having a panic 
+      attack. In my own home.
+    expected_preserved:
+      - "panic attack"
+      - "neighbor called 911"
+      - "medical help" expected
+      - "four cops"
+      - "guns"
+      - "hyperventilating"
+      - "kitchen floor"
+      - Yelling "calm down"
+      - "tackled"
+      - "72 hours"
+      - Report language
+      - "In my own home"

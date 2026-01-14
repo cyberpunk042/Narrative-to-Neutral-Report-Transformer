@@ -120,7 +120,14 @@ def _render_template(ctx: TransformContext) -> TransformContext:
         segment_spans = [s for s in ctx.spans if s.segment_id == segment.id]
         for span in segment_spans:
             if span.label == SpanLabel.LEGAL_CONCLUSION:
-                if span.text in rendered:
+                # Check if this is part of a charge description (should be preserved)
+                charge_contexts = [
+                    "charged with", "charge of", "accused of", "accused me of",
+                    "charged me with", "arrested for"
+                ]
+                is_charge_context = any(ctx_phrase in segment.text.lower() for ctx_phrase in charge_contexts)
+                
+                if span.text in rendered and not is_charge_context:
                     rendered = _remove_phrase(rendered, span.text)
                     total_span_transforms += 1
                     ctx.add_trace(
@@ -171,15 +178,27 @@ def _get_intent_replacement(phrase: str) -> str | None:
     """Get a neutral replacement for intent attribution phrases."""
     phrase_lower = phrase.lower()
     
+    # Physical action words - if "tried to" is followed by these, preserve it
+    physical_actions = [
+        "say", "speak", "talk", "call", "shout", "yell",
+        "breathe", "move", "run", "walk", "stand", "sit",
+        "open", "close", "grab", "reach", "pull", "push",
+        "get up", "get away", "get out",
+    ]
+    
+    # Check if this is a physical attempt (not intent attribution)
+    if "tried to" in phrase_lower or "trying to" in phrase_lower:
+        for action in physical_actions:
+            if action in phrase_lower:
+                return None  # Preserve - this is a physical attempt, not intent
+    
     replacements = {
         "intentionally": "",
         "deliberately": "",
         "purposely": "",
         "on purpose": "",
-        "tried to": "appeared to",
         "wanted to": "appeared to",
         "meant to": "appeared to",
-        "was trying to": "appeared to",
         "clearly wanted to": "appeared to",
     }
     
