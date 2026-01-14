@@ -14,6 +14,7 @@ from nnrt.ir.enums import (
     SegmentContext,
     SpanLabel,
     SpeechActType,
+    StatementType,
     TransformStatus,
     UncertaintyType,
 )
@@ -40,6 +41,7 @@ __all__ = [
     "IdentifierType",
     "EventType",
     "SpeechActType",
+    "StatementType",
     "UncertaintyType",
     "PolicyAction",
     "DiagnosticLevel",

@@ -15,6 +15,7 @@ from nnrt.passes import (
     annotate_context,
     augment_ir,
     build_ir,
+    classify_statements,
     evaluate_policy,
     extract_identifiers,
     normalize,
@@ -34,7 +35,8 @@ def setup_default_pipeline(engine: Engine) -> None:
             normalize,
             segment,
             tag_spans,
-            annotate_context,  # NEW: Annotate segment contexts
+            classify_statements,  # Phase 1: Classify as obs/claim/interp/quote
+            annotate_context,     # Context annotations
             extract_identifiers,
             build_ir,
             evaluate_policy,

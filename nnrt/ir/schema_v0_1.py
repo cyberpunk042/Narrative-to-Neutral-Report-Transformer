@@ -17,6 +17,7 @@ from nnrt.ir.enums import (
     PolicyAction,
     SpanLabel,
     SpeechActType,
+    StatementType,
     TransformStatus,
     UncertaintyType,
 )
@@ -45,6 +46,17 @@ class Segment(BaseModel):
     source_type: str = Field(
         default="narrator",
         description="Who is the source of this content (narrator, subject, officer, witness)"
+    )
+    
+    # Phase 1: Statement classification (set by p22_classify_statements)
+    statement_type: StatementType = Field(
+        default=StatementType.UNKNOWN,
+        description="Epistemic status: observation, claim, interpretation, or quote"
+    )
+    statement_confidence: float = Field(
+        default=0.0,
+        ge=0.0, le=1.0,
+        description="Confidence in statement_type classification"
     )
 
 

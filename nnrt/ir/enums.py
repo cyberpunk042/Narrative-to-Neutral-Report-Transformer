@@ -7,6 +7,28 @@ No stringly-typed constants scattered across passes.
 from enum import Enum
 
 
+# ============================================================================
+# Phase 1: Statement Classification
+# ============================================================================
+
+class StatementType(str, Enum):
+    """
+    Classification of statement epistemic status.
+    
+    This tells us HOW the narrator knows what they're claiming:
+    - OBSERVATION: Directly witnessed ("I saw him grab me")
+    - CLAIM: Asserted without explicit witness ("He grabbed me")  
+    - INTERPRETATION: Inference/opinion ("He wanted to hurt me")
+    - QUOTE: Direct speech preserved verbatim
+    """
+    
+    OBSERVATION = "observation"      # "I saw/heard/felt..."
+    CLAIM = "claim"                  # Assertion without explicit witness
+    INTERPRETATION = "interpretation"  # Inference, opinion, intent
+    QUOTE = "quote"                  # Direct speech
+    UNKNOWN = "unknown"              # Unable to classify
+
+
 class SpanLabel(str, Enum):
     """Semantic labels for spans."""
 
