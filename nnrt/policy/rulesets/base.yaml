@@ -247,20 +247,24 @@ rules:
   - id: interp_aggressive
     category: interpretation
     priority: 80
-    description: "Reframe aggressive language"
+    description: "Reframe aggressive language (except in quotes)"
     match:
       type: keyword
       patterns: ["aggressive", "aggressively"]
+    condition:
+      context_excludes: ["direct_quote"]  # Don't reframe inside quotes
     action: reframe
     reframe_template: "described as {original}"
 
   - id: interp_threatening
     category: interpretation
     priority: 80
-    description: "Reframe threatening language"
+    description: "Reframe threatening language (except in quotes)"
     match:
       type: keyword
       patterns: ["threatening", "intimidating", "hostile"]
+    condition:
+      context_excludes: ["direct_quote"]  # Don't reframe inside quotes
     action: reframe
     reframe_template: "described as {original}"
 

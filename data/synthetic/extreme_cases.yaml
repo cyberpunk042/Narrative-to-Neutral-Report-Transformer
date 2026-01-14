@@ -57,7 +57,7 @@ cases:
       - "pulled my head back"
       - "punched me in the face"
       - "nose started bleeding"
-      - Exact quote preserved
+      - "for not shutting up"
       - "three other officers"
       - "video from my dashcam"
 
@@ -125,10 +125,10 @@ cases:
     expected_preserved:
       - "walked around my car twice"
       - "didn't react"
-      - "tapped his leg"
+      - "tap his leg"
       - "dog sat down"
-      - Handler's quote
-      - My observation about the tap
+      - "that's an alert"
+      - "he didn't alert until you tapped"
       - "45 minutes"
       - "Found nothing"
       - "expired registration"
@@ -153,7 +153,7 @@ cases:
       - "11 PM"
       - "night shift at the hospital"
       - "scrubs on"
-      - Exact quote about neighborhood
+      - "this neighborhood"
       - "I live here"
       - "asked for ID"
       - "reports of a burglary"
@@ -174,8 +174,8 @@ cases:
       unit. I was going to pick up my daughter from dance class. She 
       waited alone in the parking lot.
     expected_preserved:
-      - Stated reason for stop
-      - All questions asked
+      - "didn't signal long enough"
+      - "drugs or weapons"
       - "my car"
       - "6 years"
       - "I said no"
@@ -202,10 +202,10 @@ cases:
       - "hand on his gun"
       - "reached for my registration"
       - "glove box"
-      - "DON'T FUCKING MOVE" (exact quote critical)
+      - "DON'T FUCKING MOVE"
       - "drew his weapon"
       - "pointed it at my head"
-      - The threat (exact words critical)
+      - "blow your fucking brains out"
       - "shaking"
       - "registration was in the glove box"
 
@@ -225,7 +225,7 @@ cases:
       - "parking lot"
       - "eating lunch"
       - "banging on the glass"
-      - Description of the yell/cry
+      - "guttural yell"
       - "hands up"
       - "grabbed my wrist"
       - "twisted it behind my back"
@@ -272,11 +272,11 @@ cases:
       - "doubled over"
       - "stumbled into him"
       - "accused me of assaulting an officer"
-      - His report's language
+      - "lunged aggressively"
       - "vomiting"
       - "assault on a peace officer"
       - "5 years"
-      - "witness... cell phone video"
+      - "witness came forward"
 
   # ═══════════════════════════════════════════════════════════════════
   # AFTERMATH / INJURY
@@ -300,7 +300,7 @@ cases:
       - "8 hours"
       - "two cracked ribs"
       - "punctured lung"
-      - Officers' false explanation
+      - "fell during arrest"
       - "cops stayed in the room"
 
   - id: extreme_013
@@ -315,7 +315,7 @@ cases:
       is permanent according to my doctor.
     expected_preserved:
       - "cuffs were too tight"
-      - His response quoted
+      - "they're supposed to hurt"
       - "three more times"
       - "hour"
       - "hands were blue"
@@ -336,13 +336,13 @@ cases:
       said there was "no evidence of misconduct" because there was 
       no video.
     expected_preserved:
-      - Asked about bodycam
-      - His response
+      - "bodycam was on"
+      - "He said yes"
       - "malfunctioning"
-      - Timeline of malfunction
-      - Both cameras
-      - Same timing
-      - Supervisor's statement
+      - "exact time"
+      - "Both cameras"
+      - "came back on at the exact same time"
+      - "no evidence of misconduct"
 
   # ═══════════════════════════════════════════════════════════════════
   # COMPLEX SCENARIOS
@@ -368,10 +368,10 @@ cases:
       - "confused and half-asleep"
       - "threw me against the wall"
       - "cuffed me in my own apartment"
-      - "searched... without asking"
+      - "searched my place without asking"
       - "broke my laptop"
       - "hour"
-      - Officer's quote about mom
+      - "tell your mom to mind her own business"
 
   - id: extreme_016
     name: "Mental Health Crisis Response"
@@ -388,13 +388,14 @@ cases:
     expected_preserved:
       - "panic attack"
       - "neighbor called 911"
-      - "medical help" expected
+      - "medical help"
       - "four cops"
       - "guns"
       - "hyperventilating"
       - "kitchen floor"
-      - Yelling "calm down"
+      - "calm down"
       - "tackled"
       - "72 hours"
-      - Report language
+      - "aggressive and non-compliant"
       - "In my own home"
+
