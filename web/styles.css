@@ -53,6 +53,11 @@
     box-sizing: border-box;
 }
 
+/* Utility Classes */
+.hidden {
+    display: none !important;
+}
+
 body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     background: var(--bg-primary);
