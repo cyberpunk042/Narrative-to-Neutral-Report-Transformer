@@ -232,6 +232,27 @@ function scrollToPanel(panelId) {
     }
 }
 
+function scrollToCurrentSection() {
+    // Find which panel is currently most visible
+    const panels = document.querySelectorAll('.panel');
+    const mainContent = document.querySelector('.main-content');
+    if (!mainContent) return;
+
+    const scrollTop = mainContent.scrollTop;
+    let currentPanel = null;
+
+    panels.forEach(panel => {
+        const rect = panel.getBoundingClientRect();
+        if (rect.top <= 150 && rect.bottom > 100) {
+            currentPanel = panel;
+        }
+    });
+
+    if (currentPanel) {
+        currentPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
 // =============================================================================
 // Filter Functions
 // =============================================================================
