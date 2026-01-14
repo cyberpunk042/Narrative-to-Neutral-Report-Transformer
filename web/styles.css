@@ -1081,6 +1081,13 @@ body {
     white-space: pre-wrap;
     word-wrap: break-word;
     color: var(--text-secondary);
+    max-height: 200px;
+    overflow-y: auto;
+    scroll-behavior: smooth;
+    margin: 0;
+    padding: var(--space-sm);
+    background: var(--bg-primary);
+    border-radius: var(--radius-sm);
 }
 
 .log-entry {

@@ -251,6 +251,59 @@ async function copyOutput() {
 }
 
 // =============================================================================
+// Clear All Panels (before new transform)
+// =============================================================================
+
+function clearAllPanels() {
+    // Clear output
+    if (elements.outputText) {
+        elements.outputText.innerHTML = '<span class="placeholder">Processing...</span>';
+    }
+    if (elements.outputBadge) elements.outputBadge.textContent = '—';
+
+    // Clear atomic statements
+    if (elements.atomicStatementsList) {
+        elements.atomicStatementsList.innerHTML = '<div class="empty-state">Processing...</div>';
+    }
+    if (elements.atomicStatementsBadge) elements.atomicStatementsBadge.textContent = '—';
+
+    // Clear statements
+    if (elements.statementsList) {
+        elements.statementsList.innerHTML = '<div class="empty-state">Processing...</div>';
+    }
+    if (elements.statementsBadge) elements.statementsBadge.textContent = '—';
+
+    // Clear entities
+    if (elements.entitiesList) {
+        elements.entitiesList.innerHTML = '<div class="empty-state">Processing...</div>';
+    }
+    if (elements.entitiesBadge) elements.entitiesBadge.textContent = '—';
+
+    // Clear events
+    if (elements.eventsList) {
+        elements.eventsList.innerHTML = '<div class="empty-state">Processing...</div>';
+    }
+    if (elements.eventsBadge) elements.eventsBadge.textContent = '—';
+
+    // Clear diagnostics
+    if (elements.diagnosticsList) {
+        elements.diagnosticsList.innerHTML = '<div class="empty-state">Processing...</div>';
+    }
+    if (elements.diagnosticsBadge) elements.diagnosticsBadge.textContent = '—';
+
+    // Clear transforms
+    if (elements.transformsList) {
+        elements.transformsList.innerHTML = '<div class="empty-state">Processing...</div>';
+    }
+    if (elements.transformsBadge) elements.transformsBadge.textContent = '—';
+
+    // Clear stats
+    if (elements.stats) {
+        elements.stats.innerHTML = '<span class="stat">Processing...</span>';
+    }
+}
+
+// =============================================================================
 // Transform
 // =============================================================================
 
@@ -263,6 +316,9 @@ async function transformText() {
 
     showStatus('processing', 'Transforming...');
     if (elements.transformBtn) elements.transformBtn.disabled = true;
+
+    // Clear all panels immediately for fresh start
+    clearAllPanels();
 
     // Clear logs for fresh start
     logs = [];
