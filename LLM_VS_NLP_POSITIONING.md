@@ -1,152 +1,309 @@
-# NNRT Positioning: NLP System, Not an LLM
+# NNRT — LLM Usage Policy and Positioning
 
 ## Purpose
 
-This document clarifies how NNRT positions itself with respect to **LLMs** and **NLP systems**.
+This document defines **how NNRT uses language models** and why.
 
-NNRT intentionally avoids being described as "an LLM" or "an AI that understands truth". This distinction is not marketing — it is architectural and ethical.
-
----
-
-## Short Statement (Recommended Description)
-
-> NNRT is a **deterministic NLP pipeline** that uses machine‑learning models as **semantic sensors**, not as decision‑makers.
-
-LLMs may be used as components, but NNRT itself is **not** an LLM.
+This is not a tooling preference. It is a design boundary that determines whether NNRT remains defensible.
 
 ---
 
-## Why This Distinction Matters
+## The Core Rule
 
-Large Language Models:
+> **LLMs are allowed to assist the transformation.**
+> **LLMs are not allowed to define the transformation.**
 
-* Generate text
-* Optimize for plausibility
-* Fill gaps implicitly
-* Can hallucinate structure, intent, or facts
-
-These properties make LLMs powerful — and dangerous — when treated as authoritative systems.
-
-NNRT is designed to avoid these failure modes.
+This distinction is non-negotiable.
 
 ---
 
-## How NNRT Actually Works
+## Why LLMs Are Necessary
 
-NNRT follows a **compiler‑style NLP architecture**:
+A strict "no LLMs" policy sounds principled, but it breaks down in practice.
 
-1. Input text is normalized
-2. Semantic signals are extracted (tags, spans, events)
-3. A structured Intermediate Representation (IR) is built
-4. Deterministic policy rules are applied
-5. Output text is rendered from IR under constraints
+### The Problem NNRT Solves
 
-At no point is a model allowed to:
+NNRT maps **human expression → formal structure**.
 
-* decide truth
-* reconcile perspectives
-* invent missing facts
-* resolve conflicts
+Humans submit input that is:
 
----
+* Non-linear
+* Redundant
+* Emotional
+* Context-dependent
+* Grammatically inconsistent
+* Full of ellipsis and implication
 
-## Role of Machine Learning in NNRT
+Example input:
 
-Machine‑learning models are used only for **bounded perception tasks**, such as:
+> "He was clearly trying to intimidate me, standing way too close, smirking, after everything that happened before."
 
-* detecting semantic spans
-* classifying language categories
-* extracting candidate events with evidence
+A deterministic parser alone cannot reliably:
 
-They do **not**:
+* Separate observation from interpretation
+* Preserve factual intent
+* Avoid over-stripping meaning
+* Handle edge cases without exploding rule complexity
 
-* control the pipeline
-* decide what survives into output
-* perform reasoning or adjudication
+### Why Rules Alone Don't Scale
 
-All ML outputs are treated as **untrusted input**.
+A pure rule-based system requires:
 
----
+* Thousands of edge-case rules
+* Constant maintenance
+* Domain-specific grammar trees
+* Language-specific handling
+* Extremely brittle behavior
 
-## LLMs as Optional Components
+You would end up reimplementing half of linguistics — poorly, with worse results.
 
-When LLMs are used, they are constrained to:
+### What LLMs Are Good At
 
-* structured (JSON‑only) outputs
-* evidence‑backed extraction
-* confidence‑annotated suggestions
+LLMs are **semantic compressors and rewriters**, not judges.
 
-Their outputs are always:
+They excel at:
 
-* schema‑validated
-* policy‑checked
-* rejectable
+* Rephrasing without losing meaning
+* Handling messy, long-form narrative
+* Detecting implied structure
+* Suggesting neutral phrasings
+* Operating across domains without brittle rules
 
-NNRT can refuse or partially output results when model confidence or validation fails.
+Crucially: **they can propose structure without asserting correctness.**
 
----
-
-## NLP vs LLM: Practical Comparison
-
-NLP System (NNRT):
-
-* Structure‑first
-* Deterministic rules
-* Explicit refusal modes
-* Traceable transformations
-* Conservative by design
-
-LLM‑centric System:
-
-* Generation‑first
-* Implicit reasoning
-* No clear refusal semantics
-* Difficult to audit
-* Prone to confident error
-
-NNRT deliberately chooses the former.
+That is the exact capability NNRT needs.
 
 ---
 
-## How NNRT Describes Itself
+## The Correct Mental Model
 
-Accurate descriptions include:
+LLMs are **linguistic adapters**, not decision-makers.
 
-* "A semantic normalization pipeline"
-* "A compiler‑style NLP transformer"
-* "An IR‑based narrative processing system"
-* "A deterministic NLP system with optional ML components"
+Think of them as:
 
-Descriptions to avoid:
+* Smart text normalizers
+* Semantic shapers
+* Structure suggesters
 
-* "An AI that determines facts"
-* "An LLM that analyzes incidents"
-* "An automated truth system"
+**Not** as:
+
+* Reasoners
+* Judges
+* Authorities
 
 ---
 
-## Ethical Implication
+## What Makes LLM Usage Safe
 
-By not presenting itself as an LLM, NNRT:
+### The Architectural Pattern
 
-* avoids false authority
-* avoids over‑trust by users
-* makes failure explicit and inspectable
-* preserves space for human judgment
+```
+LLM → Candidate Generator
+Engine → Validator & Gatekeeper
+```
 
-NNRT does not replace interpretation.
+**Never the reverse.**
 
-It **structures language so interpretation is possible without distortion**.
+If the Engine cannot verify the output without the LLM, the design is wrong.
+
+### The Inversion That Makes This Work
+
+| Without LLMs | With Constrained LLMs |
+|--------------|----------------------|
+| Rules try to understand humans → they fail | LLMs help translate humans → rules enforce meaning |
+
+**Translation ≠ interpretation.**
+
+---
+
+## Allowed vs. Forbidden LLM Roles
+
+### Allowed
+
+LLMs may:
+
+* Rewrite text into neutral tone **without adding information**
+* Label sentences (observation / claim / interpretation)
+* Propose multiple neutral rewrites for user selection
+* Flag ambiguity or missing data
+* Suggest metadata candidates (never assert them)
+* Propose sentence splits
+* Mark uncertainty explicitly
+* Generate multiple candidate neutral forms
+
+All LLM outputs must be:
+
+* Explicitly marked as suggested
+* Reviewable
+* Rejectable
+* Deterministically post-processed
+
+### Forbidden
+
+LLMs must not:
+
+* Infer intent or motive
+* Resolve contradictions
+* Guess facts
+* Fill missing details
+* Decide credibility
+* Collapse uncertainty
+* Select the "best" interpretation
+* Increase certainty
+* Produce a "final" authoritative output
+
+**The final structure is produced by rules + schema, not by model judgment.**
+
+---
+
+## Determinism Requirement
+
+Even with LLMs involved:
+
+* The same input must produce structurally equivalent output
+* Ambiguity must be preserved, not resolved
+* Confidence must never increase automatically
+* Any non-deterministic step must be annotated
+
+**If you cannot explain why a transformation occurred, it must not occur.**
+
+---
+
+## Testable Boundaries
+
+### The Auditor Test
+
+> "Could an external auditor reconstruct the transformation logic without trusting the model?"
+
+If the answer is **no** — the LLM is doing too much.
+
+### The Ambiguity Test
+
+> "Could two reasonable readers disagree after reading this output?"
+
+If **yes** → NNRT did its job.
+If **no** → NNRT overstepped.
+
+### The Fallback Test
+
+> "If you removed the LLM tomorrow, would the system still work, but badly?"
+
+* If **yes** → acceptable (LLMs are quality multipliers)
+* If **no** → unacceptable (LLMs have become foundations)
+
+---
+
+## NNRT-Specific Constraints
+
+At the NNRT layer specifically:
+
+### Allowed at NNRT Level
+
+* Rewriting into neutral tone
+* Proposing sentence splits
+* Labeling clauses
+* Marking ambiguity explicitly
+* Generating multiple candidate neutral forms
+
+### Forbidden at NNRT Level
+
+* Selecting the "best" interpretation
+* Increasing certainty
+* Resolving contradictions
+* Filling missing facts
+* Producing a single authoritative rewrite
+
+NNRT output must always look like:
+
+> "Here are possible neutral interpretations of what was written."
+
+**Never:**
+
+> "Here is what happened."
+
+---
+
+## One-Sentence Policies
+
+### General Policy
+
+> NNRT may use language models as assistive tools for neutralization, but all factual structure, classification, and guarantees are enforced by deterministic rules, not model judgment.
+
+### NNRT-Specific Policy
+
+> NNRT may use LLMs to translate narrative into structured neutral candidates, but it must never reduce ambiguity or assert meaning.
+
+If that line is crossed, NNRT stops being a transformer and becomes an author.
+
+---
+
+## How to Describe This Publicly
+
+### Never Say
+
+* "We use AI to understand reports."
+* "An LLM that analyzes incidents."
+* "An automated truth system."
+
+### Always Say
+
+* "Automated language tools may assist in rewriting submissions into neutral form, but all transformations follow fixed, auditable rules and do not infer meaning or intent."
+
+That wording matters.
+
+---
+
+## Why This Positioning Matters
+
+LLMs are powerful — and dangerous — when treated as authoritative systems.
+
+If LLMs:
+
+* Infer intent
+* Fill gaps
+* Resolve ambiguity implicitly
+* Decide what "really happened"
+* Smooth contradictions
+
+…then you've destroyed neutrality.
+
+At that point, you are no longer normalizing — **you are authoring.**
+
+That creates:
+
+* Hidden bias
+* Non-determinism
+* Legal exposure
+* Trust collapse
+* Impossible audits
+
+This is exactly what NNRT must avoid.
+
+---
+
+## Summary
+
+NNRT is a **deterministic NLP pipeline** that uses LLMs as **constrained semantic sensors**.
+
+LLMs are:
+
+* Necessary (because human language is messy)
+* Constrained (proposal only, never decision)
+* Subordinate (Engine validates, LLM suggests)
+* Auditable (transformations must be explainable without trusting the model)
+
+NNRT uses models.
+NNRT is not a model.
 
 ---
 
 ## Closing Note
 
-NNRT is conservative by design.
+This boundary is the line that keeps the system honest.
 
-It uses modern NLP techniques without inheriting the epistemic risks of treating language models as judges.
+If this ever feels fuzzy, return to the auditor test:
 
-In short:
+> "Could an external auditor reconstruct the transformation logic without trusting the model?"
 
-> NNRT uses models.
-> NNRT is not a model.
+If yes — proceed.
+If no — stop and redesign.

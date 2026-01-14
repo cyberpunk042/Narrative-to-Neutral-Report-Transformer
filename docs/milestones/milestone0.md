@@ -81,28 +81,52 @@ Each stage is implemented as an isolated pass with a strict contract.
 
 Milestone 0 must select one primary NLP strategy for Stages 2–4.
 
-Option A — Encoder + Classifier Heads
+**All options must comply with the LLM Usage Policy** (see `/LLM_VS_NLP_POSITIONING.md`).
+
+The architectural constraint is non-negotiable:
+
+```
+LLM → Candidate Generator
+Engine → Validator & Gatekeeper
+```
+
+LLMs are necessary (human language is messy), but constrained (proposal only, never decision).
+
+### Option A — Encoder + Classifier Heads
 
 * Contextual encoder (e.g. BERT/DeBERTa class)
 * Span and token classification for semantic labels
 * Optional separate event extractor
 * Lowest hallucination risk
 * Most compiler-like
+* **LLM role:** Semantic sensor only
 
-Option B — Small Instruction Model (JSON-only)
+### Option B — Small Instruction Model (JSON-only)
 
-* Local instruct model
-* Strict structured outputs only
+* Local instruct model (e.g. Flan-T5-small, Phi-3-mini)
+* Strict structured outputs only (JSON schema enforced)
 * Faster prototyping
 * Requires strong validators
+* **LLM role:** Structure suggester, never authority
 
-Option C — Hybrid (Recommended)
+### Option C — Hybrid ✅ SELECTED
 
 * Encoder for tagging and extraction
 * Small constrained generator only for rendering
 * Best balance of safety and usability
+* **LLM role:** Encoder senses, generator proposes, Engine validates
 
-Milestone 0 records and freezes the selected option.
+**Status:** FROZEN as of 2026-01-13
+
+**Rationale:** Hybrid provides deterministic semantic sensing via encoder while allowing constrained generation for rendering. Passes the auditor test: encoder outputs are inspectable, generator input is IR (not raw text).
+
+### Selection Criteria
+
+The chosen option must pass the **auditor test**:
+
+> "Could an external auditor reconstruct the transformation logic without trusting the model?"
+
+**Decision recorded. This selection is now binding for implementation milestones.**
 
 ---
 
