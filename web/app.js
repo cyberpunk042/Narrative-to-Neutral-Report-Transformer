@@ -383,6 +383,20 @@ function scrollToCurrentSection() {
     }
 }
 
+function updateStickyNavVisibility() {
+    // Hide nav links for panels that are hidden
+    const navLinks = document.querySelectorAll('.sticky-nav-links a');
+    navLinks.forEach(link => {
+        const panelId = link.dataset.panel;
+        const panel = document.getElementById(panelId);
+        if (panel && panel.classList.contains('hidden')) {
+            link.classList.add('hidden');
+        } else {
+            link.classList.remove('hidden');
+        }
+    });
+}
+
 // =============================================================================
 // Filter Functions
 // =============================================================================
@@ -975,6 +989,9 @@ function displayResults(result) {
         }
     }
     if (showMetadata && totalExtracted > 0) expandPanel('extractedPanel');
+
+    // Update sticky nav to hide links for hidden panels
+    updateStickyNavVisibility();
 }
 
 // =============================================================================
