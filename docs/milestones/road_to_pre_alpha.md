@@ -59,7 +59,7 @@
 
 ---
 
-### Phase 1: Statement Classification (4-6 hours)
+### Phase 1: Statement Classification (COMPLETE ✅)
 
 **Goal:** Classify each statement as OBSERVATION, CLAIM, or INTERPRETATION.
 
@@ -88,13 +88,13 @@ class StatementType(Enum):
 - Update IR schema
 
 #### Exit Criteria
-- [ ] Every segment has a `statement_type`
-- [ ] Classification accuracy > 80% on test corpus
-- [ ] No statement goes unclassified
+- [x] Every segment has a `statement_type`
+- [x] Classification accuracy > 80% on test corpus
+- [x] No statement goes unclassified
 
 ---
 
-### Phase 2: Structured Output Schema (2-3 hours)
+### Phase 2: Structured Output Schema (COMPLETE ✅)
 
 **Goal:** Define and implement the pre-alpha output format.
 
@@ -157,13 +157,13 @@ class StatementType(Enum):
 - Update `p80_package.py` to support both formats
 
 #### Exit Criteria
-- [ ] `nnrt transform --format structured` works
-- [ ] JSON output validates against schema
-- [ ] Schema is versioned
+- [x] `nnrt transform --format structured` works
+- [x] JSON output validates against schema
+- [x] Schema is versioned
 
 ---
 
-### Phase 3: Uncertainty Structured Output (2 hours)
+### Phase 3: Uncertainty Structured Output (COMPLETE ✅)
 
 **Goal:** Move ambiguity/contradiction diagnostics into structured output.
 
@@ -183,9 +183,9 @@ class UncertaintyType(Enum):
 - Link uncertainties to affected statements
 
 #### Exit Criteria
-- [ ] All detected ambiguities appear in `uncertainties` array
-- [ ] Each uncertainty links to affected statement IDs
-- [ ] No uncertainty is lost between detection and output
+- [x] All detected ambiguities appear in `uncertainties` array
+- [x] Each uncertainty links to affected statement IDs
+- [x] No uncertainty is lost between detection and output
 
 ---
 
