@@ -254,6 +254,9 @@ function reRenderFilteredPanel(panel) {
         case 'atomicStatements':
             renderAtomicStatements(currentResult.atomic_statements || []);
             break;
+        case 'statements':
+            renderStatements(currentResult.statements || []);
+            break;
         case 'entities':
             renderEntities(currentResult.entities || []);
             break;
@@ -311,76 +314,127 @@ async function copyOutput() {
 // =============================================================================
 
 function formatAsStructuredDocument(result) {
-    const statements = result.statements || [];
     const entities = result.entities || [];
     const events = result.events || [];
     const atomicStatements = result.atomic_statements || [];
+    const identifiers = result.extracted || {};
+
+    // Group entities by role
+    const entityByRole = {};
+    entities.forEach(e => {
+        const role = (e.role || 'other').toUpperCase();
+        if (!entityByRole[role]) entityByRole[role] = [];
+        entityByRole[role].push(e.label || 'Unknown');
+    });
+
+    // Group atomic statements by type
+    const statementsByType = {};
+    atomicStatements.forEach(s => {
+        const type = s.type || 'unknown';
+        if (!statementsByType[type]) statementsByType[type] = [];
+        statementsByType[type].push(s.text);
+    });
 
     let html = '<div class="structured-document">';
 
-    // Header
-    html += '<div class="doc-header">📄 NEUTRAL INCIDENT REPORT</div>';
+    // ===== HEADER =====
+    html += '<div class="doc-main-header">NEUTRALIZED REPORT</div>';
 
-    // Neutral Prose section
-    if (result.rendered_text) {
-        html += `
-            <div class="doc-section">
-                <div class="doc-section-title">NARRATIVE (Neutralized)</div>
-                <div class="doc-content">${escapeHtml(result.rendered_text)}</div>
-            </div>
-        `;
-    }
-
-    // Statements section
-    if (atomicStatements.length > 0) {
-        html += `
-            <div class="doc-section">
-                <div class="doc-section-title">STATEMENTS (${atomicStatements.length})</div>
-                <ul class="doc-list">
-                    ${atomicStatements.map((s, i) => `
-                        <li>
-                            <span class="doc-label">${s.type.toUpperCase()}</span>: 
-                            ${escapeHtml(s.text)}
-                            ${s.confidence < 0.7 ? '<span class="doc-warning">(low confidence)</span>' : ''}
-                        </li>
-                    `).join('')}
-                </ul>
-            </div>
-        `;
-    }
-
-    // Entities section
+    // ===== PARTIES SECTION =====
     if (entities.length > 0) {
-        html += `
-            <div class="doc-section">
-                <div class="doc-section-title">PARTIES INVOLVED (${entities.length})</div>
-                <ul class="doc-list">
-                    ${entities.map(e => `
-                        <li>
-                            <span class="doc-label">${(e.role || 'unknown').toUpperCase()}</span>: 
-                            ${escapeHtml(e.label || 'Unknown')}
-                        </li>
-                    `).join('')}
-                </ul>
-            </div>
-        `;
+        html += '<div class="doc-section">';
+        html += '<div class="doc-section-header">PARTIES</div>';
+        html += '<div class="doc-grid">';
+        for (const [role, names] of Object.entries(entityByRole)) {
+            // Map role names to more general terms
+            const roleLabel = role === 'AUTHORITY' ? 'AGENT' : role;
+            html += `<div class="doc-row"><span class="doc-key">${roleLabel}:</span><span class="doc-value">${escapeHtml(names.join(', '))}</span></div>`;
+        }
+        html += '</div></div>';
     }
 
-    // Events section
+    // ===== REFERENCE DATA SECTION =====
+    const hasIdentifiers = Object.keys(identifiers).length > 0;
+    const meta = result.metadata || {};
+    if (hasIdentifiers || meta.input_length) {
+        html += '<div class="doc-section">';
+        html += '<div class="doc-section-header">REFERENCE DATA</div>';
+        html += '<div class="doc-grid">';
+        // Add extracted identifiers
+        for (const [type, items] of Object.entries(identifiers)) {
+            if (items && items.length > 0) {
+                const values = items.map(i => i.value || i).join(', ');
+                html += `<div class="doc-row"><span class="doc-key">${type.charAt(0).toUpperCase() + type.slice(1)}:</span><span class="doc-value">${escapeHtml(values)}</span></div>`;
+            }
+        }
+        html += '</div></div>';
+    }
+
+    // ===== ACCOUNT SUMMARY HEADER =====
+    html += '<div class="doc-main-header doc-main-header-secondary">ACCOUNT SUMMARY</div>';
+
+    // ===== OBSERVATIONS =====
+    if (statementsByType['observation'] && statementsByType['observation'].length > 0) {
+        html += '<div class="doc-section">';
+        html += '<div class="doc-section-header">OBSERVATIONS</div>';
+        html += '<ul class="doc-list">';
+        statementsByType['observation'].forEach(text => {
+            html += `<li>${escapeHtml(text)}</li>`;
+        });
+        html += '</ul></div>';
+    }
+
+    // ===== CLAIMS =====
+    if (statementsByType['claim'] && statementsByType['claim'].length > 0) {
+        html += '<div class="doc-section">';
+        html += '<div class="doc-section-header">CLAIMS</div>';
+        html += '<ul class="doc-list">';
+        statementsByType['claim'].forEach(text => {
+            html += `<li>${escapeHtml(text)}</li>`;
+        });
+        html += '</ul></div>';
+    }
+
+    // ===== STATEMENTS (Interpretations) =====
+    if (statementsByType['interpretation'] && statementsByType['interpretation'].length > 0) {
+        html += '<div class="doc-section">';
+        html += '<div class="doc-section-header">STATEMENTS</div>';
+        html += '<ul class="doc-list">';
+        statementsByType['interpretation'].forEach(text => {
+            html += `<li>${escapeHtml(text)}</li>`;
+        });
+        html += '</ul></div>';
+    }
+
+    // ===== PRESERVED QUOTES =====
+    if (statementsByType['quote'] && statementsByType['quote'].length > 0) {
+        html += '<div class="doc-section">';
+        html += '<div class="doc-section-header">PRESERVED QUOTES</div>';
+        html += '<div class="doc-quotes">';
+        statementsByType['quote'].forEach(text => {
+            html += `<div class="doc-quote">"${escapeHtml(text)}"</div>`;
+        });
+        html += '</div></div>';
+    }
+
+    // ===== EVENTS =====
     if (events.length > 0) {
-        html += `
-            <div class="doc-section">
-                <div class="doc-section-title">ACTIONS/EVENTS (${events.length})</div>
-                <ul class="doc-list">
-                    ${events.map(e => `
-                        <li>
-                            <span class="doc-label">${(e.type || 'action').toUpperCase()}</span>: 
-                            ${escapeHtml(e.description || '')}
-                        </li>
-                    `).join('')}
-                </ul>
-            </div>
-        `;
+        html += '<div class="doc-section">';
+        html += '<div class="doc-section-header">RECORDED EVENTS</div>';
+        html += '<ul class="doc-list doc-events">';
+        events.forEach(e => {
+            html += `<li>${escapeHtml(e.description || '')}</li>`;
+        });
+        html += '</ul></div>';
+    }
+
+    // ===== FULL COMPUTED OUTPUT =====
+    if (result.rendered_text) {
+        html += '<div class="doc-separator"></div>';
+        html += '<div class="doc-section">';
+        html += '<div class="doc-section-header">FULL NARRATIVE (Computed)</div>';
+        html += `<div class="doc-narrative">${escapeHtml(result.rendered_text)}</div>`;
+        html += '</div>';
     }
 
     html += '</div>';

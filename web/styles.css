@@ -1463,25 +1463,37 @@ body {
 
 .structured-document {
     font-family: 'Inter', sans-serif;
+    padding: var(--space-md);
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
 }
 
-.doc-header {
+.doc-main-header {
     font-size: 1.1rem;
     font-weight: 700;
     color: var(--text-primary);
-    padding-bottom: var(--space-sm);
-    margin-bottom: var(--space-md);
-    border-bottom: 2px solid var(--accent-primary);
+    text-align: center;
+    padding: var(--space-md);
+    margin-bottom: var(--space-lg);
+    border-top: 3px double var(--border-color);
+    border-bottom: 3px double var(--border-color);
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: 2px;
+}
+
+.doc-main-header-secondary {
+    margin-top: var(--space-xl);
+    font-size: 0.95rem;
+    border-top: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
 }
 
 .doc-section {
     margin-bottom: var(--space-lg);
 }
 
-.doc-section-title {
-    font-size: 0.85rem;
+.doc-section-header {
+    font-size: 0.8rem;
     font-weight: 600;
     color: var(--accent-primary);
     text-transform: uppercase;
@@ -1491,9 +1503,27 @@ body {
     border-bottom: 1px solid var(--border-color);
 }
 
-.doc-content {
-    font-size: 0.95rem;
-    line-height: 1.7;
+.doc-grid {
+    display: grid;
+    gap: var(--space-xs);
+}
+
+.doc-row {
+    display: flex;
+    gap: var(--space-md);
+    padding: var(--space-xs) 0;
+}
+
+.doc-key {
+    font-weight: 600;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    min-width: 100px;
+    text-transform: uppercase;
+}
+
+.doc-value {
+    font-size: 0.9rem;
     color: var(--text-primary);
 }
 
@@ -1509,7 +1539,7 @@ body {
     border-left: 2px solid var(--border-color);
     margin-bottom: var(--space-xs);
     font-size: 0.9rem;
-    line-height: 1.5;
+    line-height: 1.6;
 }
 
 .doc-list li:hover {
@@ -1517,17 +1547,35 @@ body {
     background: var(--bg-glass);
 }
 
-.doc-label {
-    font-weight: 600;
-    font-size: 0.75rem;
-    color: var(--accent-secondary);
-    text-transform: uppercase;
+.doc-quotes {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
 }
 
-.doc-warning {
-    color: var(--warning);
-    font-size: 0.8rem;
+.doc-quote {
     font-style: italic;
+    padding: var(--space-sm) var(--space-md);
+    border-left: 3px solid var(--accent-secondary);
+    background: var(--bg-glass);
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+.doc-separator {
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--border-color), transparent);
+    margin: var(--space-xl) 0;
+}
+
+.doc-narrative {
+    font-size: 0.95rem;
+    line-height: 1.8;
+    color: var(--text-primary);
+    padding: var(--space-md);
+    background: var(--bg-primary);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
 }
 
 /* =============================================================================
