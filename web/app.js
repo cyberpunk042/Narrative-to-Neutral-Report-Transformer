@@ -11,6 +11,7 @@ let history = [];
 let logs = [];
 let useLLM = false;
 let showLogs = false;
+let showMetadata = false;
 
 // DOM Elements - cached on load
 let elements = {};
@@ -48,6 +49,12 @@ document.addEventListener('DOMContentLoaded', () => {
         logsPanel: document.getElementById('logsPanel'),
         logsOutput: document.getElementById('logsOutput'),
         logsBadge: document.getElementById('logsBadge'),
+        metadataToggle: document.getElementById('metadataToggle'),
+        metadataPanel: document.getElementById('metadataPanel'),
+        metadataGrid: document.getElementById('metadataGrid'),
+        extractedPanel: document.getElementById('extractedPanel'),
+        extractedGrid: document.getElementById('extractedGrid'),
+        extractedBadge: document.getElementById('extractedBadge'),
         historyList: document.getElementById('historyList'),
         examplesList: document.getElementById('examplesList'),
         exampleSearch: document.getElementById('exampleSearch'),
@@ -77,6 +84,21 @@ document.addEventListener('DOMContentLoaded', () => {
             logsPanel?.classList.remove('collapsed');
         } else {
             logsPanel?.classList.add('hidden');
+        }
+    });
+    elements.metadataToggle?.addEventListener('change', (e) => {
+        showMetadata = e.target.checked;
+        savePrefs();
+        const metadataPanel = document.getElementById('metadataPanel');
+        const extractedPanel = document.getElementById('extractedPanel');
+        if (showMetadata) {
+            metadataPanel?.classList.remove('hidden');
+            metadataPanel?.classList.remove('collapsed');
+            extractedPanel?.classList.remove('hidden');
+            extractedPanel?.classList.remove('collapsed');
+        } else {
+            metadataPanel?.classList.add('hidden');
+            extractedPanel?.classList.add('hidden');
         }
     });
     elements.exampleSearch?.addEventListener('input', filterExamples);
@@ -259,6 +281,92 @@ function displayResults(result) {
         `).join('') : '<div class="empty-state">No transformations</div>';
     }
     if (transforms.length) expandPanel('transformsPanel');
+
+    // Metadata
+    const meta = result.metadata || {};
+    if (elements.metadataGrid) {
+        elements.metadataGrid.innerHTML = `
+            <div class="metadata-item">
+                <div class="metadata-key">Request ID</div>
+                <div class="metadata-value">${escapeHtml(meta.request_id || result.id || 'N/A')}</div>
+            </div>
+            <div class="metadata-item">
+                <div class="metadata-key">Processing Time</div>
+                <div class="metadata-value">${meta.processing_time_ms || '?'} ms</div>
+            </div>
+            <div class="metadata-item">
+                <div class="metadata-key">Input Length</div>
+                <div class="metadata-value">${meta.input_length || result.input?.length || 0} chars</div>
+            </div>
+            <div class="metadata-item">
+                <div class="metadata-key">Output Length</div>
+                <div class="metadata-value">${meta.output_length || result.rendered_text?.length || 0} chars</div>
+            </div>
+            <div class="metadata-item">
+                <div class="metadata-key">Pipeline</div>
+                <div class="metadata-value">${escapeHtml(meta.pipeline || 'default')}</div>
+            </div>
+            <div class="metadata-item">
+                <div class="metadata-key">LLM Mode</div>
+                <div class="metadata-value">${meta.llm_mode ? 'Enabled' : 'Disabled'}</div>
+            </div>
+            <div class="metadata-item">
+                <div class="metadata-key">Version</div>
+                <div class="metadata-value">${escapeHtml(meta.version || '0.1.0')}</div>
+            </div>
+            <div class="metadata-item">
+                <div class="metadata-key">Timestamp</div>
+                <div class="metadata-value">${escapeHtml(result.timestamp || new Date().toISOString())}</div>
+            </div>
+        `;
+    }
+    // Only expand if metadata is enabled
+    if (showMetadata) expandPanel('metadataPanel');
+
+    // Extracted data (from content)
+    const extracted = result.extracted || {};
+    const identifiers = result.identifiers || [];
+    const totalExtracted = Object.values(extracted).reduce((sum, arr) => sum + arr.length, 0);
+
+    if (elements.extractedBadge) {
+        elements.extractedBadge.textContent = totalExtracted;
+    }
+
+    if (elements.extractedGrid) {
+        if (totalExtracted > 0) {
+            // Pretty names for identifier types
+            const typeNames = {
+                'badge_number': '🎖️ Badge Numbers',
+                'date': '📅 Dates',
+                'time': '🕐 Times',
+                'location': '📍 Locations',
+                'name': '👤 Names',
+                'vehicle_plate': '🚗 Vehicle Plates',
+                'employee_id': '🪪 Employee IDs',
+            };
+
+            elements.extractedGrid.innerHTML = Object.entries(extracted).map(([type, items]) => {
+                if (!items.length) return '';
+                const typeName = typeNames[type] || type.replace('_', ' ').toUpperCase();
+                return `
+                    <div class="extracted-section">
+                        <div class="extracted-section-title">
+                            ${typeName}
+                            <span class="extracted-section-count">${items.length}</span>
+                        </div>
+                        <div class="extracted-items">
+                            ${items.map(item =>
+                    `<span class="extracted-item ${type}" title="Confidence: ${Math.round((item.confidence || 0) * 100)}%">${escapeHtml(item.value)}</span>`
+                ).join('')}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        } else {
+            elements.extractedGrid.innerHTML = '<div class="empty-state">No identifiers extracted</div>';
+        }
+    }
+    if (showMetadata && totalExtracted > 0) expandPanel('extractedPanel');
 }
 
 // =============================================================================
@@ -325,11 +433,17 @@ function loadPrefs() {
             elements.logsToggle.checked = true;
             elements.logsPanel.classList.remove('hidden');
         }
+        if (p.showMetadata && elements.metadataToggle && elements.metadataPanel) {
+            showMetadata = true;
+            elements.metadataToggle.checked = true;
+            elements.metadataPanel.classList.remove('hidden');
+            elements.extractedPanel?.classList.remove('hidden');
+        }
     } catch (e) { }
 }
 
 function savePrefs() {
-    localStorage.setItem('nnrt_prefs', JSON.stringify({ useLLM, showLogs }));
+    localStorage.setItem('nnrt_prefs', JSON.stringify({ useLLM, showLogs, showMetadata }));
 }
 
 // =============================================================================

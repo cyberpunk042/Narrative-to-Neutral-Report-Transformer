@@ -72,12 +72,30 @@ def transform():
         
         engine = get_engine()
         request_obj = TransformRequest(text=text)
+        
+        import time
+        start_time = time.time()
         result = engine.transform(request_obj)
+        processing_time_ms = round((time.time() - start_time) * 1000)
         
         # Build structured output
         structured = build_structured_output(result, text)
         
-        # Convert to dict
+        # Organize identifiers by type for easy consumption
+        identifiers_by_type = {}
+        for ident in result.identifiers:
+            type_key = ident.type.value if hasattr(ident.type, 'value') else str(ident.type)
+            if type_key not in identifiers_by_type:
+                identifiers_by_type[type_key] = []
+            identifiers_by_type[type_key].append({
+                'id': ident.id,
+                'value': ident.value,
+                'original_text': ident.original_text,
+                'confidence': ident.confidence,
+                'source_segment': ident.source_segment_id,
+            })
+        
+        # Convert to dict with comprehensive structure
         output = {
             'id': str(uuid4())[:8],
             'timestamp': datetime.now().isoformat(),
@@ -92,13 +110,42 @@ def transform():
                 {'level': d.level, 'code': d.code, 'message': d.message}
                 for d in result.diagnostics
             ],
+            
+            # Identifiers extracted from the narrative
+            'identifiers': [
+                {
+                    'id': ident.id,
+                    'type': ident.type.value if hasattr(ident.type, 'value') else str(ident.type),
+                    'value': ident.value,
+                    'original_text': ident.original_text,
+                    'confidence': ident.confidence,
+                }
+                for ident in result.identifiers
+            ],
+            
+            # Stats
             'stats': {
                 'segments': len(result.segments),
                 'statements': len(structured.statements),
                 'entities': len(structured.entities),
                 'events': len(structured.events),
                 'transformations': sum(len(s.transformations) for s in structured.statements),
-            }
+                'identifiers': len(result.identifiers),
+            },
+            
+            # Metadata header (request info)
+            'metadata': {
+                'request_id': request_obj.request_id,
+                'processing_time_ms': processing_time_ms,
+                'input_length': len(text),
+                'output_length': len(result.rendered_text or ''),
+                'pipeline': 'default',
+                'llm_mode': use_llm,
+                'version': '0.1.0-pre-alpha',
+            },
+            
+            # Extracted metadata (from content)
+            'extracted': identifiers_by_type,
         }
         
         return jsonify(output)
@@ -157,65 +204,25 @@ def get_history_item(item_id):
 
 @app.route('/api/examples', methods=['GET'])
 def get_examples():
-    """Get example narratives for testing."""
-    examples = [
-        {
-            'id': 'intent_attribution',
-            'name': 'Intent Attribution',
-            'category': 'Basic',
-            'text': 'The officer intentionally grabbed my arm and deliberately twisted it behind my back. He obviously wanted to hurt me.'
-        },
-        {
-            'id': 'legal_conclusions',
-            'name': 'Legal Conclusions',
-            'category': 'Legal',
-            'text': 'He assaulted me and committed battery. The brutal cop is guilty of police brutality.'
-        },
-        {
-            'id': 'mixed_quotes',
-            'name': 'Quote Preservation',
-            'category': 'Speech',
-            'text': 'She said "Get out of the car now!" Then I asked "Why are you stopping me?" She replied that I was being arrested.'
-        },
-        {
-            'id': 'charges_context',
-            'name': 'Charge Context',
-            'category': 'Legal',
-            'text': 'I was charged with assault on a police officer and resisting arrest. The officer accused me of attacking him, which is completely false.'
-        },
-        {
-            'id': 'physical_force',
-            'name': 'Physical Force',
-            'category': 'Physical',
-            'text': 'He grabbed my neck and choked me. I tried to say "I can\'t breathe" but he wouldn\'t let go. His partner punched me in the stomach.'
-        },
-        {
-            'id': 'ambiguous_refs',
-            'name': 'Ambiguous References',
-            'category': 'Complex',
-            'text': 'John told Mike that he was going to arrest him. Then someone else came and they started arguing. He pushed him against the wall.'
-        },
-        {
-            'id': 'emotional_narrative',
-            'name': 'Emotional Narrative',
-            'category': 'Inflammatory',
-            'text': 'This psycho cop viciously attacked me for no reason. The thug brutally slammed me to the ground and destroyed my life.'
-        },
-        {
-            'id': 'already_neutral',
-            'name': 'Already Neutral',
-            'category': 'Edge Case',
-            'text': 'At approximately 10:30 PM, the vehicle was stopped at the intersection. The officer approached and requested identification.'
-        },
-        {
-            'id': 'full_incident',
-            'name': 'Full Incident Report',
-            'category': 'Complex',
-            'text': '''I was walking home from work on January 15th around 11:30 PM when I saw a police cruiser pull up beside me. Officer badge number 4821 stepped out and yelled "Stop right there!" I stopped and asked "What's the problem, officer?" He intentionally grabbed my arm and said I matched the description of a robbery suspect. I told him "I just got off work" but he obviously didn't believe me. He twisted my arm behind my back, which hurt. His partner just watched. I was charged with resisting arrest.'''
-        },
-    ]
+    """Get example narratives for testing from examples.json."""
+    examples_file = Path(__file__).parent / 'examples.json'
     
-    return jsonify(examples)
+    try:
+        with open(examples_file, 'r') as f:
+            examples = json.load(f)
+        return jsonify(examples)
+    except FileNotFoundError:
+        # Fallback if file is missing
+        return jsonify([
+            {
+                'id': 'simple_1',
+                'name': 'Simple Statement',
+                'category': 'Simple',
+                'text': 'The officer deliberately grabbed my arm.'
+            }
+        ])
+    except json.JSONDecodeError as e:
+        return jsonify({'error': f'Invalid examples.json: {e}'}), 500
 
 
 def kill_existing_server(port: int = 5050) -> bool:
