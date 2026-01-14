@@ -115,6 +115,46 @@ def setup_raw_pipeline(engine: Engine, profile: str = "law_enforcement") -> None
     engine.register_pipeline(raw_pipeline)
 
 
+def setup_structured_only_pipeline(engine: Engine, profile: str = "law_enforcement") -> None:
+    """
+    Register a structured-only pipeline that skips prose rendering.
+    
+    This is the v2 preferred output mode:
+    - Full decomposition and classification
+    - Policy evaluation (but no rendering)
+    - Faster than default pipeline
+    
+    Use with --no-prose or --format structured-only.
+    """
+    from nnrt.policy.loader import clear_cache
+    from nnrt.policy.engine import set_default_profile
+    
+    clear_cache()
+    set_default_profile(profile)
+    
+    structured_pipeline = Pipeline(
+        id="structured_only",
+        name="Structured-Only Pipeline (No Prose)",
+        passes=[
+            normalize,
+            segment,
+            tag_spans,
+            annotate_context,
+            classify_statements,
+            decompose,
+            classify_atomic,
+            link_provenance,
+            extract_identifiers,
+            extract_entities,
+            extract_events,
+            build_ir,
+            evaluate_policy,
+            # NOTE: No render, no cleanup, no package
+            # Structured output is built from the IR
+        ],
+    )
+    engine.register_pipeline(structured_pipeline)
+
 
 def main() -> int:
     """Main CLI entry point."""
@@ -173,6 +213,11 @@ def main() -> int:
         action="store_true",
         help="[DEBUG] Skip rendering, output raw decomposed IR. Shows what pipeline extracts before rewriting.",
     )
+    transform_parser.add_argument(
+        "--no-prose",
+        action="store_true",
+        help="Skip prose rendering, output structured data only (faster).",
+    )
 
     args = parser.parse_args()
 
@@ -201,17 +246,22 @@ def run_transform(args: argparse.Namespace) -> int:
     engine = get_engine()
     profile = getattr(args, 'profile', 'law_enforcement')
     
-    # Choose pipeline based on --raw flag
+    # Choose pipeline based on flags
     use_raw = getattr(args, 'raw', False)
+    no_prose = getattr(args, 'no_prose', False)
+    
     if use_raw:
         setup_raw_pipeline(engine, profile=profile)
         pipeline_id = "raw"
+    elif no_prose:
+        setup_structured_only_pipeline(engine, profile=profile)
+        pipeline_id = "structured_only"
     else:
         setup_default_pipeline(engine, profile=profile)
         pipeline_id = args.pipeline
 
-    # Enable LLM rendering if requested (only for non-raw)
-    if args.llm and not use_raw:
+    # Enable LLM rendering if requested (only for full pipeline)
+    if args.llm and not use_raw and not no_prose:
         import os
         os.environ["NNRT_USE_LLM"] = "1"
 
@@ -223,8 +273,12 @@ def run_transform(args: argparse.Namespace) -> int:
     if use_raw:
         # RAW mode: output decomposed structure without rewriting
         output = format_raw_output(result, text)
-    elif args.format == "structured":
+    elif no_prose or args.format == "structured":
+        # Structured output (with or without prose)
         structured = build_structured_output(result, text)
+        if no_prose:
+            # Mark that prose was not rendered
+            structured.rendered_text = "[prose rendering skipped - use without --no-prose for prose]"
         output = structured.model_dump_json(indent=2)
     elif args.format == "json":
         output = to_json(result)
