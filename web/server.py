@@ -9,6 +9,9 @@ Provides REST endpoints for:
 
 import json
 import os
+import signal
+import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
@@ -55,11 +58,18 @@ def transform():
     """Transform narrative text to neutral representation."""
     data = request.json
     text = data.get('text', '')
+    use_llm = data.get('use_llm', False)
     
     if not text.strip():
         return jsonify({'error': 'No text provided'}), 400
     
     try:
+        # Set LLM mode based on request
+        if use_llm:
+            os.environ['NNRT_USE_LLM'] = '1'
+        else:
+            os.environ.pop('NNRT_USE_LLM', None)
+        
         engine = get_engine()
         request_obj = TransformRequest(text=text)
         result = engine.transform(request_obj)
@@ -208,7 +218,53 @@ def get_examples():
     return jsonify(examples)
 
 
+def kill_existing_server(port: int = 5050) -> bool:
+    """
+    Kill any existing process listening on the specified port.
+    Returns True if a process was killed, False otherwise.
+    """
+    try:
+        # Find PIDs listening on this port
+        result = subprocess.run(
+            ['lsof', '-t', '-i', f':{port}'],
+            capture_output=True,
+            text=True
+        )
+        
+        if result.returncode == 0 and result.stdout.strip():
+            pids = result.stdout.strip().split('\n')
+            current_pid = str(os.getpid())
+            
+            for pid in pids:
+                pid = pid.strip()
+                if pid and pid != current_pid:
+                    try:
+                        os.kill(int(pid), signal.SIGTERM)
+                        print(f"   Killed existing process on port {port} (PID {pid})")
+                    except (ProcessLookupError, PermissionError):
+                        pass
+            
+            # Give processes time to die
+            import time
+            time.sleep(0.5)
+            return True
+            
+    except FileNotFoundError:
+        # lsof not available, try alternative
+        pass
+    except Exception as e:
+        print(f"   Warning: Could not check for existing server: {e}")
+    
+    return False
+
+
 if __name__ == '__main__':
     print("🚀 NNRT Web Interface starting...")
+    
+    # Auto-kill any existing server on this port
+    kill_existing_server(5050)
+    
     print("   Open: http://localhost:5050")
-    app.run(debug=True, port=5050)
+    # Note: use_reloader=False prevents terminal signal issues (SIGTSTP)
+    # that can occur with Flask's stat reloader in some environments
+    app.run(debug=True, port=5050, use_reloader=False)

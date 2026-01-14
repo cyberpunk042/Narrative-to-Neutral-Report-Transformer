@@ -1,12 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NNRT — Narrative to Neutral Report Transformer</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <meta name="description" content="Transform emotionally charged narrative text into neutral, factual reports.">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
     <div class="app-container">
         <!-- Header -->
@@ -14,6 +19,20 @@
             <div class="header-left">
                 <h1 class="logo">NNRT</h1>
                 <span class="tagline">Narrative → Neutral</span>
+            </div>
+            <div class="header-center">
+                <div class="options-group">
+                    <label class="toggle-option" title="Use LLM for more fluent output (slower)">
+                        <input type="checkbox" id="llmToggle">
+                        <span class="toggle-slider"></span>
+                        <span class="toggle-label">LLM Render</span>
+                    </label>
+                    <label class="toggle-option" title="Show processing logs">
+                        <input type="checkbox" id="logsToggle">
+                        <span class="toggle-slider"></span>
+                        <span class="toggle-label">Logs</span>
+                    </label>
+                </div>
             </div>
             <div class="header-right">
                 <button class="btn btn-ghost" id="historyBtn" title="History">
@@ -27,19 +46,17 @@
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                         <polyline points="14 2 14 8 20 8"></polyline>
-                        <line x1="16" y1="13" x2="8" y2="13"></line>
-                        <line x1="16" y1="17" x2="8" y2="17"></line>
-                        <polyline points="10 9 9 9 8 9"></polyline>
                     </svg>
                     <span>Examples</span>
                 </button>
             </div>
         </header>
 
-        <!-- Main Content Area -->
+        <!-- Main Content -->
         <main class="main-content">
-            <!-- Results Panel (Collapsible Sections) -->
+            <!-- Results Panel - This scrolls! -->
             <div class="results-panel" id="resultsPanel">
+
                 <!-- Status Bar -->
                 <div class="status-bar" id="statusBar">
                     <div class="status-indicator" id="statusIndicator"></div>
@@ -47,18 +64,20 @@
                     <div class="stats" id="stats"></div>
                 </div>
 
-                <!-- Rendered Output -->
+                <!-- Neutral Output - starts expanded -->
                 <section class="panel panel-output" id="outputPanel">
                     <div class="panel-header" onclick="togglePanel('outputPanel')">
                         <div class="panel-title">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
                                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                             </svg>
                             <span>Neutral Output</span>
                         </div>
                         <div class="panel-badge" id="outputBadge">—</div>
-                        <svg class="chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <svg class="chevron" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2">
                             <polyline points="6 9 12 15 18 9"></polyline>
                         </svg>
                     </div>
@@ -69,11 +88,12 @@
                     </div>
                 </section>
 
-                <!-- Statements -->
-                <section class="panel panel-statements" id="statementsPanel">
+                <!-- Statements - starts collapsed -->
+                <section class="panel panel-statements collapsed" id="statementsPanel">
                     <div class="panel-header" onclick="togglePanel('statementsPanel')">
                         <div class="panel-title">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
                                 <line x1="8" y1="6" x2="21" y2="6"></line>
                                 <line x1="8" y1="12" x2="21" y2="12"></line>
                                 <line x1="8" y1="18" x2="21" y2="18"></line>
@@ -84,59 +104,65 @@
                             <span>Statements</span>
                         </div>
                         <div class="panel-badge" id="statementsBadge">0</div>
-                        <svg class="chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <svg class="chevron" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2">
                             <polyline points="6 9 12 15 18 9"></polyline>
                         </svg>
                     </div>
-                    <div class="panel-content collapsed">
+                    <div class="panel-content">
                         <div class="items-list" id="statementsList"></div>
                     </div>
                 </section>
 
-                <!-- Entities -->
-                <section class="panel panel-entities" id="entitiesPanel">
+                <!-- Entities - starts collapsed -->
+                <section class="panel panel-entities collapsed" id="entitiesPanel">
                     <div class="panel-header" onclick="togglePanel('entitiesPanel')">
                         <div class="panel-title">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
                                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
                                 <circle cx="12" cy="7" r="4"></circle>
                             </svg>
                             <span>Entities</span>
                         </div>
                         <div class="panel-badge" id="entitiesBadge">0</div>
-                        <svg class="chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <svg class="chevron" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2">
                             <polyline points="6 9 12 15 18 9"></polyline>
                         </svg>
                     </div>
-                    <div class="panel-content collapsed">
+                    <div class="panel-content">
                         <div class="items-list" id="entitiesList"></div>
                     </div>
                 </section>
 
-                <!-- Events -->
-                <section class="panel panel-events" id="eventsPanel">
+                <!-- Events - starts collapsed -->
+                <section class="panel panel-events collapsed" id="eventsPanel">
                     <div class="panel-header" onclick="togglePanel('eventsPanel')">
                         <div class="panel-title">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
                                 <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
                             </svg>
                             <span>Events</span>
                         </div>
                         <div class="panel-badge" id="eventsBadge">0</div>
-                        <svg class="chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <svg class="chevron" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2">
                             <polyline points="6 9 12 15 18 9"></polyline>
                         </svg>
                     </div>
-                    <div class="panel-content collapsed">
+                    <div class="panel-content">
                         <div class="items-list" id="eventsList"></div>
                     </div>
                 </section>
 
-                <!-- Diagnostics -->
-                <section class="panel panel-diagnostics" id="diagnosticsPanel">
+                <!-- Diagnostics - starts collapsed -->
+                <section class="panel panel-diagnostics collapsed" id="diagnosticsPanel">
                     <div class="panel-header" onclick="togglePanel('diagnosticsPanel')">
                         <div class="panel-title">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
                                 <circle cx="12" cy="12" r="10"></circle>
                                 <line x1="12" y1="8" x2="12" y2="12"></line>
                                 <line x1="12" y1="16" x2="12.01" y2="16"></line>
@@ -144,20 +170,22 @@
                             <span>Diagnostics</span>
                         </div>
                         <div class="panel-badge" id="diagnosticsBadge">0</div>
-                        <svg class="chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <svg class="chevron" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2">
                             <polyline points="6 9 12 15 18 9"></polyline>
                         </svg>
                     </div>
-                    <div class="panel-content collapsed">
+                    <div class="panel-content">
                         <div class="items-list" id="diagnosticsList"></div>
                     </div>
                 </section>
 
-                <!-- Transformations -->
-                <section class="panel panel-transforms" id="transformsPanel">
+                <!-- Transformations - starts collapsed -->
+                <section class="panel panel-transforms collapsed" id="transformsPanel">
                     <div class="panel-header" onclick="togglePanel('transformsPanel')">
                         <div class="panel-title">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
                                 <polyline points="23 4 23 10 17 10"></polyline>
                                 <polyline points="1 20 1 14 7 14"></polyline>
                                 <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
@@ -165,32 +193,56 @@
                             <span>Transformations</span>
                         </div>
                         <div class="panel-badge" id="transformsBadge">0</div>
-                        <svg class="chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <svg class="chevron" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2">
                             <polyline points="6 9 12 15 18 9"></polyline>
                         </svg>
                     </div>
-                    <div class="panel-content collapsed">
+                    <div class="panel-content">
                         <div class="items-list" id="transformsList"></div>
                     </div>
                 </section>
+
+                <!-- Logs - hidden by default -->
+                <section class="panel panel-logs collapsed hidden" id="logsPanel">
+                    <div class="panel-header" onclick="togglePanel('logsPanel')">
+                        <div class="panel-title">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <polyline points="4 17 10 11 4 5"></polyline>
+                                <line x1="12" y1="19" x2="20" y2="19"></line>
+                            </svg>
+                            <span>Processing Logs</span>
+                        </div>
+                        <div class="panel-badge" id="logsBadge">0</div>
+                        <svg class="chevron" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </div>
+                    <div class="panel-content">
+                        <div class="logs-container">
+                            <pre class="logs-output" id="logsOutput">No logs yet...</pre>
+                        </div>
+                    </div>
+                </section>
+
             </div>
 
-            <!-- Input Area -->
+            <!-- Input Area - Fixed at bottom -->
             <div class="input-area">
                 <div class="input-container">
-                    <textarea 
-                        id="inputText" 
-                        placeholder="Enter narrative text to transform...
+                    <textarea id="inputText" placeholder="Enter narrative text to transform...
 
 Example: 'The officer intentionally grabbed my arm and deliberately twisted it. He obviously wanted to hurt me.'"
-                        rows="4"
-                    ></textarea>
+                        rows="3"></textarea>
                     <div class="input-actions">
                         <span class="char-count" id="charCount">0 chars</span>
                         <button class="btn btn-secondary" id="clearBtn">Clear</button>
                         <button class="btn btn-primary" id="transformBtn">
                             <span>Transform</span>
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
                                 <line x1="5" y1="12" x2="19" y2="12"></line>
                                 <polyline points="12 5 19 12 12 19"></polyline>
                             </svg>
@@ -224,20 +276,14 @@ Example: 'The officer intentionally grabbed my arm and deliberately twisted it. 
                 <div class="loading">Loading examples...</div>
             </div>
             <div class="sidebar-footer">
-                <button class="btn btn-ghost" id="findOnlineBtn">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="11" cy="11" r="8"></circle>
-                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                    </svg>
-                    Find Online Resources
-                </button>
+                <button class="btn btn-ghost" id="findOnlineBtn">Find Online Resources</button>
             </div>
         </aside>
 
-        <!-- Backdrop for sidebars -->
         <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeAllSidebars()"></div>
     </div>
 
     <script src="app.js"></script>
 </body>
+
 </html>
