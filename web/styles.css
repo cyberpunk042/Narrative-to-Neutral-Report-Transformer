@@ -1264,3 +1264,126 @@ body {
     border-radius: 3px;
     font-size: 0.7rem;
 }
+
+/* =============================================================================
+   Filter Bar
+   ============================================================================= */
+
+.filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: var(--space-sm) 0;
+    margin-bottom: var(--space-sm);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.filter-chip {
+    font-family: inherit;
+    font-size: 0.7rem;
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.filter-chip:hover {
+    border-color: var(--border-hover);
+    background: var(--bg-glass-hover);
+}
+
+.filter-chip.active {
+    background: var(--accent-primary);
+    color: white;
+    border-color: var(--accent-primary);
+}
+
+/* Type-specific active colors */
+.filter-chip.active.observation {
+    background: var(--observation);
+    border-color: var(--observation);
+}
+
+.filter-chip.active.claim {
+    background: var(--claim);
+    border-color: var(--claim);
+}
+
+.filter-chip.active.interpretation {
+    background: var(--interpretation);
+    border-color: var(--interpretation);
+}
+
+.filter-chip.active.quote {
+    background: var(--quote);
+    border-color: var(--quote);
+}
+
+.filter-chip.active.error {
+    background: var(--error);
+    border-color: var(--error);
+}
+
+.filter-chip.active.warning {
+    background: var(--warning);
+    border-color: var(--warning);
+}
+
+.filter-chip.active.info {
+    background: var(--info);
+    border-color: var(--info);
+}
+
+.filtered-items {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+/* =============================================================================
+   Copy Button
+   ============================================================================= */
+
+.copy-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    margin-left: auto;
+    margin-right: var(--space-sm);
+    font-family: inherit;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.copy-btn:hover {
+    background: var(--bg-glass-hover);
+    border-color: var(--border-hover);
+    color: var(--text-primary);
+}
+
+.copy-btn.copied {
+    background: var(--success);
+    border-color: var(--success);
+    color: white;
+}
+
+/* =============================================================================
+   Logs Auto-Scroll Fix
+   ============================================================================= */
+
+.logs-container {
+    max-height: 200px;
+    overflow-y: auto;
+    scroll-behavior: smooth;
+}

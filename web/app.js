@@ -1,5 +1,5 @@
 /**
- * NNRT Web Interface — Application Logic (v2 with Atomic Statements)
+ * NNRT Web Interface — Application Logic (v2 with Filters)
  */
 
 const API_BASE = 'http://localhost:5050/api';
@@ -14,6 +14,14 @@ let showLogs = false;
 let showMetadata = false;
 let outputMode = 'prose';  // prose, structured, raw
 let fastMode = false;      // no_prose mode
+
+// Filter state for each panel
+const filters = {
+    atomicStatements: 'all',    // all, observation, claim, interpretation, quote
+    entities: 'all',            // all, reporter, subject, witness, organization, location
+    events: 'all',              // all, action, state, speech
+    diagnostics: 'all',         // all, error, warning, info
+};
 
 // DOM Elements - cached on load
 let elements = {};
@@ -160,6 +168,86 @@ function expandPanel(panelId) {
 
 function collapsePanel(panelId) {
     document.getElementById(panelId)?.classList.add('collapsed');
+}
+
+// =============================================================================
+// Filter Functions
+// =============================================================================
+
+function setFilter(panel, value) {
+    filters[panel] = value;
+
+    // Update active state on filter chips
+    const filterBar = document.querySelector(`[data-filter-panel="${panel}"]`);
+    if (filterBar) {
+        filterBar.querySelectorAll('.filter-chip').forEach(chip => {
+            chip.classList.toggle('active', chip.dataset.filter === value);
+        });
+    }
+
+    // Re-render the panel with the filter
+    if (currentResult) {
+        reRenderFilteredPanel(panel);
+    }
+}
+
+function reRenderFilteredPanel(panel) {
+    if (!currentResult) return;
+
+    switch (panel) {
+        case 'atomicStatements':
+            renderAtomicStatements(currentResult.atomic_statements || []);
+            break;
+        case 'entities':
+            renderEntities(currentResult.entities || []);
+            break;
+        case 'events':
+            renderEvents(currentResult.events || []);
+            break;
+        case 'diagnostics':
+            renderDiagnostics(currentResult.diagnostics || []);
+            break;
+    }
+}
+
+function buildFilterBar(panel, filterOptions) {
+    return `
+        <div class="filter-bar" data-filter-panel="${panel}">
+            ${filterOptions.map(opt => `
+                <button class="filter-chip ${filters[panel] === opt.value ? 'active' : ''} ${opt.color || ''}"
+                        data-filter="${opt.value}"
+                        onclick="setFilter('${panel}', '${opt.value}')">
+                    ${opt.label}
+                </button>
+            `).join('')}
+        </div>
+    `;
+}
+
+// =============================================================================
+// Copy to Clipboard
+// =============================================================================
+
+async function copyOutput() {
+    const text = currentResult?.rendered_text;
+    if (!text) return;
+
+    try {
+        await navigator.clipboard.writeText(text);
+        // Show feedback
+        const btn = document.getElementById('copyOutputBtn');
+        if (btn) {
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '✓ Copied';
+            btn.classList.add('copied');
+            setTimeout(() => {
+                btn.innerHTML = originalHTML;
+                btn.classList.remove('copied');
+            }, 1500);
+        }
+    } catch (err) {
+        console.error('Failed to copy:', err);
+    }
 }
 
 // =============================================================================
@@ -326,44 +414,9 @@ function displayResults(result) {
     }
     expandPanel('outputPanel');
 
-    // Atomic Statements (NEW)
-    const atomicStatements = result.atomic_statements || [];
-    if (elements.atomicStatementsBadge) elements.atomicStatementsBadge.textContent = atomicStatements.length;
-    if (elements.atomicStatementsList) {
-        elements.atomicStatementsList.innerHTML = atomicStatements.length ? atomicStatements.map(s => `
-            <div class="atomic-statement">
-                <div class="atomic-statement-header">
-                    <span class="stmt-type-badge ${s.type}">${s.type}</span>
-                    <div class="stmt-confidence" title="Confidence: ${(s.confidence * 100).toFixed(0)}%">
-                        <div class="confidence-bar">
-                            <div class="confidence-fill" style="width: ${s.confidence * 100}%"></div>
-                        </div>
-                        <span>${(s.confidence * 100).toFixed(0)}%</span>
-                    </div>
-                    <span class="stmt-id">${s.id}</span>
-                </div>
-                <div class="atomic-statement-text">${escapeHtml(s.text)}</div>
-                <div class="atomic-statement-meta">
-                    <span class="meta-tag clause">${s.clause_type}</span>
-                    ${s.connector ? `<span class="meta-tag connector">${s.connector}</span>` : ''}
-                    ${(s.flags || []).map(f => `<span class="meta-tag flag">${f}</span>`).join('')}
-                </div>
-                ${s.derived_from && s.derived_from.length ? `
-                    <div class="provenance-link">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-                            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-                        </svg>
-                        <span>Derived from:</span>
-                        <div class="provenance-ids">
-                            ${s.derived_from.map(id => `<span class="provenance-id">${id}</span>`).join('')}
-                        </div>
-                    </div>
-                ` : ''}
-            </div>
-        `).join('') : '<div class="empty-state">No atomic statements</div>';
-    }
-    if (atomicStatements.length) expandPanel('atomicStatementsPanel');
+    // Atomic Statements with filter
+    renderAtomicStatements(result.atomic_statements || []);
+    if ((result.atomic_statements || []).length) expandPanel('atomicStatementsPanel');
 
     // Statements (Legacy)
     const statements = result.statements || [];
@@ -386,53 +439,17 @@ function displayResults(result) {
     // Don't auto-expand legacy statements if we have atomic ones
     if (statements.length && !atomicStatements.length) expandPanel('statementsPanel');
 
-    // Entities
-    const entities = result.entities || [];
-    if (elements.entitiesBadge) elements.entitiesBadge.textContent = entities.length;
-    if (elements.entitiesList) {
-        elements.entitiesList.innerHTML = entities.length ? entities.map(e => `
-            <div class="item-card">
-                <div class="item-header">
-                    <span class="item-type">${e.role || ''}</span>
-                    <span class="item-id">${e.id || ''}</span>
-                </div>
-                <div class="item-text">${escapeHtml(e.label || '')}</div>
-            </div>
-        `).join('') : '<div class="empty-state">No entities</div>';
-    }
-    if (entities.length) expandPanel('entitiesPanel');
+    // Entities with filter
+    renderEntities(result.entities || []);
+    if ((result.entities || []).length) expandPanel('entitiesPanel');
 
-    // Events
-    const events = result.events || [];
-    if (elements.eventsBadge) elements.eventsBadge.textContent = events.length;
-    if (elements.eventsList) {
-        elements.eventsList.innerHTML = events.length ? events.map(e => `
-            <div class="item-card ${e.type || ''}">
-                <div class="item-header">
-                    <span class="item-type">${e.type || ''}</span>
-                    <span class="item-id">${e.id || ''}</span>
-                </div>
-                <div class="item-text">${escapeHtml(e.description || '')}</div>
-            </div>
-        `).join('') : '<div class="empty-state">No events</div>';
-    }
-    if (events.length) expandPanel('eventsPanel');
+    // Events with filter
+    renderEvents(result.events || []);
+    if ((result.events || []).length) expandPanel('eventsPanel');
 
-    // Diagnostics
-    const diagnostics = result.diagnostics || [];
-    if (elements.diagnosticsBadge) elements.diagnosticsBadge.textContent = diagnostics.length;
-    if (elements.diagnosticsList) {
-        elements.diagnosticsList.innerHTML = diagnostics.length ? diagnostics.map(d => `
-            <div class="item-card ${d.level || ''}">
-                <div class="item-header">
-                    <span class="item-type ${d.level || ''}">${d.level || ''}</span>
-                    <span class="item-id">${d.code || ''}</span>
-                </div>
-                <div class="item-text">${escapeHtml(d.message || '')}</div>
-            </div>
-        `).join('') : '<div class="empty-state">No diagnostics</div>';
-    }
-    if (diagnostics.length) expandPanel('diagnosticsPanel');
+    // Diagnostics with filter
+    renderDiagnostics(result.diagnostics || []);
+    if ((result.diagnostics || []).length) expandPanel('diagnosticsPanel');
 
     // Transformations
     const transforms = (result.statements || []).flatMap(s => s.transformations || []);
@@ -536,6 +553,170 @@ function displayResults(result) {
         }
     }
     if (showMetadata && totalExtracted > 0) expandPanel('extractedPanel');
+}
+
+// =============================================================================
+// Panel Render Functions (with filters)
+// =============================================================================
+
+function renderAtomicStatements(statements) {
+    const filterOptions = [
+        { value: 'all', label: 'All' },
+        { value: 'observation', label: 'Observation', color: 'observation' },
+        { value: 'claim', label: 'Claim', color: 'claim' },
+        { value: 'interpretation', label: 'Interpretation', color: 'interpretation' },
+        { value: 'quote', label: 'Quote', color: 'quote' },
+    ];
+
+    const filtered = filters.atomicStatements === 'all'
+        ? statements
+        : statements.filter(s => s.type === filters.atomicStatements);
+
+    if (elements.atomicStatementsBadge) {
+        elements.atomicStatementsBadge.textContent = `${filtered.length}/${statements.length}`;
+    }
+
+    if (elements.atomicStatementsList) {
+        elements.atomicStatementsList.innerHTML = `
+            ${buildFilterBar('atomicStatements', filterOptions)}
+            <div class="filtered-items">
+                ${filtered.length ? filtered.map(s => `
+                    <div class="atomic-statement">
+                        <div class="atomic-statement-header">
+                            <span class="stmt-type-badge ${s.type}">${s.type}</span>
+                            <div class="stmt-confidence" title="Confidence: ${(s.confidence * 100).toFixed(0)}%">
+                                <div class="confidence-bar">
+                                    <div class="confidence-fill" style="width: ${s.confidence * 100}%"></div>
+                                </div>
+                                <span>${(s.confidence * 100).toFixed(0)}%</span>
+                            </div>
+                            <span class="stmt-id">${s.id}</span>
+                        </div>
+                        <div class="atomic-statement-text">${escapeHtml(s.text)}</div>
+                        <div class="atomic-statement-meta">
+                            <span class="meta-tag clause">${s.clause_type}</span>
+                            ${s.connector ? `<span class="meta-tag connector">${s.connector}</span>` : ''}
+                            ${(s.flags || []).map(f => `<span class="meta-tag flag">${f}</span>`).join('')}
+                        </div>
+                        ${s.derived_from && s.derived_from.length ? `
+                            <div class="provenance-link">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                                </svg>
+                                <span>Derived from:</span>
+                                <div class="provenance-ids">
+                                    ${s.derived_from.map(id => `<span class="provenance-id">${id}</span>`).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                `).join('') : `<div class="empty-state">No ${filters.atomicStatements === 'all' ? '' : filters.atomicStatements + ' '}statements</div>`}
+            </div>
+        `;
+    }
+}
+
+function renderEntities(entities) {
+    // Collect unique roles from entities
+    const roles = [...new Set(entities.map(e => e.role).filter(Boolean))];
+    const filterOptions = [
+        { value: 'all', label: 'All' },
+        ...roles.map(r => ({ value: r, label: r.charAt(0).toUpperCase() + r.slice(1) }))
+    ];
+
+    const filtered = filters.entities === 'all'
+        ? entities
+        : entities.filter(e => e.role === filters.entities);
+
+    if (elements.entitiesBadge) {
+        elements.entitiesBadge.textContent = `${filtered.length}/${entities.length}`;
+    }
+
+    if (elements.entitiesList) {
+        elements.entitiesList.innerHTML = `
+            ${entities.length > 0 ? buildFilterBar('entities', filterOptions) : ''}
+            <div class="filtered-items">
+                ${filtered.length ? filtered.map(e => `
+                    <div class="item-card">
+                        <div class="item-header">
+                            <span class="item-type">${e.role || ''}</span>
+                            <span class="item-id">${e.id || ''}</span>
+                        </div>
+                        <div class="item-text">${escapeHtml(e.label || '')}</div>
+                    </div>
+                `).join('') : '<div class="empty-state">No entities</div>'}
+            </div>
+        `;
+    }
+}
+
+function renderEvents(events) {
+    // Collect unique types from events
+    const types = [...new Set(events.map(e => e.type).filter(Boolean))];
+    const filterOptions = [
+        { value: 'all', label: 'All' },
+        ...types.map(t => ({ value: t, label: t.charAt(0).toUpperCase() + t.slice(1) }))
+    ];
+
+    const filtered = filters.events === 'all'
+        ? events
+        : events.filter(e => e.type === filters.events);
+
+    if (elements.eventsBadge) {
+        elements.eventsBadge.textContent = `${filtered.length}/${events.length}`;
+    }
+
+    if (elements.eventsList) {
+        elements.eventsList.innerHTML = `
+            ${events.length > 0 ? buildFilterBar('events', filterOptions) : ''}
+            <div class="filtered-items">
+                ${filtered.length ? filtered.map(e => `
+                    <div class="item-card ${e.type || ''}">
+                        <div class="item-header">
+                            <span class="item-type">${e.type || ''}</span>
+                            <span class="item-id">${e.id || ''}</span>
+                        </div>
+                        <div class="item-text">${escapeHtml(e.description || '')}</div>
+                    </div>
+                `).join('') : '<div class="empty-state">No events</div>'}
+            </div>
+        `;
+    }
+}
+
+function renderDiagnostics(diagnostics) {
+    const filterOptions = [
+        { value: 'all', label: 'All' },
+        { value: 'error', label: 'Error', color: 'error' },
+        { value: 'warning', label: 'Warning', color: 'warning' },
+        { value: 'info', label: 'Info', color: 'info' },
+    ];
+
+    const filtered = filters.diagnostics === 'all'
+        ? diagnostics
+        : diagnostics.filter(d => d.level === filters.diagnostics);
+
+    if (elements.diagnosticsBadge) {
+        elements.diagnosticsBadge.textContent = `${filtered.length}/${diagnostics.length}`;
+    }
+
+    if (elements.diagnosticsList) {
+        elements.diagnosticsList.innerHTML = `
+            ${diagnostics.length > 0 ? buildFilterBar('diagnostics', filterOptions) : ''}
+            <div class="filtered-items">
+                ${filtered.length ? filtered.map(d => `
+                    <div class="item-card ${d.level || ''}">
+                        <div class="item-header">
+                            <span class="item-type ${d.level || ''}">${d.level || ''}</span>
+                            <span class="item-id">${d.code || ''}</span>
+                        </div>
+                        <div class="item-text">${escapeHtml(d.message || '')}</div>
+                    </div>
+                `).join('') : '<div class="empty-state">No diagnostics</div>'}
+            </div>
+        `;
+    }
 }
 
 // =============================================================================
