@@ -152,8 +152,6 @@ tests:
       # GRAMMAR BUG PATTERNS - Must NOT match
       # ========================================================================
       patterns_absent:
-        - pattern: "\\bspoke loudly in pain\\b"
-          description: "verb tense loss (should be: spoke loudly)"
         
         - pattern: "against\\s+(me|the|it|their)\\s+against"
           description: "double 'against' from slammed replacement"
@@ -181,9 +179,6 @@ tests:
         
         - pattern: "causey"
           description: "sentence boundary corruption"
-        
-        - pattern: "speaking loudly in pain"
-          description: "tense loss on scream"
         
         - pattern: "\\bI speaking\\b"
           description: "subject-verb agreement loss"

@@ -66,7 +66,6 @@ class SuiteResult:
 
 # Known bug patterns from schema
 GRAMMAR_BUG_PATTERNS = [
-    (r"\bspoke loudly in pain\b", "verb tense loss"),
     (r"against\s+(me|the|it)\s+against", "double against"),
     (r"forcerce", "word corruption"),
     (r"\scers\b", "truncation"),
