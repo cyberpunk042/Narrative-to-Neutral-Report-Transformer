@@ -1,0 +1,38 @@
+# Example synthetic narrative for testing
+# All examples are fictional
+
+example_input:
+  text: |
+    I was walking home around 11 PM when a police car pulled up next to me.
+    The officer got out and immediately asked me where I was going.
+    I told him I was going home. He said I looked "suspicious" and asked for ID.
+    I didn't have my wallet so I couldn't show ID.
+    He made me sit on the curb for about 20 minutes while he ran my name.
+    Eventually he let me go without any explanation.
+
+expected_segments:
+  - "I was walking home around 11 PM when a police car pulled up next to me."
+  - "The officer got out and immediately asked me where I was going."
+  - "I told him I was going home."
+  - "He said I looked \"suspicious\" and asked for ID."
+  - "I didn't have my wallet so I couldn't show ID."
+  - "He made me sit on the curb for about 20 minutes while he ran my name."
+  - "Eventually he let me go without any explanation."
+
+expected_span_labels:
+  - label: temporal
+    text: "around 11 PM"
+  - label: action
+    text: "police car pulled up"
+  - label: statement
+    text: "asked me where I was going"
+  - label: statement
+    text: "I told him I was going home"
+  - label: statement
+    text: "He said I looked \"suspicious\""
+  - label: temporal
+    text: "about 20 minutes"
+
+notes: |
+  This is a synthetic example for testing segmentation and span tagging.
+  Real narratives would be more complex and less well-formed.

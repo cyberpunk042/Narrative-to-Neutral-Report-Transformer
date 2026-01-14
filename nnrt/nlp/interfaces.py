@@ -1,0 +1,97 @@
+"""
+NLP Interfaces — Abstract interfaces for NLP backends.
+
+NLP components are semantic sensors, not authorities.
+All outputs are treated as untrusted input.
+"""
+
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import Optional
+
+from nnrt.ir.enums import EventType, SpanLabel
+
+
+@dataclass
+class SpanTagResult:
+    """Result from span tagging."""
+
+    start_char: int
+    end_char: int
+    text: str
+    label: SpanLabel
+    confidence: float
+
+
+@dataclass
+class EventExtractResult:
+    """Result from event extraction."""
+
+    description: str
+    type: EventType
+    confidence: float
+    source_start: int
+    source_end: int
+    actor_mention: Optional[str] = None
+    target_mention: Optional[str] = None
+
+
+class SpanTagger(ABC):
+    """
+    Abstract interface for span tagging.
+    
+    Implementations must:
+    - Return spans with confidence scores
+    - Output structured data only
+    - Never infer intent or meaning
+    """
+
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """Backend name for tracing."""
+        ...
+
+    @abstractmethod
+    def tag(self, text: str) -> list[SpanTagResult]:
+        """
+        Tag spans in text with semantic labels.
+        
+        Args:
+            text: Input text to tag
+            
+        Returns:
+            List of tagged spans with confidence
+        """
+        ...
+
+
+class EventExtractor(ABC):
+    """
+    Abstract interface for event extraction.
+    
+    Implementations must:
+    - Return events with evidence links
+    - Include confidence scores
+    - Never resolve ambiguity
+    """
+
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """Backend name for tracing."""
+        ...
+
+    @abstractmethod
+    def extract(self, text: str, spans: list[SpanTagResult]) -> list[EventExtractResult]:
+        """
+        Extract events from text and spans.
+        
+        Args:
+            text: Original text
+            spans: Previously tagged spans
+            
+        Returns:
+            List of extracted events with confidence
+        """
+        ...

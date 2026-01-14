@@ -1,0 +1,140 @@
+"""
+NNRT CLI — Command-line interface for transformations.
+"""
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+from nnrt import __version__
+from nnrt.core.context import TransformRequest
+from nnrt.core.engine import Engine, Pipeline, get_engine
+from nnrt.ir.serialization import to_json
+from nnrt.passes import (
+    augment_ir,
+    build_ir,
+    evaluate_policy,
+    extract_identifiers,
+    normalize,
+    package,
+    render,
+    segment,
+    tag_spans,
+)
+
+
+def setup_default_pipeline(engine: Engine) -> None:
+    """Register the default pipeline."""
+    default_pipeline = Pipeline(
+        id="default",
+        name="Default NNRT Pipeline",
+        passes=[
+            normalize,
+            segment,
+            tag_spans,
+            extract_identifiers,
+            build_ir,
+            evaluate_policy,
+            augment_ir,
+            render,
+            package,
+        ],
+    )
+    engine.register_pipeline(default_pipeline)
+
+
+def main() -> int:
+    """Main CLI entry point."""
+    parser = argparse.ArgumentParser(
+        prog="nnrt",
+        description="Narrative-to-Neutral Report Transformer",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"nnrt {__version__}",
+    )
+
+    subparsers = parser.add_subparsers(dest="command", help="Commands")
+
+    # Transform command
+    transform_parser = subparsers.add_parser("transform", help="Transform a narrative")
+    transform_parser.add_argument(
+        "input",
+        type=str,
+        help="Input text or path to file (use - for stdin)",
+    )
+    transform_parser.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        default=None,
+        help="Output file path (default: stdout)",
+    )
+    transform_parser.add_argument(
+        "--format",
+        choices=["text", "json", "ir"],
+        default="text",
+        help="Output format (default: text)",
+    )
+    transform_parser.add_argument(
+        "--pipeline",
+        type=str,
+        default="default",
+        help="Pipeline to use (default: default)",
+    )
+
+    args = parser.parse_args()
+
+    if args.command is None:
+        parser.print_help()
+        return 0
+
+    if args.command == "transform":
+        return run_transform(args)
+
+    return 0
+
+
+def run_transform(args: argparse.Namespace) -> int:
+    """Run transformation command."""
+    # Get input text
+    if args.input == "-":
+        text = sys.stdin.read()
+    elif Path(args.input).exists():
+        text = Path(args.input).read_text()
+    else:
+        text = args.input
+
+    # Setup engine
+    engine = get_engine()
+    setup_default_pipeline(engine)
+
+    # Run transformation
+    request = TransformRequest(text=text)
+    result = engine.transform(request, args.pipeline)
+
+    # Format output
+    if args.format == "json":
+        output = to_json(result)
+    elif args.format == "ir":
+        output = to_json(result, indent=4)
+    else:
+        output = result.rendered_text or ""
+        if result.diagnostics:
+            output += "\n\n--- Diagnostics ---\n"
+            for diag in result.diagnostics:
+                output += f"[{diag.level.value}] {diag.code}: {diag.message}\n"
+
+    # Write output
+    if args.output:
+        Path(args.output).write_text(output)
+    else:
+        print(output)
+
+    return 0 if result.status.value in ("success", "partial") else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

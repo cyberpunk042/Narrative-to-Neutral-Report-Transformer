@@ -1,0 +1,169 @@
+"""
+IR Schema v0.1 — Pydantic models for the Intermediate Representation.
+
+The IR captures semantic structure without judgment.
+"""
+
+from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel, Field
+
+from nnrt.ir.enums import (
+    DiagnosticLevel,
+    EntityRole,
+    EventType,
+    IdentifierType,
+    PolicyAction,
+    SpanLabel,
+    SpeechActType,
+    TransformStatus,
+    UncertaintyType,
+)
+
+IR_VERSION = "0.1.0"
+
+
+class Segment(BaseModel):
+    """A contiguous chunk of input text."""
+
+    id: str = Field(..., description="Unique segment identifier")
+    text: str = Field(..., description="Original text")
+    start_char: int = Field(..., description="Character offset in original input")
+    end_char: int = Field(..., description="Character offset end")
+    source_line: Optional[int] = Field(None, description="Line number if available")
+
+
+class SemanticSpan(BaseModel):
+    """A tagged region within a segment."""
+
+    id: str = Field(..., description="Unique span identifier")
+    segment_id: str = Field(..., description="Parent segment")
+    start_char: int = Field(..., description="Offset within segment")
+    end_char: int = Field(..., description="Offset end")
+    text: str = Field(..., description="Span text")
+    label: SpanLabel = Field(..., description="Semantic label")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Model confidence")
+    source: str = Field(..., description="Which pass/model produced this")
+
+
+class ExtractedIdentifier(BaseModel):
+    """An identifier extracted from text."""
+
+    id: str
+    type: IdentifierType
+    value: str
+    span_id: str
+    confidence: float = Field(..., ge=0.0, le=1.0)
+
+
+class Entity(BaseModel):
+    """A detected actor or object in the narrative."""
+
+    id: str = Field(..., description="Unique entity identifier")
+    role: EntityRole = Field(..., description="Role enum")
+    mentions: list[str] = Field(default_factory=list, description="Span IDs that reference this")
+    extracted_identifiers: Optional[list[ExtractedIdentifier]] = Field(
+        None, description="Optional extracted identifiers"
+    )
+
+
+class Event(BaseModel):
+    """A discrete occurrence in the narrative."""
+
+    id: str = Field(..., description="Unique event identifier")
+    type: EventType = Field(..., description="Event type")
+    description: str = Field(..., description="Neutral description")
+
+    # Evidence
+    source_spans: list[str] = Field(default_factory=list, description="Supporting span IDs")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Extraction confidence")
+
+    # Relationships
+    actor_id: Optional[str] = Field(None, description="Entity performing action")
+    target_id: Optional[str] = Field(None, description="Entity receiving action")
+    temporal_marker: Optional[str] = Field(None, description="Time reference")
+
+    # Flags
+    is_uncertain: bool = Field(False, description="Explicitly uncertain")
+    requires_context: bool = Field(False, description="References external context")
+
+
+class SpeechAct(BaseModel):
+    """Direct or reported speech in the narrative."""
+
+    id: str
+    type: SpeechActType
+    speaker_id: Optional[str] = None
+    content: str
+    is_direct_quote: bool
+    source_span_id: str
+    confidence: float = Field(..., ge=0.0, le=1.0)
+
+
+class UncertaintyMarker(BaseModel):
+    """Explicit marker of uncertainty in the IR."""
+
+    id: str
+    type: UncertaintyType
+    description: str
+    affected_ids: list[str] = Field(default_factory=list)
+    source: str
+
+
+class PolicyDecision(BaseModel):
+    """A policy rule that was applied."""
+
+    id: str
+    rule_id: str
+    action: PolicyAction
+    reason: str
+    affected_ids: list[str] = Field(default_factory=list)
+
+
+class TraceEntry(BaseModel):
+    """A single transformation trace entry."""
+
+    id: str
+    timestamp: datetime
+    pass_name: str
+    action: str
+    before: Optional[str] = None
+    after: Optional[str] = None
+    affected_ids: list[str] = Field(default_factory=list)
+
+
+class Diagnostic(BaseModel):
+    """A diagnostic message."""
+
+    id: str
+    level: DiagnosticLevel
+    code: str
+    message: str
+    source: str
+    affected_ids: list[str] = Field(default_factory=list)
+
+
+class TransformResult(BaseModel):
+    """The complete output of an NNRT transformation."""
+
+    version: str = Field(default=IR_VERSION, description="IR schema version")
+    request_id: str = Field(..., description="Unique transformation ID")
+    timestamp: datetime = Field(..., description="When transformation occurred")
+
+    # Core IR
+    segments: list[Segment] = Field(default_factory=list)
+    spans: list[SemanticSpan] = Field(default_factory=list)
+    entities: list[Entity] = Field(default_factory=list)
+    events: list[Event] = Field(default_factory=list)
+    speech_acts: list[SpeechAct] = Field(default_factory=list)
+
+    # Metadata
+    uncertainty: list[UncertaintyMarker] = Field(default_factory=list)
+    policy_decisions: list[PolicyDecision] = Field(default_factory=list)
+    trace: list[TraceEntry] = Field(default_factory=list)
+    diagnostics: list[Diagnostic] = Field(default_factory=list)
+
+    # Output
+    rendered_text: Optional[str] = Field(None, description="Final rendered output")
+    status: TransformStatus = Field(..., description="Transformation status")
