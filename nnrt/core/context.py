@@ -202,6 +202,7 @@ class TransformContext:
             entities=self.entities,
             events=self.events,
             speech_acts=self.speech_acts,
+            atomic_statements=self.atomic_statements,  # NEW
             uncertainty=self.uncertainty,
             policy_decisions=self.policy_decisions,
             trace=self.trace,

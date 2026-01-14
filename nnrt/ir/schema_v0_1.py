@@ -211,6 +211,9 @@ class TransformResult(BaseModel):
     entities: list[Entity] = Field(default_factory=list)
     events: list[Event] = Field(default_factory=list)
     speech_acts: list[SpeechAct] = Field(default_factory=list)
+    
+    # NEW: Atomic statements from decomposition
+    atomic_statements: list = Field(default_factory=list, description="Atomic statements from decomposition")
 
     # Metadata
     uncertainty: list[UncertaintyMarker] = Field(default_factory=list)

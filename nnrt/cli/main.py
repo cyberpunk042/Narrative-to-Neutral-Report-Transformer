@@ -16,7 +16,9 @@ from nnrt.passes import (
     annotate_context,
     augment_ir,
     build_ir,
+    classify_atomic,
     classify_statements,
+    decompose,
     evaluate_policy,
     extract_entities,
     extract_events,
@@ -94,6 +96,8 @@ def setup_raw_pipeline(engine: Engine, profile: str = "law_enforcement") -> None
             tag_spans,
             annotate_context,
             classify_statements,
+            decompose,           # NEW: Atomic statement decomposition
+            classify_atomic,     # NEW: Classify atomic statements
             extract_identifiers,
             extract_entities,
             extract_events,
@@ -265,6 +269,27 @@ def format_raw_output(result, original_text: str) -> str:
         lines.append(f"    Contexts: {contexts}")
         lines.append(f"    Chars: {seg.start_char}-{seg.end_char}")
     
+    # NEW: Atomic Statements section
+    lines.append("")
+    lines.append("=" * 80)
+    lines.append(f"ATOMIC STATEMENTS ({len(result.atomic_statements)})")
+    lines.append("=" * 80)
+    
+    for i, stmt in enumerate(result.atomic_statements[:30]):  # Limit to first 30
+        stmt_type = stmt.type_hint.value if hasattr(stmt.type_hint, 'value') else str(stmt.type_hint)
+        flags = f" {stmt.flags}" if stmt.flags else ""
+        lines.append(f"\n[{i}] {stmt.id}")
+        lines.append(f"    Type: {stmt_type} (confidence: {stmt.confidence:.2f})")
+        lines.append(f"    Text: {stmt.text[:80]}{'...' if len(stmt.text) > 80 else ''}")
+        lines.append(f"    Clause: {stmt.clause_type}")
+        if stmt.connector:
+            lines.append(f"    Connector: '{stmt.connector}'")
+        if flags:
+            lines.append(f"    Flags: {stmt.flags}")
+    
+    if len(result.atomic_statements) > 30:
+        lines.append(f"\n  ... and {len(result.atomic_statements) - 30} more statements")
+    
     lines.append("")
     lines.append("=" * 80)
     lines.append(f"POLICY DECISIONS ({len(result.policy_decisions)})")
@@ -298,6 +323,7 @@ def format_raw_output(result, original_text: str) -> str:
     lines.append("SUMMARY")
     lines.append("=" * 80)
     lines.append(f"  Segments: {len(result.segments)}")
+    lines.append(f"  Atomic Statements: {len(result.atomic_statements)}")
     lines.append(f"  Spans: {len(result.spans)}")
     lines.append(f"  Policy decisions: {len(result.policy_decisions)}")
     lines.append(f"  Identifiers: {len(result.identifiers)}")
