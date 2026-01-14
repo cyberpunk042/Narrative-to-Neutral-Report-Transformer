@@ -34,6 +34,9 @@ def load_ruleset(name: str = "base") -> PolicyRuleset:
     First checks for a profile in profiles/, then falls back to
     direct file loading for backwards compatibility.
     
+    Special case: 'base' redirects to 'law_enforcement' profile
+    as the default for backwards compatibility with v1.x.
+    
     Args:
         name: Ruleset/profile name (without .yaml extension)
         
@@ -44,6 +47,10 @@ def load_ruleset(name: str = "base") -> PolicyRuleset:
         FileNotFoundError: If ruleset file doesn't exist
         ValueError: If ruleset is invalid
     """
+    # Backwards compatibility: 'base' now means 'law_enforcement' profile
+    if name == "base":
+        name = "law_enforcement"
+    
     # Check for profile first
     profile_path = RULESETS_DIR / "profiles" / f"{name}.yaml"
     if profile_path.exists():
