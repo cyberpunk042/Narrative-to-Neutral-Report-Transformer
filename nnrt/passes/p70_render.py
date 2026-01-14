@@ -3,14 +3,18 @@ Pass 70 — Constrained Rendering
 
 Renders the IR into neutral narrative text.
 
-This pass now uses the policy engine to apply transformations
-based on YAML-defined rules. It also supports span-based
-transformations for NLP-detected content.
+Supports two modes:
+1. Template-based (default): Fast, deterministic, uses policy rules
+2. LLM-based (optional): More fluent, uses constrained Flan-T5
 
-The generator can ONLY render what the IR contains.
-It cannot add meaning, resolve ambiguity, or infer intent.
+Per LLM policy:
+- Generator input is IR ONLY, never raw input text
+- LLM proposes candidates, does not decide
+- All outputs are validated before use
+- Fallback to template if LLM fails validation
 """
 
+import os
 from nnrt.core.context import TransformContext
 from nnrt.ir.enums import SpanLabel
 from nnrt.policy.engine import get_policy_engine
@@ -18,15 +22,18 @@ from nnrt.policy.engine import get_policy_engine
 PASS_NAME = "p70_render"
 
 
+def _use_llm_render() -> bool:
+    """Check if LLM rendering is enabled (checked at runtime)."""
+    return os.environ.get("NNRT_USE_LLM", "").lower() in ("1", "true", "yes")
+
+
 def render(ctx: TransformContext) -> TransformContext:
     """
-    Render IR to neutral text using policy rules.
+    Render IR to neutral text.
     
-    This pass:
-    - Applies policy rules from YAML configuration
-    - Handles span-based transformations from NLP
-    - Cleans up artifacts from transformations
-    - Produces reviewable neutral output
+    Mode selection:
+    - Set NNRT_USE_LLM=1 to enable LLM rendering
+    - Default is template-based rendering
     """
     if not ctx.segments:
         ctx.rendered_text = ""
@@ -37,7 +44,67 @@ def render(ctx: TransformContext) -> TransformContext:
         )
         return ctx
 
-    # Get policy engine
+    if _use_llm_render() and _llm_available():
+        return _render_llm(ctx)
+    else:
+        return _render_template(ctx)
+
+
+def _llm_available() -> bool:
+    """Check if LLM rendering is available."""
+    try:
+        from nnrt.render.constrained import is_available
+        return is_available()
+    except ImportError:
+        return False
+
+
+def _render_llm(ctx: TransformContext) -> TransformContext:
+    """Render using constrained LLM."""
+    from nnrt.render.constrained import ConstrainedLLMRenderer
+    
+    renderer = ConstrainedLLMRenderer()
+    rendered_segments: list[str] = []
+    
+    for segment in ctx.segments:
+        # Get related IR components
+        segment_spans = [s for s in ctx.spans if s.segment_id == segment.id]
+        segment_entities = [e for e in ctx.entities if any(
+            m in [s.id for s in segment_spans] for m in e.mentions
+        )]
+        segment_events = [e for e in ctx.events if any(
+            s in [sp.id for sp in segment_spans] for s in e.source_spans
+        )]
+        
+        # First apply policy rules to get fallback
+        engine = get_policy_engine()
+        fallback_text, _ = engine.apply_rules(segment.text)
+        
+        # Then render with LLM (falls back if validation fails)
+        rendered = renderer.render(
+            segment=segment,
+            spans=segment_spans,
+            entities=segment_entities,
+            events=segment_events,
+            fallback_text=fallback_text,
+        )
+        
+        rendered = _clean_text(rendered)
+        if rendered.strip():
+            rendered_segments.append(rendered)
+    
+    ctx.rendered_text = " ".join(rendered_segments)
+    ctx.add_trace(
+        pass_name=PASS_NAME,
+        action="rendered_llm",
+        after=f"{len(rendered_segments)} segments via LLM",
+    )
+    
+    return ctx
+
+
+def _render_template(ctx: TransformContext) -> TransformContext:
+    """Render using template-based policy rules."""
     engine = get_policy_engine()
     
     rendered_segments: list[str] = []
@@ -53,7 +120,6 @@ def render(ctx: TransformContext) -> TransformContext:
         segment_spans = [s for s in ctx.spans if s.segment_id == segment.id]
         for span in segment_spans:
             if span.label == SpanLabel.LEGAL_CONCLUSION:
-                # Remove legal conclusions not caught by rules
                 if span.text in rendered:
                     rendered = _remove_phrase(rendered, span.text)
                     total_span_transforms += 1
@@ -65,7 +131,6 @@ def render(ctx: TransformContext) -> TransformContext:
                     )
             
             elif span.label == SpanLabel.INTENT_ATTRIBUTION:
-                # Handle intent not caught by rules
                 if span.text in rendered:
                     replacement = _get_intent_replacement(span.text)
                     if replacement is not None:
@@ -79,18 +144,15 @@ def render(ctx: TransformContext) -> TransformContext:
                             affected_ids=[span.id],
                         )
         
-        # Clean up artifacts
         rendered = _clean_text(rendered)
-        
         if rendered.strip():
             rendered_segments.append(rendered)
 
-    # Join segments
     ctx.rendered_text = " ".join(rendered_segments)
     
     ctx.add_trace(
         pass_name=PASS_NAME,
-        action="rendered",
+        action="rendered_template",
         after=f"{len(rendered_segments)} segments, {total_rule_transforms} rule transforms, {total_span_transforms} span transforms",
     )
 

@@ -43,9 +43,14 @@ nlp = [
     "torch>=2.0",
     "spacy>=3.7",
     "accelerate>=0.25",
+    "sentencepiece>=0.1.99",
+]
+production = [
+    "pyyaml>=6.0",
+    "structlog>=23.0",
 ]
 all = [
-    "nnrt[dev,nlp]",
+    "nnrt[dev,nlp,production]",
 ]
 
 [project.scripts]

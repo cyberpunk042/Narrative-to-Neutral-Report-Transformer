@@ -84,6 +84,11 @@ def main() -> int:
         default="default",
         help="Pipeline to use (default: default)",
     )
+    transform_parser.add_argument(
+        "--llm",
+        action="store_true",
+        help="Use LLM-based rendering (requires transformers, slower but more fluent)",
+    )
 
     args = parser.parse_args()
 
@@ -111,6 +116,11 @@ def run_transform(args: argparse.Namespace) -> int:
     # Setup engine
     engine = get_engine()
     setup_default_pipeline(engine)
+
+    # Enable LLM rendering if requested
+    if args.llm:
+        import os
+        os.environ["NNRT_USE_LLM"] = "1"
 
     # Run transformation
     request = TransformRequest(text=text)

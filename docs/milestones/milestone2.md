@@ -148,13 +148,19 @@ Per `/LLM_VS_NLP_POSITIONING.md`:
 
 Milestone 2 is complete when:
 
-- [ ] Policy rules are configurable via YAML
-- [ ] Identifiers are extracted (badge, location, time)
-- [ ] LLM rendering produces fluent neutral text (optional mode)
-- [ ] LLM output is validated against IR (no new facts)
-- [ ] Structured logging is implemented
-- [ ] Configuration is externalized
-- [ ] Tests cover all new functionality
+- [x] Policy rules are configurable via YAML — *base.yaml with 15 rules*
+- [x] Identifiers are extracted (badge, location, time) — *regex + spaCy NER*
+- [x] LLM rendering produces fluent neutral text (optional mode) — *Flan-T5-small*
+- [x] LLM output is validated against IR (no new facts) — *validate_llm_output()*
+- [ ] Structured logging is implemented — *deferred*
+- [ ] Configuration is externalized — *partially (env vars, YAML)*
+- [x] Tests cover all new functionality — *34 tests passing*
+
+**STATUS: MOSTLY COMPLETE** as of 2026-01-13
+
+Remaining:
+- Structured logging (structlog integration)
+- Full configuration management
 
 ---
 
