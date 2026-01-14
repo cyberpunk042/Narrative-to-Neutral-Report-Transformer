@@ -37,6 +37,30 @@ class TransformationRecord(BaseModel):
     replacement: Optional[str] = None
 
 
+class AtomicStatementOutput(BaseModel):
+    """
+    An atomic statement from the decomposition pipeline.
+    
+    This is the NEW output format aligned with the NNRT v2 schema:
+    - Each statement is a single fact/claim/interpretation
+    - Type is explicitly classified
+    - Provenance (derived_from) links interpretations to sources
+    """
+    
+    id: str = Field(..., description="Statement ID (stmt_XXXX)")
+    type: str = Field(..., description="observation|claim|interpretation|quote|unknown")
+    text: str = Field(..., description="Statement text")
+    
+    segment_id: str = Field(..., description="Source segment ID")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Classification confidence")
+    
+    clause_type: str = Field(..., description="root|conj|advcl|ccomp|quote")
+    connector: Optional[str] = Field(None, description="Clause connector (and, because, etc.)")
+    
+    derived_from: list[str] = Field(default_factory=list, description="IDs of source statements")
+    flags: list[str] = Field(default_factory=list, description="Classification flags")
+
+
 class StatementOutput(BaseModel):
     """A classified statement from the narrative."""
     
@@ -110,8 +134,15 @@ class StructuredOutput(BaseModel):
     timestamp: datetime = Field(..., description="Processing timestamp")
     transformed: bool = Field(..., description="Whether any transformations occurred")
     
-    # Core content
+    # Core content (legacy segment-based)
     statements: list[StatementOutput] = Field(default_factory=list)
+    
+    # NEW: Atomic statements from decomposition pipeline
+    atomic_statements: list[AtomicStatementOutput] = Field(
+        default_factory=list,
+        description="Decomposed atomic statements with classification and provenance"
+    )
+    
     uncertainties: list[UncertaintyOutput] = Field(default_factory=list)
     entities: list[EntityOutput] = Field(default_factory=list)
     events: list[EventOutput] = Field(default_factory=list)
@@ -159,6 +190,23 @@ def build_structured_output(result: TransformResult, input_text: str) -> Structu
             flags=[],
         )
         statements.append(stmt)
+    
+    # Build atomic statements from decomposition pipeline (NEW)
+    atomic_statements_out = []
+    for atomic in result.atomic_statements:
+        stmt_type = atomic.type_hint.value if hasattr(atomic.type_hint, 'value') else str(atomic.type_hint)
+        atomic_out = AtomicStatementOutput(
+            id=atomic.id,
+            type=stmt_type,
+            text=atomic.text,
+            segment_id=atomic.segment_id,
+            confidence=atomic.confidence,
+            clause_type=atomic.clause_type,
+            connector=atomic.connector,
+            derived_from=atomic.derived_from,
+            flags=atomic.flags,
+        )
+        atomic_statements_out.append(atomic_out)
     
     # Build uncertainties from Markers (Phase 3)
     uncertainties = []
@@ -232,6 +280,7 @@ def build_structured_output(result: TransformResult, input_text: str) -> Structu
         timestamp=result.timestamp,
         transformed=transformed,
         statements=statements,
+        atomic_statements=atomic_statements_out,
         uncertainties=uncertainties,
         entities=entities_out,
         events=events_out,

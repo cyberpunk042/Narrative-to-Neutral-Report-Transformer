@@ -51,6 +51,9 @@ def setup_default_pipeline(engine: Engine, profile: str = "law_enforcement") -> 
             tag_spans,
             annotate_context,     # Sets context (including quotes)
             classify_statements,  # Uses context for classification
+            decompose,            # NEW: Decompose into atomic statements
+            classify_atomic,      # NEW: Classify atomic statements
+            link_provenance,      # NEW: Link interpretations to sources
             extract_identifiers,
             extract_entities,     # Phase 4: Entity Extraction
             extract_events,       # Phase 4: Event Extraction
