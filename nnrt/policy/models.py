@@ -18,12 +18,31 @@ class RuleAction(str, Enum):
 
 
 class MatchType(str, Enum):
-    """Types of pattern matching."""
+    """Types of pattern matching.
+    
+    Text-based matching:
+    - KEYWORD: Word boundary matching
+    - PHRASE: Exact phrase matching
+    - REGEX: Regular expression matching
+    - QUOTED: Content within quotes
+    - SPAN_LABEL: Match span labels
+    
+    Semantic matching (uses Entity/Event graph):
+    - ENTITY_ROLE: Match entities by their role (e.g., AUTHORITY, VICTIM)
+    - ENTITY_TYPE: Match entities by their type (e.g., PERSON, VEHICLE)
+    - EVENT_TYPE: Match events by their type (e.g., ACTION, VERBAL)
+    """
+    # Text-based matching
     KEYWORD = "keyword"
     PHRASE = "phrase"
     REGEX = "regex"
     QUOTED = "quoted"
     SPAN_LABEL = "span_label"
+    
+    # Semantic matching (NEW)
+    ENTITY_ROLE = "entity_role"
+    ENTITY_TYPE = "entity_type"
+    EVENT_TYPE = "event_type"
 
 
 @dataclass

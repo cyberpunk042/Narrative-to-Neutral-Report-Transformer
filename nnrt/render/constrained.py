@@ -10,8 +10,13 @@ Per LLM policy:
 - All outputs are reviewable and rejectable
 - Ambiguity must be preserved, not resolved
 - Temperature=0 for determinism
+
+Configuration:
+- NNRT_LLM_MODEL: Override the default model (default: google/flan-t5-small)
+- NNRT_LLM_DEVICE: Force device selection (cpu, cuda, auto)
 """
 
+import os
 from dataclasses import dataclass
 from typing import Optional
 import logging
@@ -21,12 +26,43 @@ from nnrt.ir.enums import SpanLabel, EntityRole
 
 logger = logging.getLogger(__name__)
 
-# Default model
-DEFAULT_MODEL = "google/flan-t5-small"
+
+# ============================================================================
+# Model Configuration
+# ============================================================================
+
+def _get_model_name() -> str:
+    """
+    Get the model name from configuration.
+    
+    Priority:
+    1. NNRT_LLM_MODEL environment variable
+    2. Default fallback
+    
+    This enables users to:
+    - Use a different HuggingFace model
+    - Point to a local model path
+    - Use custom fine-tuned models
+    """
+    return os.environ.get("NNRT_LLM_MODEL", "google/flan-t5-small")
+
+
+def _get_device_preference() -> str:
+    """
+    Get device preference from configuration.
+    
+    Options:
+    - "auto": Use GPU if available, else CPU (default)
+    - "cuda": Force GPU (fails if unavailable)
+    - "cpu": Force CPU
+    """
+    return os.environ.get("NNRT_LLM_DEVICE", "auto")
+
 
 # Lazy-loaded model and tokenizer
 _model = None
 _tokenizer = None
+_loaded_model_name: Optional[str] = None
 
 
 @dataclass
@@ -39,29 +75,56 @@ class RenderCandidate:
 
 def _get_model():
     """Lazy-load the model and tokenizer."""
-    global _model, _tokenizer
+    global _model, _tokenizer, _loaded_model_name
     
-    if _model is None:
-        try:
-            from transformers import T5ForConditionalGeneration, T5Tokenizer
-            import torch
-            
-            logger.info(f"Loading LLM model: {DEFAULT_MODEL}")
-            _tokenizer = T5Tokenizer.from_pretrained(DEFAULT_MODEL)
-            _model = T5ForConditionalGeneration.from_pretrained(DEFAULT_MODEL)
-            
-            # Use GPU if available
-            if torch.cuda.is_available():
-                _model = _model.cuda()
-                logger.info("Using GPU for LLM inference")
-            
-        except ImportError as e:
-            raise RuntimeError(
-                "LLM rendering requires transformers and torch. "
-                "Install with: pip install transformers torch"
-            ) from e
+    model_name = _get_model_name()
+    
+    # Reload if model name changed
+    if _model is not None and _loaded_model_name == model_name:
+        return _model, _tokenizer
+    
+    try:
+        from transformers import T5ForConditionalGeneration, T5Tokenizer
+        import torch
+        
+        logger.info(f"Loading LLM model: {model_name}")
+        _tokenizer = T5Tokenizer.from_pretrained(model_name)
+        _model = T5ForConditionalGeneration.from_pretrained(model_name)
+        _loaded_model_name = model_name
+        
+        # Device selection
+        device_pref = _get_device_preference()
+        if device_pref == "cuda":
+            if not torch.cuda.is_available():
+                raise RuntimeError("NNRT_LLM_DEVICE=cuda but CUDA not available")
+            _model = _model.cuda()
+            logger.info("Using GPU for LLM inference (forced)")
+        elif device_pref == "auto" and torch.cuda.is_available():
+            _model = _model.cuda()
+            logger.info("Using GPU for LLM inference (auto-detected)")
+        else:
+            logger.info("Using CPU for LLM inference")
+        
+    except ImportError as e:
+        raise RuntimeError(
+            "LLM rendering requires transformers and torch. "
+            "Install with: pip install transformers torch"
+        ) from e
     
     return _model, _tokenizer
+
+
+def reset_model() -> None:
+    """
+    Reset the loaded model.
+    
+    Call this after changing NNRT_LLM_MODEL environment variable
+    to force reloading with the new model.
+    """
+    global _model, _tokenizer, _loaded_model_name
+    _model = None
+    _tokenizer = None
+    _loaded_model_name = None
 
 
 def is_available() -> bool:

@@ -167,3 +167,94 @@ class TestEdgeCases:
         # Should not raise
         matches = engine.find_matches(text)
         assert isinstance(matches, list)
+
+
+class TestSemanticMatching:
+    """Tests for semantic matching using Entity/Event graph."""
+    
+    def test_find_semantic_matches_with_entities(self):
+        """Verify semantic matching works with entities."""
+        from nnrt.ir.schema_v0_1 import Entity
+        from nnrt.ir.enums import EntityRole, EntityType
+        
+        engine = PolicyEngine("base")
+        
+        # Create test entities
+        entities = [
+            Entity(
+                id="ent_1",
+                type=EntityType.PERSON,
+                role=EntityRole.AUTHORITY,
+                label="officer",
+                mentions=[]
+            ),
+            Entity(
+                id="ent_2",
+                type=EntityType.PERSON,
+                role=EntityRole.REPORTER,
+                label="victim",
+                mentions=[]
+            ),
+        ]
+        
+        # Find semantic matches
+        matches = engine.find_semantic_matches(entities, events=[], segment_text="")
+        
+        # Should return a list (may be empty if no semantic rules defined)
+        assert isinstance(matches, list)
+    
+    def test_find_semantic_matches_with_events(self):
+        """Verify semantic matching works with events."""
+        from nnrt.ir.schema_v0_1 import Event
+        from nnrt.ir.enums import EventType
+        
+        engine = PolicyEngine("base")
+        
+        # Create test events
+        events = [
+            Event(
+                id="evt_1",
+                type=EventType.ACTION,
+                description="grabbed",
+                source_spans=[],
+                confidence=0.8
+            ),
+        ]
+        
+        # Find semantic matches
+        matches = engine.find_semantic_matches(entities=[], events=events, segment_text="")
+        
+        assert isinstance(matches, list)
+    
+    def test_evaluate_semantic_returns_decisions(self):
+        """Verify evaluate_semantic returns PolicyDecision objects."""
+        from nnrt.ir.schema_v0_1 import Entity
+        from nnrt.ir.enums import EntityRole, EntityType
+        
+        engine = PolicyEngine("base")
+        
+        entities = [
+            Entity(
+                id="ent_1",
+                type=EntityType.PERSON,
+                role=EntityRole.AUTHORITY,
+                label="officer",
+                mentions=[]
+            ),
+        ]
+        
+        decisions = engine.evaluate_semantic(entities, events=[])
+        
+        assert isinstance(decisions, list)
+        for d in decisions:
+            assert hasattr(d, 'rule_id')
+            assert hasattr(d, 'action')
+    
+    def test_semantic_matching_empty_inputs(self):
+        """Verify semantic matching handles empty inputs."""
+        engine = PolicyEngine("base")
+        
+        matches = engine.find_semantic_matches(entities=[], events=[])
+        
+        assert matches == []
+

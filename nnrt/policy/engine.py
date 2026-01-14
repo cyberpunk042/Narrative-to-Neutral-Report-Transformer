@@ -295,6 +295,148 @@ class PolicyEngine:
         """Check if any match requires refusal."""
         return any(m.rule.action == RuleAction.REFUSE for m in matches)
 
+    # =========================================================================
+    # Semantic Matching Methods (Phase D: Policy Engine Evolution)
+    # =========================================================================
+    
+    def find_semantic_matches(
+        self,
+        entities: list,  # list[Entity]
+        events: list,    # list[Event]
+        segment_text: str = "",
+    ) -> list[RuleMatch]:
+        """
+        Find semantic rule matches using the Entity/Event graph.
+        
+        This enables policies like:
+        - "REDACT entities with role=VICTIM"
+        - "FLAG events with actor.role=AUTHORITY"
+        - "PRESERVE entities with type=PERSON"
+        
+        Args:
+            entities: Entities from p32
+            events: Events from p34
+            segment_text: Original segment text (for position info)
+            
+        Returns:
+            List of semantic matches
+        """
+        matches: list[RuleMatch] = []
+        
+        for rule in self.ruleset.get_rules_sorted():
+            if rule.match.type == MatchType.ENTITY_ROLE:
+                matches.extend(self._match_entity_role(rule, entities, segment_text))
+            elif rule.match.type == MatchType.ENTITY_TYPE:
+                matches.extend(self._match_entity_type(rule, entities, segment_text))
+            elif rule.match.type == MatchType.EVENT_TYPE:
+                matches.extend(self._match_event_type(rule, events, segment_text))
+        
+        # Sort by priority (desc)
+        matches.sort(key=lambda m: -m.rule.priority)
+        
+        return matches
+    
+    def _match_entity_role(
+        self,
+        rule: PolicyRule,
+        entities: list,  # list[Entity]
+        segment_text: str,
+    ) -> list[RuleMatch]:
+        """Match entities by their role."""
+        matches: list[RuleMatch] = []
+        
+        for entity in entities:
+            entity_role = entity.role.value if hasattr(entity.role, 'value') else str(entity.role)
+            
+            for pattern in rule.match.patterns:
+                if pattern.lower() == entity_role.lower():
+                    # Create match representing this entity
+                    matched_text = entity.label or f"Entity({entity.id})"
+                    matches.append(RuleMatch(
+                        rule=rule,
+                        matched_text=matched_text,
+                        start=0,  # Position info from entity mentions if available
+                        end=len(matched_text),
+                    ))
+        
+        return matches
+    
+    def _match_entity_type(
+        self,
+        rule: PolicyRule,
+        entities: list,  # list[Entity]
+        segment_text: str,
+    ) -> list[RuleMatch]:
+        """Match entities by their type."""
+        matches: list[RuleMatch] = []
+        
+        for entity in entities:
+            entity_type = entity.type.value if hasattr(entity.type, 'value') else str(entity.type)
+            
+            for pattern in rule.match.patterns:
+                if pattern.lower() == entity_type.lower():
+                    matched_text = entity.label or f"Entity({entity.id})"
+                    matches.append(RuleMatch(
+                        rule=rule,
+                        matched_text=matched_text,
+                        start=0,
+                        end=len(matched_text),
+                    ))
+        
+        return matches
+    
+    def _match_event_type(
+        self,
+        rule: PolicyRule,
+        events: list,  # list[Event]
+        segment_text: str,
+    ) -> list[RuleMatch]:
+        """Match events by their type."""
+        matches: list[RuleMatch] = []
+        
+        for event in events:
+            event_type = event.type.value if hasattr(event.type, 'value') else str(event.type)
+            
+            for pattern in rule.match.patterns:
+                if pattern.lower() == event_type.lower():
+                    matched_text = event.description or f"Event({event.id})"
+                    matches.append(RuleMatch(
+                        rule=rule,
+                        matched_text=matched_text,
+                        start=0,
+                        end=len(matched_text),
+                    ))
+        
+        return matches
+
+    def evaluate_semantic(
+        self,
+        entities: list,
+        events: list,
+        segment_text: str = "",
+    ) -> list[PolicyDecision]:
+        """
+        Evaluate semantic rules and return policy decisions.
+        
+        This is the entry point for semantic policy evaluation.
+        
+        Args:
+            entities: Entities to evaluate
+            events: Events to evaluate
+            segment_text: Original segment text
+            
+        Returns:
+            List of policy decisions
+        """
+        matches = self.find_semantic_matches(entities, events, segment_text)
+        decisions = []
+        
+        for match in matches:
+            decision = self._create_decision(match)
+            decisions.append(decision)
+        
+        return decisions
+
 
 # Default engine instance
 _engine: Optional[PolicyEngine] = None
@@ -306,3 +448,4 @@ def get_policy_engine(ruleset: str = "base") -> PolicyEngine:
     if _engine is None or _engine._ruleset_name != ruleset:
         _engine = PolicyEngine(ruleset)
     return _engine
+
