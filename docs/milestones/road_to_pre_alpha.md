@@ -189,41 +189,20 @@ class UncertaintyType(Enum):
 
 ---
 
-### Phase 4: Entity/Event Extraction (3-4 hours)
+### Phase 4: Entity/Event Extraction (COMPLETE ✅)
 
 **Goal:** Extract and structure entities and events.
 
-#### 4.1 Entity Model
-```python
-class Entity:
-    id: str               # "ent_001"
-    type: str             # "person", "vehicle", "location"
-    label: str            # "officer", "reporter", "vehicle_1"
-    mentions: list[str]   # ["the cop", "he", "Officer Smith"]
-    role: str             # "reporter", "subject", "witness"
-```
-
-#### 4.2 Event Model
-```python
-class Event:
-    id: str               # "evt_001"
-    type: str             # "physical_contact", "verbal", "movement"
-    description: str      # "grabbed shirt collar"
-    actors: list[str]     # ["ent_001"]
-    targets: list[str]    # ["ent_002"]
-    timestamp: str        # "unclear", "3:00 PM", "before arrest"
-    statement_id: str     # Links to source statement
-```
-
-#### 4.3 Implementation
-- Extend `p30_extract_identifiers.py` for entities
-- Create `p32_extract_events.py` for events
+#### 4.1 Implementation
+- Create `p32_extract_entities.py` (High Fidelity with pronoun resolution)
+- Create `p34_extract_events.py` (Dependency-based)
 - Link entities/events to statements
+- Updated `nnrt/output/structured.py`
 
 #### Exit Criteria
-- [ ] All named/referenced entities extracted
-- [ ] Physical events have actor/target
-- [ ] Timeline events have temporal markers
+- [x] All named/referenced entities extracted
+- [x] Physical events have actor/target
+- [x] Timeline events have temporal markers (Implicit in Event object)
 
 ---
 

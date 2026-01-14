@@ -18,6 +18,8 @@ from nnrt.passes import (
     build_ir,
     classify_statements,
     evaluate_policy,
+    extract_entities,
+    extract_events,
     extract_identifiers,
     normalize,
     package,
@@ -39,6 +41,8 @@ def setup_default_pipeline(engine: Engine) -> None:
             annotate_context,     # Sets context (including quotes)
             classify_statements,  # Uses context for classification
             extract_identifiers,
+            extract_entities,     # Phase 4: Entity Extraction
+            extract_events,       # Phase 4: Event Extraction
             build_ir,
             evaluate_policy,
             augment_ir,

@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from nnrt.ir.enums import (
     DiagnosticLevel,
     EntityRole,
+    EntityType,
     EventType,
     IdentifierType,
     PolicyAction,
@@ -100,6 +101,8 @@ class Entity(BaseModel):
     """A detected actor or object in the narrative."""
 
     id: str = Field(..., description="Unique entity identifier")
+    type: EntityType = Field(default=EntityType.UNKNOWN, description="Entity type")
+    label: Optional[str] = Field(None, description="Human readable label")
     role: EntityRole = Field(..., description="Role enum")
     mentions: list[str] = Field(default_factory=list, description="Span IDs that reference this")
     extracted_identifiers: Optional[list[ExtractedIdentifier]] = Field(

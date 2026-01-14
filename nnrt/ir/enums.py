@@ -111,6 +111,15 @@ class EntityRole(str, Enum):
     OBJECT = "object"
     UNKNOWN = "unknown"
 
+class EntityType(str, Enum):
+    """Refined type of an entity."""
+    
+    PERSON = "person"
+    ORGANIZATION = "organization"
+    LOCATION = "location"
+    VEHICLE = "vehicle"
+    OBJECT = "object"
+    UNKNOWN = "unknown"
 
 class IdentifierType(str, Enum):
     """Types of identifiers that can be extracted."""

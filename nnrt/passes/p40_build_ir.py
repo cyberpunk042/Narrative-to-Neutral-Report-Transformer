@@ -120,16 +120,20 @@ def build_ir(ctx: TransformContext) -> TransformContext:
 
     nlp = _get_nlp()
     
-    entities: list[Entity] = []
-    events: list[Event] = []
-    speech_acts: list[SpeechAct] = []
+    # Use existing IR if present (from Phase 4 passes), otherwise initialize empty
+    entities: list[Entity] = list(ctx.entities) if ctx.entities else []
+    events: list[Event] = list(ctx.events) if ctx.events else []
+    speech_acts: list[SpeechAct] = list(ctx.speech_acts) if ctx.speech_acts else []
     
-    # Track entity mentions for deduplication
+    run_entity_extraction = len(entities) == 0
+    run_event_extraction = len(events) == 0
+    
+    # Track entity mentions for deduplication (only used if running legacy extraction)
     entity_map: dict[str, Entity] = {}  # role -> entity
     
-    entity_counter = 0
-    event_counter = 0
-    speech_act_counter = 0
+    entity_counter = len(entities)
+    event_counter = len(events)
+    speech_act_counter = len(speech_acts)
     
     for segment in ctx.segments:
         doc = nlp(segment.text)
@@ -139,65 +143,67 @@ def build_ir(ctx: TransformContext) -> TransformContext:
         span_ids = [s.id for s in segment_spans]
         
         # Extract entities from noun chunks
-        for chunk in doc.noun_chunks:
-            role = _identify_role(chunk.text)
-            
-            # Create or find entity
-            role_key = role.value
-            if role_key not in entity_map:
-                entity = Entity(
-                    id=f"ent_{entity_counter:03d}",
-                    role=role,
-                    mentions=[],
-                )
-                entity_map[role_key] = entity
-                entities.append(entity)
-                entity_counter += 1
-            
-            # Find matching span and add as mention
-            for span in segment_spans:
-                if span.start_char <= chunk.start_char and chunk.end_char <= span.end_char:
-                    if span.id not in entity_map[role_key].mentions:
-                        entity_map[role_key].mentions.append(span.id)
-                    break
+        if run_entity_extraction:
+            for chunk in doc.noun_chunks:
+                role = _identify_role(chunk.text)
+                
+                # Create or find entity
+                role_key = role.value
+                if role_key not in entity_map:
+                    entity = Entity(
+                        id=f"ent_{entity_counter:03d}",
+                        role=role,
+                        mentions=[],
+                    )
+                    entity_map[role_key] = entity
+                    entities.append(entity)
+                    entity_counter += 1
+                
+                # Find matching span and add as mention
+                for span in segment_spans:
+                    if span.start_char <= chunk.start_char and chunk.end_char <= span.end_char:
+                        if span.id not in entity_map[role_key].mentions:
+                            entity_map[role_key].mentions.append(span.id)
+                        break
         
         # Extract events from verbs
-        for token in doc:
-            if token.pos_ == "VERB" and token.dep_ not in ("aux", "auxpass"):
-                # Get verb text
-                verb_text = token.text
-                event_type = _extract_event_type(verb_text)
-                
-                # Find actor (subject)
-                actor_id = None
-                target_id = None
-                
-                for child in token.children:
-                    if child.dep_ in ("nsubj", "nsubjpass"):
-                        subj_role = _identify_role(child.text)
-                        if subj_role.value in entity_map:
-                            actor_id = entity_map[subj_role.value].id
-                    elif child.dep_ in ("dobj", "pobj"):
-                        obj_role = _identify_role(child.text)
-                        if obj_role.value in entity_map:
-                            target_id = entity_map[obj_role.value].id
-                
-                # Build neutral description
-                description = _build_neutral_description(token, doc)
-                
-                event = Event(
-                    id=f"evt_{event_counter:03d}",
-                    type=event_type,
-                    description=description,
-                    source_spans=span_ids[:2],  # Link to first spans as evidence
-                    confidence=0.75,
-                    actor_id=actor_id,
-                    target_id=target_id,
-                    is_uncertain=False,
-                    requires_context=False,
-                )
-                events.append(event)
-                event_counter += 1
+        if run_event_extraction:
+            for token in doc:
+                if token.pos_ == "VERB" and token.dep_ not in ("aux", "auxpass"):
+                    # Get verb text
+                    verb_text = token.text
+                    event_type = _extract_event_type(verb_text)
+                    
+                    # Find actor (subject)
+                    actor_id = None
+                    target_id = None
+                    
+                    for child in token.children:
+                        if child.dep_ in ("nsubj", "nsubjpass"):
+                            subj_role = _identify_role(child.text)
+                            if subj_role.value in entity_map:
+                                actor_id = entity_map[subj_role.value].id
+                        elif child.dep_ in ("dobj", "pobj"):
+                            obj_role = _identify_role(child.text)
+                            if obj_role.value in entity_map:
+                                target_id = entity_map[obj_role.value].id
+                    
+                    # Build neutral description
+                    description = _build_neutral_description(token, doc)
+                    
+                    event = Event(
+                        id=f"evt_{event_counter:03d}",
+                        type=event_type,
+                        description=description,
+                        source_spans=span_ids[:2],  # Link to first spans as evidence
+                        confidence=0.75,
+                        actor_id=actor_id,
+                        target_id=target_id,
+                        is_uncertain=False,
+                        requires_context=False,
+                    )
+                    events.append(event)
+                    event_counter += 1
         
         # Extract speech acts
         for token in doc:

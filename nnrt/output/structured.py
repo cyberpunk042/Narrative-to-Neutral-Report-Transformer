@@ -171,6 +171,32 @@ def build_structured_output(result: TransformResult, input_text: str) -> Structu
     # Determine if transformed
     transformed = result.rendered_text != input_text if result.rendered_text else False
     
+
+    entities_out = []
+    for ent in result.entities:
+        entities_out.append(EntityOutput(
+            id=ent.id,
+            type=ent.type.value if hasattr(ent.type, "value") else str(ent.type),
+            label=ent.label or "Unknown",
+            role=ent.role.value if hasattr(ent.role, "value") else str(ent.role),
+            mentions=[{"text": m} for m in ent.mentions],
+            attributes={}
+        ))
+        
+    # Build events (Phase 4)
+    events_out = []
+    
+    for evt in result.events:
+        events_out.append(EventOutput(
+            id=evt.id,
+            type=evt.type.value,
+            description=evt.description,
+            actors=[evt.actor_id] if evt.actor_id else [],
+            targets=[evt.target_id] if evt.target_id else [],
+            source_statement="unknown", # Linking logic to be refined
+            confidence=evt.confidence
+        ))
+
     return StructuredOutput(
         nnrt_version=__version__,
         schema_version=SCHEMA_VERSION,
@@ -180,8 +206,8 @@ def build_structured_output(result: TransformResult, input_text: str) -> Structu
         transformed=transformed,
         statements=statements,
         uncertainties=uncertainties,
-        entities=[],  # TODO: Phase 4
-        events=[],    # TODO: Phase 4
+        entities=entities_out,
+        events=events_out,
         diagnostics=[d.model_dump() for d in result.diagnostics],
         rendered_text=result.rendered_text or "",
     )
