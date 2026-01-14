@@ -165,6 +165,35 @@ CONFUSING_QUALIFIERS = [
     r"\b(maybe|probably)\s+\w+\s+(or|but)\s+",        # "maybe pushed or maybe"
 ]
 
+# ============================================================================
+# M3: Contradiction Detection Patterns
+# ============================================================================
+
+# Negation patterns (used to find contradictions)
+NEGATION_PATTERNS = [
+    r"\b(never|didn't|did\s+not|wasn't|was\s+not|couldn't|could\s+not)\b",
+    r"\b(didn't\s+touch|never\s+touched|didn't\s+hit|never\s+hit)\b",
+]
+
+# Physical impossibility states
+STATE_HANDCUFFED = [r"\b(handcuffed|cuffed|restrained|tied\s+up)\b"]
+STATE_PUNCHING = [r"\b(punched|hit|struck|swung)\b"]
+STATE_RUNNING = [r"\b(ran|running|fled|fleeing)\b"]
+STATE_ON_GROUND = [r"\b(on\s+the\s+ground|face\s+down|lying\s+down|pinned)\b"]
+
+# Actions that are impossible when restrained
+INCOMPATIBLE_WITH_RESTRAINED = [
+    r"\b(punched|hit|struck|swung|grabbed|pushed|shoved)\b",
+    r"\b(ran|running|fled|fleeing|escaped|got\s+away)\b",
+]
+
+# Time patterns for timeline conflicts
+TIME_PATTERNS = [
+    r"\b(\d{1,2}:\d{2}\s*(am|pm)?)\b",  # 3:00, 3:00 PM
+    r"\b\d{4}\s*hours\b",                # 1400 hours
+    r"\b(at\s+the\s+same\s+time)\b",
+]
+
 
 def annotate_context(ctx: TransformContext) -> TransformContext:
     """
@@ -328,6 +357,11 @@ def annotate_context(ctx: TransformContext) -> TransformContext:
             source=PASS_NAME,
         )
     
+    # ================================================================
+    # M3: Cross-Segment Contradiction Detection
+    # ================================================================
+    _detect_contradictions(ctx)
+    
     ctx.add_trace(
         pass_name=PASS_NAME,
         action="completed",
@@ -336,6 +370,78 @@ def annotate_context(ctx: TransformContext) -> TransformContext:
     )
     
     return ctx
+
+
+def _detect_contradictions(ctx: TransformContext) -> None:
+    """
+    Detect contradictions across segments.
+    
+    This looks for:
+    1. Negation followed by affirmation ("never touched" then "after I pushed")
+    2. Physical impossibilities ("handcuffed" then "punched him")
+    3. Timeline conflicts (same time, different locations)
+    """
+    segments = ctx.segments
+    if len(segments) < 2:
+        return
+    
+    # Track state across segments
+    was_handcuffed = False
+    was_on_ground = False
+    negated_actions: list[str] = []
+    
+    for i, segment in enumerate(segments):
+        text_lower = segment.text.lower()
+        
+        # Track physical states
+        if _matches_any(text_lower, STATE_HANDCUFFED):
+            was_handcuffed = True
+        if _matches_any(text_lower, STATE_ON_GROUND):
+            was_on_ground = True
+        
+        # Track negations ("I never touched", "I didn't hit")
+        if _matches_any(text_lower, NEGATION_PATTERNS):
+            # What was negated?
+            if "touch" in text_lower:
+                negated_actions.append("touch")
+            if "hit" in text_lower:
+                negated_actions.append("hit")
+            if "push" in text_lower:
+                negated_actions.append("push")
+        
+        # Check for contradictions with earlier state
+        
+        # Type 1: Said handcuffed, but then did action requiring hands
+        if was_handcuffed and _matches_any(text_lower, INCOMPATIBLE_WITH_RESTRAINED):
+            segment.contexts.append(SegmentContext.CONTRADICTS_PREVIOUS.value)
+            ctx.add_diagnostic(
+                level="warning",
+                code="PHYSICAL_CONTRADICTION",
+                message=f"Possible contradiction: Action described after being restrained: '{segment.text[:60]}...'",
+                source=PASS_NAME,
+                affected_ids=[segment.id],
+            )
+        
+        # Type 2: Said "never touched" but then "after I pushed"
+        for negated in negated_actions:
+            if negated == "touch" and ("pushed" in text_lower or "shoved" in text_lower):
+                segment.contexts.append(SegmentContext.CONTRADICTS_PREVIOUS.value)
+                ctx.add_diagnostic(
+                    level="warning",
+                    code="SELF_CONTRADICTION",
+                    message=f"Possible self-contradiction: Action contradicts earlier denial: '{segment.text[:60]}...'",
+                    source=PASS_NAME,
+                    affected_ids=[segment.id],
+                )
+            if negated == "hit" and ("struck" in text_lower or "punched" in text_lower):
+                segment.contexts.append(SegmentContext.CONTRADICTS_PREVIOUS.value)
+                ctx.add_diagnostic(
+                    level="warning",
+                    code="SELF_CONTRADICTION",
+                    message=f"Possible self-contradiction: Action contradicts earlier denial: '{segment.text[:60]}...'",
+                    source=PASS_NAME,
+                    affected_ids=[segment.id],
+                )
 
 
 def _matches_any(text: str, patterns: list[str]) -> bool:
