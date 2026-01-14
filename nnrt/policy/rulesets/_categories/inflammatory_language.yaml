@@ -6,15 +6,36 @@ description: "Neutralize emotionally charged inflammatory characterizations"
 priority_range: [78, 85]
 
 rules:
+  # Split terrorize by verb form for correct conjugation
   - id: inflam_terrorize
     category: inflammatory
     priority: 82
-    description: "Replace 'terrorize' with neutral"
+    description: "Replace 'terrorize' (infinitive/present) with neutral"
     match:
       type: keyword
-      patterns: ["terrorize", "terrorizing", "terrorized"]
+      patterns: ["terrorize"]
+    action: replace
+    replacement: "affect"
+
+  - id: inflam_terrorizing
+    category: inflammatory
+    priority: 82
+    description: "Replace 'terrorizing' (gerund) with neutral"
+    match:
+      type: keyword
+      patterns: ["terrorizing"]
     action: replace
     replacement: "affecting"
+
+  - id: inflam_terrorized
+    category: inflammatory
+    priority: 82
+    description: "Replace 'terrorized' (past) with neutral"
+    match:
+      type: keyword
+      patterns: ["terrorized"]
+    action: replace
+    replacement: "affected"
 
   - id: inflam_corrupt
     category: inflammatory

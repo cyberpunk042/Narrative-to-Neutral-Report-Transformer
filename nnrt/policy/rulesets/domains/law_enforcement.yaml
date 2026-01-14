@@ -89,13 +89,23 @@ rules:
 
   - id: le_no_reason
     category: law_enforcement
-    priority: 72
+    priority: 90
     description: "Soften 'for no reason'"
     match:
       type: phrase
       patterns: ["for no reason", "for absolutely no reason", "without any reason"]
     action: replace
     replacement: "without stated cause"
+
+  - id: le_was_clearly_looking_trouble
+    category: law_enforcement
+    priority: 92
+    description: "Fix 'was clearly looking for trouble' without double verb"
+    match:
+      type: phrase
+      patterns: ["was clearly looking for trouble", "was obviously looking for trouble"]
+    action: replace
+    replacement: "appeared to be looking for trouble"
 
   - id: le_looking_trouble
     category: law_enforcement

@@ -267,8 +267,30 @@ class PolicyEngine:
             if not self._is_protected(match.start, match.end, protected_ranges):
                 unprotected_matches.append(match)
         
-        # STEP 3: Group adjacent unprotected matches with same target
-        match_groups = self._group_adjacent_matches(text, unprotected_matches)
+        # STEP 2.5: Consume spans - prevent overlapping matches
+        # Sort by priority (high first), then by length (long first for ties)
+        # When multiple rules match overlapping text, highest priority wins
+        sorted_by_priority = sorted(
+            unprotected_matches,
+            key=lambda m: (-m.rule.priority, -(m.end - m.start))
+        )
+        
+        consumed_chars: set[int] = set()
+        non_overlapping_matches: list[RuleMatch] = []
+        
+        for match in sorted_by_priority:
+            # Check if ANY character in this match is already consumed
+            match_chars = set(range(match.start, match.end))
+            if match_chars & consumed_chars:
+                # Overlap detected - skip this lower-priority match
+                continue
+            
+            # No overlap - accept this match and consume its characters
+            non_overlapping_matches.append(match)
+            consumed_chars.update(match_chars)
+        
+        # STEP 3: Group adjacent non-overlapping matches with same target
+        match_groups = self._group_adjacent_matches(text, non_overlapping_matches)
         
         # Build transformations from groups
         transformations: list[tuple[int, int, str, list[PolicyRule]]] = []

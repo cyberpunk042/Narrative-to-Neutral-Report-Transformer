@@ -76,7 +76,7 @@ rules:
       type: keyword
       patterns: ["mocking", "taunting", "ridiculing"]
     action: replace
-    replacement: "speaking dismissively"
+    replacement: "speaking dismissively at"
 
   - id: intent_deliberately
     category: intent_attribution

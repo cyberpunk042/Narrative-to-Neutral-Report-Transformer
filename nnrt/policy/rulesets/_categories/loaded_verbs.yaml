@@ -6,26 +6,49 @@ description: "Replace emotionally loaded verbs with neutral descriptions"
 priority_range: [75, 79]
 
 rules:
+  # Split screaming by tense
+  - id: verb_screamed
+    category: loaded_verbs
+    priority: 78
+    description: "Replace 'screamed' (past tense) with neutral"
+    match:
+      type: keyword
+      patterns: ["screamed"]
+    action: replace
+    replacement: "spoke loudly"
+
   - id: verb_screaming
     category: loaded_verbs
     priority: 78
-    description: "Replace 'screaming' with neutral"
+    description: "Replace 'screaming' (progressive) with neutral"
     match:
       type: keyword
-      patterns: ["screaming", "screamed"]
+      patterns: ["screaming"]
     action: replace
     replacement: "speaking loudly"
+
+  # Split yelling by tense
+  - id: verb_yelled
+    category: loaded_verbs
+    priority: 77
+    description: "Replace 'yelled' (past tense) with neutral"
+    match:
+      type: keyword
+      patterns: ["yelled"]
+    action: replace
+    replacement: "spoke loudly"
 
   - id: verb_yelling
     category: loaded_verbs
     priority: 77
-    description: "Replace 'yelling' with neutral"
+    description: "Replace 'yelling' (progressive) with neutral"
     match:
       type: keyword
-      patterns: ["yelling", "yelled"]
+      patterns: ["yelling"]
     action: replace
     replacement: "speaking loudly"
 
+  # Fix slammed - don't include 'against' in replacement
   - id: verb_slammed
     category: loaded_verbs
     priority: 78
@@ -34,7 +57,7 @@ rules:
       type: keyword
       patterns: ["slammed"]
     action: replace
-    replacement: "moved forcefully against"
+    replacement: "pushed"
 
   - id: verb_thrown
     category: loaded_verbs
@@ -75,3 +98,4 @@ rules:
       patterns: ["whispered menacingly", "said menacingly"]
     action: replace
     replacement: "said quietly"
+

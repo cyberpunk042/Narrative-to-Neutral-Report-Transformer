@@ -1,0 +1,46 @@
+# Template for creating new stress tests
+# Copy this file and modify for your test case
+
+name: "Template Stress Test"
+description: "Description of what this test covers"
+profile: law_enforcement  # or: standard
+
+tests:
+  - name: "Test Case Name"
+    description: "What specific scenario this tests"
+    
+    input: |
+      Your narrative text goes here. This is what will be
+      transformed by NNRT.
+    
+    criteria:
+      # Strings that MUST appear in the output
+      must_contain:
+        - "expected phrase"
+        - "another expected phrase"
+      
+      # Strings that MUST NOT appear (indicates transformation failure)
+      must_not_contain:
+        - "problematic word"
+        - "untransformed pattern"
+      
+      # Content that must remain exactly as-is
+      preserved:
+        - '"exact quote content"'
+        - "badge number 1234"
+        - "January 15th, 2026"
+      
+      # Specific transformations to verify
+      transformed:
+        - from: "original text"
+          to: "expected transformation"
+        - from: "brutal cop"
+          to: "officer"
+      
+      # Regex patterns that must NOT match (grammar bugs, etc.)
+      patterns_absent:
+        - pattern: "\\bword1\\s+word1\\b"
+          description: "duplicate word"
+      
+      # Auto-check for known grammar bugs (default: true)
+      check_grammar_bugs: true

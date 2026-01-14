@@ -1,0 +1,56 @@
+# stress_tests/schema.yaml
+# Defines the structure and validation criteria for stress tests
+
+version: "1.0"
+description: |
+  NNRT Stress Test Schema
+  
+  Each test case defines:
+  - input: The narrative text to transform
+  - criteria: Validation rules that MUST pass
+  
+  Criteria types:
+  - must_contain: strings that MUST appear in output
+  - must_not_contain: strings that MUST NOT appear in output
+  - preserved: strings that must appear unchanged (like quotes, dates)
+  - transformed: pairs of (original, expected) transformations
+  - patterns_absent: regex patterns that must NOT match
+  - grammar_checks: specific grammar validation rules
+
+criteria_types:
+  must_contain:
+    description: "Strings that MUST appear in output"
+    fail_message: "Required text not found: '{pattern}'"
+    
+  must_not_contain:
+    description: "Strings that MUST NOT appear in output (bugs, untransformed text)"
+    fail_message: "Forbidden text found: '{pattern}'"
+    
+  preserved:
+    description: "Content that must remain exactly unchanged (quotes, identifiers)"
+    fail_message: "Protected content was modified: '{pattern}'"
+    
+  patterns_absent:
+    description: "Regex patterns that must NOT match (grammar bugs)"
+    fail_message: "Grammar bug detected: '{pattern}'"
+
+# Known bug patterns to check for
+grammar_bug_patterns:
+  - pattern: "\\bspoke loudly in pain\\b"
+    description: "verb tense loss"
+  - pattern: "against\\s+(me|the|it)\\s+against"
+    description: "double against"
+  - pattern: "forcerce"
+    description: "word corruption"
+  - pattern: "\\scers\\b"
+    description: "truncation"
+  - pattern: "criminalconduct"
+    description: "missing space"
+  - pattern: "dismissively me\\b"
+    description: "missing preposition"
+  - pattern: "\\ba\\s+alleged\\b"
+    description: "article mismatch"
+  - pattern: "to affecting\\b"
+    description: "infinitive form broken"
+  - pattern: "was appeared"
+    description: "double verb"

@@ -1,0 +1,153 @@
+# Basic transformation stress test
+# Tests core NNRT functionality with simple cases
+
+name: "Basic Transformations"
+description: "Validates fundamental transformation patterns work correctly"
+
+tests:
+  # ============================================================================
+  # CERTAINTY LANGUAGE REMOVAL
+  # ============================================================================
+  - name: "Certainty - Remove 'clearly'"
+    input: "He clearly wanted to hurt me."
+    criteria:
+      must_not_contain:
+        - "clearly"
+      must_contain:
+        - "appeared to"
+
+  - name: "Certainty - Remove 'obviously'"
+    input: "She obviously didn't care about my safety."
+    criteria:
+      must_not_contain:
+        - "obviously"
+      must_contain:
+        - "didn't care"
+
+  - name: "Certainty - Remove 'absolutely'"
+    input: "I was absolutely terrified."
+    criteria:
+      must_not_contain:
+        - "absolutely"
+      must_contain:
+        - "frightened"  # terrified → frightened (extreme modifier)
+
+  # ============================================================================
+  # INTENT ATTRIBUTION
+  # ============================================================================
+  - name: "Intent - 'wanted to' with harmful verb"
+    input: "He wanted to intimidate me."
+    criteria:
+      must_not_contain:
+        - "wanted to"
+      must_contain:
+        - "appeared to"
+
+  - name: "Intent - 'wanted to' with benign verb (should preserve)"
+    input: "I just wanted to get home."
+    criteria:
+      must_contain:
+        - "wanted to get home"
+
+  - name: "Intent - 'tried to' with harmful verb"
+    input: "She tried to provoke a reaction."
+    criteria:
+      must_not_contain:
+        - "tried to"
+      must_contain:
+        - "appeared to"
+
+  # ============================================================================
+  # LAW ENFORCEMENT TERMINOLOGY
+  # ============================================================================
+  - name: "LE - 'cop' to 'officer'"
+    input: "The cop stopped me."
+    criteria:
+      must_not_contain:
+        - "cop"
+      must_contain:
+        - "officer"
+
+  - name: "LE - 'thug cop' compound"
+    input: "The thug cop behind the wheel was angry."
+    criteria:
+      must_not_contain:
+        - "thug"
+        - "thug cop"
+      must_contain:
+        - "officer"
+
+  - name: "LE - 'police brutality'"
+    input: "This is a case of police brutality."
+    criteria:
+      must_not_contain:
+        - "brutality"
+      must_contain:
+        - "use of force"
+
+  # ============================================================================
+  # QUOTE PRESERVATION
+  # ============================================================================
+  - name: "Quotes - Preserve direct quote"
+    input: 'He yelled "STOP RIGHT THERE!" loudly.'
+    criteria:
+      preserved:
+        - '"STOP RIGHT THERE!"'
+      must_contain:
+        - "spoke loudly"
+
+  # ============================================================================
+  # VERB TENSE PRESERVATION
+  # ============================================================================
+  - name: "Verb Tense - 'screamed' stays past tense"
+    input: "He screamed at me."
+    criteria:
+      must_contain:
+        - "spoke loudly"
+      must_not_contain:
+        - "speaking loudly"
+
+  - name: "Verb Tense - 'slammed' no double against"
+    input: "They slammed me against the wall."
+    criteria:
+      must_contain:
+        - "pushed"
+      patterns_absent:
+        - pattern: "against.*against"
+          description: "double against"
+
+  # ============================================================================
+  # INFLAMMATORY LANGUAGE
+  # ============================================================================
+  - name: "Inflammatory - Remove 'psychotic'"
+    input: "The psychotic officer attacked me."
+    criteria:
+      must_not_contain:
+        - "psychotic"
+
+  - name: "Inflammatory - Remove 'brutal'"
+    input: "It was a brutal attack."
+    criteria:
+      must_not_contain:
+        - "brutal"
+
+  - name: "Inflammatory - 'terrorize' infinitive"
+    input: "They continue to terrorize the community."
+    criteria:
+      must_not_contain:
+        - "terrorize"
+      must_contain:
+        - "affect"
+      patterns_absent:
+        - pattern: "to affecting"
+          description: "broken infinitive"
+
+  # ============================================================================
+  # ARTICLE AGREEMENT
+  # ============================================================================
+  - name: "Article - 'a alleged' becomes 'an alleged'"
+    input: "He's not a criminal."
+    criteria:
+      patterns_absent:
+        - pattern: "\\ba alleged\\b"
+          description: "article mismatch"

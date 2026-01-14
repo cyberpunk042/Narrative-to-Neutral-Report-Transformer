@@ -76,8 +76,12 @@ def cleanup_punctuation(ctx: TransformContext) -> TransformContext:
     if re.search(r'[.!?]\s{2,}', text):
         text = re.sub(r'([.!?])\s{2,}', r'\1 ', text)
         changes_made.append("sentence_spacing")
+    # 9. Fix article agreement: "a" before vowel should be "an"
+    if re.search(r'\ba\s+[aeiouAEIOU]', text):
+        text = re.sub(r'\ba\s+([aeiouAEIOU])', r'an \1', text)
+        changes_made.append("article_agreement")
     
-    # 9. Strip and ensure proper ending
+    # 10. Strip and ensure proper ending
     text = text.strip()
     if text and text[-1] not in ".!?":
         text += "."
