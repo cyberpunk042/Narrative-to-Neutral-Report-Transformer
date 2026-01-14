@@ -1,0 +1,31 @@
+# Law Enforcement Profile
+# Standard profile plus law enforcement domain-specific rules
+
+profile:
+  id: law_enforcement
+  name: "Law Enforcement Narrative Transformation"
+  description: "Standard profile plus police/law enforcement specific rules"
+  version: "2.0"
+
+includes:
+  # Core (always included) - universal rules
+  - _core/quote_protection.yaml
+  - _core/certainty.yaml
+  - _core/extreme_modifiers.yaml
+  - _core/similes.yaml
+  
+  # Categories - domain-agnostic transformations
+  - _categories/intent_attribution.yaml
+  - _categories/inflammatory_language.yaml
+  - _categories/legal_conclusions.yaml
+  - _categories/manner_adverbs.yaml
+  - _categories/loaded_verbs.yaml
+  - _categories/interpretation.yaml
+  
+  # Domain-specific
+  - domains/law_enforcement.yaml
+
+settings:
+  min_confidence: 0.7
+  always_diagnose: true
+  allow_override: true

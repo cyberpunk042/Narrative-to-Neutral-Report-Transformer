@@ -1,0 +1,97 @@
+# Legal Conclusions - Category Rules
+# Transform statements that assert legal/moral conclusions
+
+category: legal_conclusions
+description: "Soften statements that assert legal status or moral conclusions"
+priority_range: [82, 87]
+
+rules:
+  - id: legal_torture
+    category: legal_conclusions
+    priority: 85
+    description: "Soften 'torture' accusation"
+    match:
+      type: keyword
+      patterns: ["torture", "tortured", "torturing"]
+    action: reframe
+    reframe_template: "alleged {original}"
+
+  - id: legal_crimes
+    category: legal_conclusions
+    priority: 85
+    description: "Soften 'crimes' accusation"
+    match:
+      type: keyword
+      patterns: ["crimes", "crime"]
+    action: reframe
+    reframe_template: "alleged {original}"
+
+  - id: legal_criminal_behavior
+    category: legal_conclusions
+    priority: 85
+    description: "Soften 'criminal behavior'"
+    match:
+      type: phrase
+      patterns: ["criminal behavior", "criminal conduct", "criminal acts"]
+    action: replace
+    replacement: "alleged conduct"
+
+  - id: legal_abuse_power
+    category: legal_conclusions
+    priority: 84
+    description: "Soften 'abuse of power'"
+    match:
+      type: phrase
+      patterns: ["abuse of power", "abused their power"]
+    action: replace
+    replacement: "alleged misconduct"
+
+  - id: legal_illegal
+    category: legal_conclusions
+    priority: 84
+    description: "Soften 'illegal' to 'allegedly unlawful'"
+    match:
+      type: keyword
+      patterns: ["illegal"]
+    action: replace
+    replacement: "allegedly unlawful"
+
+  - id: legal_fabricated
+    category: legal_conclusions
+    priority: 83
+    description: "Soften 'fabricated' accusation"
+    match:
+      type: keyword
+      patterns: ["fabricated", "manufactured", "made up"]
+    action: replace
+    replacement: "alleged"
+
+  - id: legal_assault_verb
+    category: legal_conclusions
+    priority: 86
+    description: "Replace assault used as action verb"
+    match:
+      type: regex
+      patterns: ["\\b(attacked|assaulted)\\s+(me|him|her|them|us)"]
+    action: replace
+    replacement: "made physical contact with me"
+
+  - id: legal_assaulting
+    category: legal_conclusions
+    priority: 86
+    description: "Replace 'assaulting' gerund"
+    match:
+      type: keyword
+      patterns: ["assaulting"]
+    action: replace
+    replacement: "making physical contact with"
+
+  - id: legal_criminal_noun
+    category: legal_conclusions
+    priority: 82
+    description: "Soften 'criminal' as noun"
+    match:
+      type: keyword
+      patterns: ["criminal"]
+    action: replace
+    replacement: "alleged criminal"

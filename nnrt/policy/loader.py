@@ -1,5 +1,9 @@
 """
 Policy Loader — Load and parse policy rulesets from YAML files.
+
+Supports two modes:
+1. Legacy: Load single YAML file (backwards compatible with base.yaml)
+2. Profile: Load composed profile with includes from multiple category files
 """
 
 from pathlib import Path
@@ -27,8 +31,11 @@ def load_ruleset(name: str = "base") -> PolicyRuleset:
     """
     Load a policy ruleset by name.
     
+    First checks for a profile in profiles/, then falls back to
+    direct file loading for backwards compatibility.
+    
     Args:
-        name: Ruleset name (without .yaml extension)
+        name: Ruleset/profile name (without .yaml extension)
         
     Returns:
         Parsed PolicyRuleset
@@ -37,6 +44,12 @@ def load_ruleset(name: str = "base") -> PolicyRuleset:
         FileNotFoundError: If ruleset file doesn't exist
         ValueError: If ruleset is invalid
     """
+    # Check for profile first
+    profile_path = RULESETS_DIR / "profiles" / f"{name}.yaml"
+    if profile_path.exists():
+        return load_profile(name)
+    
+    # Check for legacy/direct file
     path = RULESETS_DIR / f"{name}.yaml"
     if not path.exists():
         raise FileNotFoundError(f"Ruleset not found: {path}")
@@ -47,6 +60,85 @@ def load_ruleset(name: str = "base") -> PolicyRuleset:
     return parse_ruleset(data)
 
 
+def load_profile(name: str) -> PolicyRuleset:
+    """
+    Load a composed profile from profiles/ directory.
+    
+    Profiles specify includes which are loaded and merged.
+    """
+    profile_path = RULESETS_DIR / "profiles" / f"{name}.yaml"
+    if not profile_path.exists():
+        raise FileNotFoundError(f"Profile not found: {profile_path}")
+    
+    with open(profile_path) as f:
+        profile_data = yaml.safe_load(f)
+    
+    # Get profile metadata
+    profile_info = profile_data.get("profile", {})
+    settings_data = profile_data.get("settings", {})
+    
+    # Load and merge all included files
+    all_rules: list[PolicyRule] = []
+    
+    for include_path in profile_data.get("includes", []):
+        included_rules = _load_category_file(include_path)
+        all_rules.extend(included_rules)
+    
+    # Apply any overrides
+    for override in profile_data.get("overrides", []):
+        _apply_override(all_rules, override)
+    
+    # Sort rules by priority (highest first)
+    all_rules.sort(key=lambda r: r.priority, reverse=True)
+    
+    # Build settings
+    settings = PolicySettings(
+        min_confidence=settings_data.get("min_confidence", 0.7),
+        always_diagnose=settings_data.get("always_diagnose", True),
+        allow_override=settings_data.get("allow_override", True),
+    )
+    
+    return PolicyRuleset(
+        version=profile_info.get("version", "2.0"),
+        name=profile_info.get("name", name),
+        description=profile_info.get("description", ""),
+        settings=settings,
+        rules=all_rules,
+        validation=[],
+    )
+
+
+def _load_category_file(relative_path: str) -> list[PolicyRule]:
+    """Load rules from a category/domain file."""
+    full_path = RULESETS_DIR / relative_path
+    if not full_path.exists():
+        print(f"Warning: Category file not found: {full_path}")
+        return []
+    
+    with open(full_path) as f:
+        data = yaml.safe_load(f)
+    
+    rules = []
+    for rule_data in data.get("rules", []):
+        rule = parse_rule(rule_data)
+        if rule:
+            rules.append(rule)
+    
+    return rules
+
+
+def _apply_override(rules: list[PolicyRule], override: dict) -> None:
+    """Apply an override to a rule in the list."""
+    rule_id = override.get("id")
+    for rule in rules:
+        if rule.id == rule_id:
+            if "enabled" in override:
+                rule.enabled = override["enabled"]
+            if "priority" in override:
+                rule.priority = override["priority"]
+            break
+
+
 def load_ruleset_from_path(path: Path) -> PolicyRuleset:
     """Load a ruleset from an arbitrary path."""
     with open(path) as f:
@@ -55,7 +147,7 @@ def load_ruleset_from_path(path: Path) -> PolicyRuleset:
 
 
 def parse_ruleset(data: dict) -> PolicyRuleset:
-    """Parse ruleset from dictionary."""
+    """Parse ruleset from dictionary (legacy format)."""
     # Parse settings
     settings_data = data.get("settings", {})
     settings = PolicySettings(
@@ -114,7 +206,7 @@ def parse_rule(data: dict) -> Optional[PolicyRule]:
                 message=diag_data["message"],
             )
         
-        # NEW: Parse condition if present
+        # Parse condition if present
         condition = None
         if "condition" in data:
             cond_data = data["condition"]
@@ -127,9 +219,9 @@ def parse_rule(data: dict) -> Optional[PolicyRule]:
         
         return PolicyRule(
             id=data["id"],
-            category=data["category"],
-            priority=data["priority"],
-            description=data["description"],
+            category=data.get("category", "uncategorized"),
+            priority=data.get("priority", 50),
+            description=data.get("description", ""),
             match=match,
             action=RuleAction(data["action"]),
             replacement=data.get("replacement"),
@@ -145,8 +237,18 @@ def parse_rule(data: dict) -> Optional[PolicyRule]:
 
 
 def list_rulesets() -> list[str]:
-    """List available ruleset names."""
-    return [p.stem for p in RULESETS_DIR.glob("*.yaml")]
+    """List available ruleset names (including profiles)."""
+    direct = [p.stem for p in RULESETS_DIR.glob("*.yaml")]
+    profiles = [p.stem for p in (RULESETS_DIR / "profiles").glob("*.yaml")]
+    return list(set(direct + profiles))
+
+
+def list_profiles() -> list[str]:
+    """List available profile names."""
+    profiles_dir = RULESETS_DIR / "profiles"
+    if not profiles_dir.exists():
+        return []
+    return [p.stem for p in profiles_dir.glob("*.yaml")]
 
 
 # Cache for loaded rulesets
@@ -166,3 +268,4 @@ def get_ruleset(name: str = "base", use_cache: bool = True) -> PolicyRuleset:
 def clear_cache() -> None:
     """Clear the ruleset cache."""
     _cache.clear()
+

@@ -1,0 +1,61 @@
+# Interpretation/Subjective - Category Rules
+# Transform subjective interpretations and characterizations
+
+category: interpretation
+description: "Reframe subjective interpretations and characterizations"
+priority_range: [78, 82]
+
+rules:
+  - id: interp_suspicious
+    category: interpretation
+    priority: 80
+    description: "Reframe 'suspicious' characterization"
+    match:
+      type: keyword
+      patterns: ["suspicious"]
+    action: reframe
+    reframe_template: "described as {original}"
+
+  - id: interp_aggressive_adj
+    category: interpretation
+    priority: 80
+    description: "Reframe 'aggressive' (adjective)"
+    match:
+      type: keyword
+      patterns: ["aggressive"]
+    condition:
+      context_excludes: ["direct_quote"]
+    action: reframe
+    reframe_template: "described as {original}"
+
+  - id: interp_threatening_adj
+    category: interpretation
+    priority: 80
+    description: "Reframe threatening adjectives"
+    match:
+      type: keyword
+      patterns: ["threatening", "intimidating", "hostile"]
+    condition:
+      context_excludes: ["direct_quote"]
+    action: reframe
+    reframe_template: "described as {original}"
+
+  - id: interp_erratic
+    category: interpretation
+    priority: 79
+    description: "Reframe 'erratic' characterization"
+    match:
+      type: keyword
+      patterns: ["erratic", "reckless", "careless"]
+    action: reframe
+    reframe_template: "described as {original}"
+
+  - id: interp_excessive
+    category: interpretation
+    priority: 79
+    description: "Reframe 'excessive' characterization"
+    match:
+      type: keyword
+      patterns: ["excessive"]
+    action: reframe
+    reframe_template: "described as {original}"

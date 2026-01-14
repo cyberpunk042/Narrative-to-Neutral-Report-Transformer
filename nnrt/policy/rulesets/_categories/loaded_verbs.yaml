@@ -1,0 +1,77 @@
+# Loaded Verbs - Category Rules
+# Transform emotionally loaded action verbs
+
+category: loaded_verbs
+description: "Replace emotionally loaded verbs with neutral descriptions"
+priority_range: [75, 79]
+
+rules:
+  - id: verb_screaming
+    category: loaded_verbs
+    priority: 78
+    description: "Replace 'screaming' with neutral"
+    match:
+      type: keyword
+      patterns: ["screaming", "screamed"]
+    action: replace
+    replacement: "speaking loudly"
+
+  - id: verb_yelling
+    category: loaded_verbs
+    priority: 77
+    description: "Replace 'yelling' with neutral"
+    match:
+      type: keyword
+      patterns: ["yelling", "yelled"]
+    action: replace
+    replacement: "speaking loudly"
+
+  - id: verb_slammed
+    category: loaded_verbs
+    priority: 78
+    description: "Replace 'slammed' with neutral"
+    match:
+      type: keyword
+      patterns: ["slammed"]
+    action: replace
+    replacement: "moved forcefully against"
+
+  - id: verb_thrown
+    category: loaded_verbs
+    priority: 78
+    description: "Replace 'threw/thrown' with neutral"
+    match:
+      type: keyword
+      patterns: ["threw", "thrown"]
+    action: replace
+    replacement: "moved"
+
+  - id: verb_threatened
+    category: loaded_verbs
+    priority: 77
+    description: "Reframe 'threatened'"
+    match:
+      type: keyword
+      patterns: ["threatened"]
+    action: reframe
+    reframe_template: "made statements described as {original}"
+
+  - id: verb_laughed_face
+    category: loaded_verbs
+    priority: 76
+    description: "Neutralize 'laughed in my face'"
+    match:
+      type: phrase
+      patterns: ["laughed in my face", "laughed at me"]
+    action: replace
+    replacement: "laughed"
+
+  - id: verb_whispered_menacingly
+    category: loaded_verbs
+    priority: 77
+    description: "Neutralize 'whispered menacingly'"
+    match:
+      type: phrase
+      patterns: ["whispered menacingly", "said menacingly"]
+    action: replace
+    replacement: "said quietly"

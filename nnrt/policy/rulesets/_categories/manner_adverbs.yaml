@@ -1,0 +1,60 @@
+# Manner Adverbs - Category Rules
+# Transform adverbs that describe manner in inflammatory ways
+
+category: manner_adverbs
+description: "Reframe or remove inflammatory manner adverbs"
+priority_range: [78, 82]
+
+rules:
+  - id: adverb_aggressively
+    category: manner_adverbs
+    priority: 80
+    description: "Reframe 'aggressively' (adverb)"
+    match:
+      type: keyword
+      patterns: ["aggressively"]
+    condition:
+      context_excludes: ["direct_quote"]
+    action: reframe
+    reframe_template: "in a manner described as aggressive"
+
+  - id: adverb_threateningly
+    category: manner_adverbs
+    priority: 80
+    description: "Reframe threatening manner adverbs"
+    match:
+      type: keyword
+      patterns: ["threateningly", "menacingly", "hostilely"]
+    condition:
+      context_excludes: ["direct_quote"]
+    action: reframe
+    reframe_template: "in a manner described as threatening"
+
+  - id: adverb_violently
+    category: manner_adverbs
+    priority: 80
+    description: "Reframe 'violently'"
+    match:
+      type: keyword
+      patterns: ["violently"]
+    action: reframe
+    reframe_template: "in a manner described as forceful"
+
+  - id: adverb_angrily
+    category: manner_adverbs
+    priority: 79
+    description: "Reframe 'angrily'"
+    match:
+      type: keyword
+      patterns: ["angrily", "furiously"]
+    action: reframe
+    reframe_template: "in a manner described as upset"
+
+  - id: adverb_innocently
+    category: manner_adverbs
+    priority: 78
+    description: "Remove 'innocently' - implies judgment"
+    match:
+      type: keyword
+      patterns: ["innocently"]
+    action: remove

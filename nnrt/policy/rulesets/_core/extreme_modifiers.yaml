@@ -1,0 +1,77 @@
+# Extreme Modifiers - Universal Core
+# Transform hyperbolic/extreme descriptors to neutral alternatives
+
+category: extreme_modifiers
+description: "Replace hyperbolic descriptors with neutral alternatives"
+priority_range: [65, 69]
+
+rules:
+  - id: extreme_horrifying
+    category: extreme_modifiers
+    priority: 68
+    description: "Replace 'horrifying' with neutral alternative"
+    match:
+      type: keyword
+      patterns: ["horrifying", "horrific"]
+    action: replace
+    replacement: "distressing"
+
+  - id: extreme_devastating
+    category: extreme_modifiers
+    priority: 68
+    description: "Replace 'devastating' with neutral alternative"
+    match:
+      type: keyword
+      patterns: ["devastating"]
+    action: replace
+    replacement: "significant"
+
+  - id: extreme_massive
+    category: extreme_modifiers
+    priority: 67
+    description: "Replace 'massive' with neutral alternative"
+    match:
+      type: keyword
+      patterns: ["massive"]
+    action: replace
+    replacement: "large"
+
+  - id: extreme_tremendous
+    category: extreme_modifiers
+    priority: 67
+    description: "Replace extreme size modifiers"
+    match:
+      type: keyword
+      patterns: ["tremendous", "enormous", "gigantic"]
+    action: replace
+    replacement: "large"
+
+  - id: extreme_complete_total
+    category: extreme_modifiers
+    priority: 66
+    description: "Simplify 'complete and total'"
+    match:
+      type: phrase
+      patterns: ["complete and total", "total and complete"]
+    action: replace
+    replacement: "complete"
+
+  - id: extreme_terrified
+    category: extreme_modifiers
+    priority: 68
+    description: "Soften 'terrified' - emotional state"
+    match:
+      type: keyword
+      patterns: ["terrified", "petrified"]
+    action: replace
+    replacement: "frightened"
+
+  - id: extreme_shock
+    category: extreme_modifiers
+    priority: 67
+    description: "Soften 'complete shock'"
+    match:
+      type: phrase
+      patterns: ["complete shock", "total shock", "utter shock"]
+    action: replace
+    replacement: "shock"

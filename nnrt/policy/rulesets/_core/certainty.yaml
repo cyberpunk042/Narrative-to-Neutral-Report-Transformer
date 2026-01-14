@@ -1,0 +1,72 @@
+# Certainty Language - Universal Core
+# Transform epistemic/certainty language that asserts subjective certainty as fact
+
+category: certainty
+description: "Remove or soften words that assert subjective certainty as objective fact"
+priority_range: [70, 79]
+
+rules:
+  - id: cert_clearly
+    category: certainty
+    priority: 75
+    description: "Remove 'clearly' - asserts unwarranted certainty"
+    match:
+      type: keyword
+      patterns: ["clearly"]
+    action: remove
+
+  - id: cert_obviously
+    category: certainty
+    priority: 75
+    description: "Remove 'obviously' - asserts unwarranted certainty"
+    match:
+      type: keyword
+      patterns: ["obviously"]
+    action: remove
+
+  - id: cert_definitely
+    category: certainty
+    priority: 75
+    description: "Remove definite assertions"
+    match:
+      type: keyword
+      patterns: ["definitely", "certainly", "undoubtedly", "surely", "undeniably"]
+    action: remove
+
+  - id: cert_absolutely
+    category: certainty
+    priority: 74
+    description: "Remove 'absolutely' when used emphatically"
+    match:
+      type: keyword
+      patterns: ["absolutely"]
+    action: remove
+
+  - id: cert_completely
+    category: certainty
+    priority: 74
+    description: "Remove 'completely' when used emphatically"
+    match:
+      type: keyword
+      patterns: ["completely", "totally", "utterly"]
+    action: remove
+
+  - id: cert_proves_phrase
+    category: certainty
+    priority: 76
+    description: "Soften 'which proves' logical conclusions"
+    match:
+      type: phrase
+      patterns: ["which proves", "proves that", "this proves", "that proves"]
+    action: replace
+    replacement: "which suggests"
+
+  - id: cert_obvious_it_was
+    category: certainty
+    priority: 76
+    description: "Soften 'it was obvious'"
+    match:
+      type: phrase
+      patterns: ["it was obvious", "it is obvious"]
+    action: replace
+    replacement: "it appeared"

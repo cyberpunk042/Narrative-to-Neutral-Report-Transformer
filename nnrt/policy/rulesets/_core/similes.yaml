@@ -1,0 +1,61 @@
+# Similes - Universal Core
+# Remove inflammatory simile comparisons
+
+category: similes
+description: "Remove or neutralize inflammatory simile comparisons"
+priority_range: [85, 89]
+
+rules:
+  - id: simile_maniac
+    category: similes
+    priority: 88
+    description: "Remove 'like a maniac' comparison"
+    match:
+      type: phrase
+      patterns: ["like a maniac", "like maniacs"]
+    action: remove
+
+  - id: simile_criminal
+    category: similes
+    priority: 88
+    description: "Remove 'like a criminal' comparison"
+    match:
+      type: phrase
+      patterns: ["like a criminal", "like criminals"]
+    action: remove
+
+  - id: simile_animal
+    category: similes
+    priority: 88
+    description: "Remove 'like an animal' comparison"
+    match:
+      type: phrase
+      patterns: ["like an animal", "like animals", "like a beast", "like beasts"]
+    action: remove
+
+  - id: simile_thug
+    category: similes
+    priority: 88
+    description: "Remove 'like a thug' comparison"
+    match:
+      type: phrase
+      patterns: ["like a thug", "like thugs"]
+    action: remove
+
+  - id: simile_monster
+    category: similes
+    priority: 88
+    description: "Remove 'like a monster' comparison"
+    match:
+      type: phrase
+      patterns: ["like a monster", "like monsters", "like a demon"]
+    action: remove
+
+  - id: simile_crazy
+    category: similes
+    priority: 87
+    description: "Remove 'like a crazy person' comparison"
+    match:
+      type: phrase
+      patterns: ["like a crazy person", "like a madman", "like a lunatic"]
+    action: remove

@@ -29,9 +29,15 @@ from nnrt.passes import (
 )
 
 
-def setup_default_pipeline(engine: Engine) -> None:
-    """Register the default pipeline."""
+def setup_default_pipeline(engine: Engine, profile: str = "law_enforcement") -> None:
+    """Register the default pipeline with specified profile."""
     from nnrt.passes import cleanup_punctuation
+    from nnrt.policy.loader import clear_cache
+    from nnrt.policy.engine import set_default_profile
+    
+    # Clear cache and set profile for policy engine
+    clear_cache()
+    set_default_profile(profile)
     
     default_pipeline = Pipeline(
         id="default",
@@ -49,7 +55,7 @@ def setup_default_pipeline(engine: Engine) -> None:
             evaluate_policy,
             augment_ir,
             render,
-            cleanup_punctuation,  # NEW: Fix punctuation artifacts
+            cleanup_punctuation,  # Fix punctuation artifacts
             package,
         ],
     )
@@ -101,6 +107,13 @@ def main() -> int:
         action="store_true",
         help="Use LLM-based rendering (requires transformers, slower but more fluent)",
     )
+    transform_parser.add_argument(
+        "--profile",
+        type=str,
+        default="law_enforcement",
+        choices=["standard", "law_enforcement", "base"],
+        help="Policy profile to use (default: law_enforcement)",
+    )
 
     args = parser.parse_args()
 
@@ -125,9 +138,10 @@ def run_transform(args: argparse.Namespace) -> int:
     else:
         text = args.input
 
-    # Setup engine
+    # Setup engine with selected profile
     engine = get_engine()
-    setup_default_pipeline(engine)
+    profile = getattr(args, 'profile', 'law_enforcement')
+    setup_default_pipeline(engine, profile=profile)
 
     # Enable LLM rendering if requested
     if args.llm:

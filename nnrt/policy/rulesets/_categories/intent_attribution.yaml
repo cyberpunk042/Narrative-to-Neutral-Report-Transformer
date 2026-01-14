@@ -1,0 +1,97 @@
+# Intent Attribution - Category Rules
+# Transform statements that attribute mental states/intentions to others
+
+category: intent_attribution
+description: "Soften statements that attribute intentions, motives, or mental states to others"
+priority_range: [88, 95]
+
+rules:
+  - id: intent_wanted_to
+    category: intent_attribution
+    priority: 90
+    description: "Replace 'wanted to' with 'appeared to' (except benign verbs)"
+    match:
+      type: phrase
+      patterns: ["wanted to", "meant to"]
+      # Skip when followed by benign verbs (describing the narrator's own desires)
+      exempt_following: [
+        "go", "get", "leave", "return", "sleep", "eat", "rest", "walk", "run",
+        "work", "find", "make", "see", "be", "feel", "stay", "live", "move",
+        "have", "take", "keep", "know", "help", "talk", "call", "ask"
+      ]
+    action: replace
+    replacement: "appeared to"
+
+  - id: intent_tried_to
+    category: intent_attribution
+    priority: 90
+    description: "Replace 'tried to' with 'appeared to' (except benign verbs)"
+    match:
+      type: phrase
+      patterns: ["tried to"]
+      # Skip when followed by benign verbs
+      exempt_following: [
+        "go", "get", "leave", "return", "sleep", "eat", "rest", "walk", "run",
+        "work", "find", "make", "see", "be", "feel", "stay", "live", "move",
+        "have", "take", "keep", "know", "help", "talk", "call", "ask"
+      ]
+    action: replace
+    replacement: "appeared to"
+
+  - id: intent_intended
+    category: intent_attribution
+    priority: 90
+    description: "Replace 'intended to' with 'appeared to intend'"
+    match:
+      type: phrase
+      patterns: ["intended to"]
+    action: replace
+    replacement: "appeared to intend to"
+
+  - id: intent_conspiring
+    category: intent_attribution
+    priority: 89
+    description: "Replace 'conspiring' with neutral 'discussing'"
+    match:
+      type: keyword
+      patterns: ["conspiring", "plotting", "scheming"]
+    action: replace
+    replacement: "discussing"
+
+  - id: intent_enjoying
+    category: intent_attribution
+    priority: 89
+    description: "Reframe 'enjoying' attribution"
+    match:
+      type: keyword
+      patterns: ["enjoying"]
+    action: reframe
+    reframe_template: "described as appearing to enjoy"
+
+  - id: intent_mocking
+    category: intent_attribution
+    priority: 89
+    description: "Replace 'mocking' with neutral"
+    match:
+      type: keyword
+      patterns: ["mocking", "taunting", "ridiculing"]
+    action: replace
+    replacement: "speaking dismissively"
+
+  - id: intent_deliberately
+    category: intent_attribution
+    priority: 88
+    description: "Remove 'deliberately' - implies intent"
+    match:
+      type: keyword
+      patterns: ["deliberately", "purposefully", "purposely"]
+    action: remove
+
+  - id: intent_intentionally
+    category: intent_attribution
+    priority: 88
+    description: "Remove 'intentionally' - implies intent"
+    match:
+      type: keyword
+      patterns: ["intentionally", "on purpose"]
+    action: remove

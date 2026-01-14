@@ -574,14 +574,32 @@ class PolicyEngine:
         return decisions
 
 
-# Default engine instance
+# Default engine instance and profile configuration
 _engine: Optional[PolicyEngine] = None
+_default_profile: str = "law_enforcement"
 
 
-def get_policy_engine(ruleset: str = "base") -> PolicyEngine:
-    """Get or create a policy engine."""
+def set_default_profile(profile: str) -> None:
+    """Set the default profile for policy engine creation."""
+    global _default_profile, _engine
+    _default_profile = profile
+    _engine = None  # Reset cached engine to use new profile
+
+
+def get_default_profile() -> str:
+    """Get the current default profile."""
+    return _default_profile
+
+
+def get_policy_engine(ruleset: Optional[str] = None) -> PolicyEngine:
+    """Get or create a policy engine.
+    
+    Args:
+        ruleset: Profile/ruleset name to use. If None, uses default profile.
+    """
     global _engine
-    if _engine is None or _engine._ruleset_name != ruleset:
-        _engine = PolicyEngine(ruleset)
+    profile_to_use = ruleset or _default_profile
+    if _engine is None or _engine._ruleset_name != profile_to_use:
+        _engine = PolicyEngine(profile_to_use)
     return _engine
 

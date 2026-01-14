@@ -1,0 +1,103 @@
+# Inflammatory Language - Category Rules
+# Transform emotionally charged inflammatory language
+
+category: inflammatory_language
+description: "Neutralize emotionally charged inflammatory characterizations"
+priority_range: [78, 85]
+
+rules:
+  - id: inflam_terrorize
+    category: inflammatory
+    priority: 82
+    description: "Replace 'terrorize' with neutral"
+    match:
+      type: keyword
+      patterns: ["terrorize", "terrorizing", "terrorized"]
+    action: replace
+    replacement: "affecting"
+
+  - id: inflam_corrupt
+    category: inflammatory
+    priority: 82
+    description: "Reframe 'corrupt' characterization"
+    match:
+      type: keyword
+      patterns: ["corrupt", "corrupted", "corruption"]
+    action: reframe
+    reframe_template: "described as {original}"
+
+  - id: inflam_impunity
+    category: inflammatory
+    priority: 81
+    description: "Remove 'with impunity'"
+    match:
+      type: phrase
+      patterns: ["with impunity"]
+    action: remove
+
+  - id: inflam_whitewash
+    category: inflammatory
+    priority: 81
+    description: "Replace 'whitewash'"
+    match:
+      type: keyword
+      patterns: ["whitewash", "whitewashed"]
+    action: replace
+    replacement: "internal review"
+
+  - id: inflam_coverup
+    category: inflammatory
+    priority: 81
+    description: "Replace 'cover-up'"
+    match:
+      type: phrase
+      patterns: ["cover-up", "coverup", "covered up"]
+    action: replace
+    replacement: "disputed process"
+
+  - id: inflam_thugs_badges
+    category: inflammatory
+    priority: 85
+    description: "Replace 'thugs with badges' compound"
+    match:
+      type: phrase
+      patterns: ["thugs with badges", "thugs in uniform"]
+    action: replace
+    replacement: "officers"
+
+  - id: inflam_psychotic
+    category: inflammatory
+    priority: 80
+    description: "Remove 'psychotic' as modifier"
+    match:
+      type: keyword
+      patterns: ["psychotic", "psycho", "insane", "crazy"]
+    action: remove
+
+  - id: inflam_brutal
+    category: inflammatory
+    priority: 80
+    description: "Remove 'brutal' modifier"
+    match:
+      type: keyword
+      patterns: ["brutal", "vicious", "ruthless"]
+    action: remove
+
+  - id: inflam_manner_adverbs
+    category: inflammatory
+    priority: 80
+    description: "Remove inflammatory manner adverbs"
+    match:
+      type: keyword
+      patterns: ["viciously", "ruthlessly", "savagely", "mercilessly", "brutally"]
+    action: remove
+
+  - id: inflam_innocent_victim
+    category: inflammatory
+    priority: 79
+    description: "Soften 'innocent' characterization"
+    match:
+      type: phrase
+      patterns: ["innocent person", "innocent victim", "innocent citizen", "innocent people"]
+    action: replace
+    replacement: "person"

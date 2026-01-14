@@ -1,0 +1,48 @@
+# Quote Protection - Universal Core
+# Highest priority rules that preserve quoted content
+
+category: quote_protection
+description: "Preserve direct quotes and protected content verbatim"
+priority_range: [900, 1000]
+
+rules:
+  - id: preserve_quotes
+    category: preservation
+    priority: 1000
+    description: "Preserve direct quotes verbatim"
+    match:
+      type: quoted
+      patterns: ["\".*?\"", "'.*?'"]
+    action: preserve
+
+  - id: preserve_timestamps
+    category: preservation
+    priority: 900
+    description: "Preserve timestamps"
+    match:
+      type: regex
+      patterns: ["\\d{1,2}:\\d{2}\\s*(AM|PM|am|pm)?", "\\d{1,2}/\\d{1,2}/\\d{2,4}"]
+    action: preserve
+
+  - id: preserve_dates
+    category: preservation
+    priority: 900
+    description: "Preserve date expressions"
+    match:
+      type: regex
+      patterns: 
+        - "\\b(January|February|March|April|May|June|July|August|September|October|November|December)\\s+\\d{1,2}(st|nd|rd|th)?,?\\s+\\d{4}\\b"
+        - "\\b\\d{1,2}[-/]\\d{1,2}[-/]\\d{2,4}\\b"
+    action: preserve
+
+  - id: preserve_badge_numbers
+    category: preservation
+    priority: 950
+    description: "Preserve badge/ID numbers"
+    match:
+      type: regex
+      patterns:
+        - "badge\\s*(number|#|no\\.?)?\\s*\\d+"
+        - "ID\\s*(number|#|no\\.?)?\\s*\\d+"
+        - "employee\\s*(ID|number|#)\\s*\\d+"
+    action: preserve

@@ -1,0 +1,135 @@
+# Law Enforcement Domain
+# Rules specific to police/law enforcement narratives
+
+domain: law_enforcement
+description: "Transform law enforcement specific inflammatory language and terminology"
+priority_range: [55, 75]
+
+rules:
+  # Officer terminology
+  - id: le_cop_singular
+    category: law_enforcement
+    priority: 60
+    description: "Replace 'cop' with 'officer'"
+    match:
+      type: keyword
+      patterns: ["cop"]
+    action: replace
+    replacement: "officer"
+
+  - id: le_cop_plural
+    category: law_enforcement
+    priority: 60
+    description: "Replace 'cops' with 'officers'"
+    match:
+      type: keyword
+      patterns: ["cops"]
+    action: replace
+    replacement: "officers"
+
+  - id: le_derogatory_officer
+    category: law_enforcement
+    priority: 80
+    description: "Replace derogatory officer terms"
+    match:
+      type: keyword
+      patterns: ["thug", "pig", "goon", "bully"]
+    action: replace
+    replacement: "officer"
+
+  # Law enforcement specific phrases
+  - id: le_police_brutality
+    category: law_enforcement
+    priority: 85
+    description: "Replace 'police brutality' with 'use of force'"
+    match:
+      type: phrase
+      patterns: ["police brutality", "police violence"]
+    action: replace
+    replacement: "police use of force"
+
+  - id: le_brutality
+    category: law_enforcement
+    priority: 84
+    description: "Replace 'brutality' in LE context"
+    match:
+      type: keyword
+      patterns: ["brutality"]
+    action: replace
+    replacement: "use of force"
+
+  - id: le_violent_cop
+    category: law_enforcement
+    priority: 75
+    description: "Replace 'violent cop' compound"
+    match:
+      type: phrase
+      patterns: ["violent cop", "violent cops", "violent officer", "violent officers"]
+    action: replace
+    replacement: "officer"
+
+  - id: le_violent_modifier
+    category: law_enforcement
+    priority: 70
+    description: "Remove 'violent' as modifier (in LE context)"
+    match:
+      type: keyword
+      patterns: ["violent"]
+    action: remove
+
+  # Legal terminology
+  - id: le_charge_context
+    category: law_enforcement
+    priority: 120
+    description: "Preserve 'assault' in legal charge context"
+    match:
+      type: phrase
+      patterns: ["charged with assault", "charge of assault", "assault on an officer"]
+    action: preserve
+
+  - id: le_no_reason
+    category: law_enforcement
+    priority: 72
+    description: "Soften 'for no reason'"
+    match:
+      type: phrase
+      patterns: ["for no reason", "for absolutely no reason", "without any reason"]
+    action: replace
+    replacement: "without stated cause"
+
+  - id: le_looking_trouble
+    category: law_enforcement
+    priority: 71
+    description: "Soften 'looking for trouble'"
+    match:
+      type: phrase
+      patterns: ["looking for trouble", "wanted trouble"]
+    action: replace
+    replacement: "appeared confrontational"
+
+  # Physical force descriptions - preserve facts but flag
+  - id: le_physical_grab
+    category: law_enforcement
+    priority: 70
+    description: "Preserve physical action descriptions"
+    match:
+      type: keyword
+      patterns: ["grabbed", "gripped", "held", "restrained"]
+    action: flag
+    diagnostic:
+      level: info
+      code: PHYSICAL_ACTION_DESCRIBED
+      message: "Physical action described - preserving factual content"
+
+  - id: le_handcuff
+    category: law_enforcement
+    priority: 71
+    description: "Preserve handcuff descriptions"
+    match:
+      type: keyword
+      patterns: ["handcuffed", "handcuffs", "cuffed"]
+    action: flag
+    diagnostic:
+      level: info
+      code: RESTRAINT_DESCRIBED
+      message: "Restraint described - preserving factual content"
