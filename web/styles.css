@@ -724,6 +724,12 @@ body {
     background: var(--accent-primary);
 }
 
+.sticky-nav-links a.active {
+    color: white;
+    background: var(--accent-secondary);
+    font-weight: 600;
+}
+
 /* =============================================================================
    Items List (Statements, Entities, etc.)
    ============================================================================= */

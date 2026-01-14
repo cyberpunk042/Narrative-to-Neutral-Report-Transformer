@@ -200,25 +200,77 @@ function initPanelFooters() {
 }
 
 function initScrollToTop() {
-    const scrollBtn = document.getElementById('scrollToTop');
-    const mainContent = document.querySelector('.main-content');
+    const resultsPanel = document.getElementById('resultsPanel');
+    if (!resultsPanel) return;
 
-    if (!scrollBtn || !mainContent) return;
+    // Listen to scroll on the results panel (the scrollable container)
+    resultsPanel.addEventListener('scroll', handleScroll);
+}
 
-    // Show/hide button based on scroll position
-    mainContent.addEventListener('scroll', () => {
-        if (mainContent.scrollTop > 300) {
-            scrollBtn.classList.add('visible');
+function handleScroll() {
+    const resultsPanel = document.getElementById('resultsPanel');
+    if (!resultsPanel) return;
+
+    const scrollTop = resultsPanel.scrollTop;
+    const scrollTopBtn = document.getElementById('scrollTopBtn');
+    const scrollSectionBtn = document.getElementById('scrollSectionBtn');
+    const floatingScrollBtn = document.getElementById('scrollToTop');
+
+    // Show "Top" button when scrolled down
+    if (scrollTopBtn) {
+        if (scrollTop > 200) {
+            scrollTopBtn.classList.remove('hidden');
         } else {
-            scrollBtn.classList.remove('visible');
+            scrollTopBtn.classList.add('hidden');
+        }
+    }
+
+    // Show floating button too
+    if (floatingScrollBtn) {
+        if (scrollTop > 300) {
+            floatingScrollBtn.classList.add('visible');
+        } else {
+            floatingScrollBtn.classList.remove('visible');
+        }
+    }
+
+    // Find current visible panel and update navigation highlight
+    const panels = document.querySelectorAll('.panel');
+    let currentPanelId = null;
+
+    panels.forEach(panel => {
+        const rect = panel.getBoundingClientRect();
+        // Check if panel is in view (top half of viewport)
+        if (rect.top <= 200 && rect.bottom > 100) {
+            currentPanelId = panel.id;
+        }
+    });
+
+    // Show "Section" button when inside a panel
+    if (scrollSectionBtn) {
+        if (currentPanelId && scrollTop > 100) {
+            scrollSectionBtn.classList.remove('hidden');
+        } else {
+            scrollSectionBtn.classList.add('hidden');
+        }
+    }
+
+    // Update active state on nav links
+    const navLinks = document.querySelectorAll('.sticky-nav-links a');
+    navLinks.forEach(link => {
+        const panelId = link.dataset.panel;
+        if (panelId === currentPanelId) {
+            link.classList.add('active');
+        } else {
+            link.classList.remove('active');
         }
     });
 }
 
 function scrollToTop() {
-    const mainContent = document.querySelector('.main-content');
-    if (mainContent) {
-        mainContent.scrollTo({ top: 0, behavior: 'smooth' });
+    const resultsPanel = document.getElementById('resultsPanel');
+    if (resultsPanel) {
+        resultsPanel.scrollTo({ top: 0, behavior: 'smooth' });
     }
 }
 
@@ -235,15 +287,11 @@ function scrollToPanel(panelId) {
 function scrollToCurrentSection() {
     // Find which panel is currently most visible
     const panels = document.querySelectorAll('.panel');
-    const mainContent = document.querySelector('.main-content');
-    if (!mainContent) return;
-
-    const scrollTop = mainContent.scrollTop;
     let currentPanel = null;
 
     panels.forEach(panel => {
         const rect = panel.getBoundingClientRect();
-        if (rect.top <= 150 && rect.bottom > 100) {
+        if (rect.top <= 200 && rect.bottom > 100) {
             currentPanel = panel;
         }
     });

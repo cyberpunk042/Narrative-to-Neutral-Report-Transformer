@@ -291,20 +291,22 @@ def transform_stream():
                 # Select pipeline based on mode
                 if mode == 'raw':
                     setup_raw_pipeline(engine)
-                    pipeline_id = 'raw'
+                    selected_pipeline_id = 'raw'
                 elif mode == 'structured':
                     setup_structured_only_pipeline(engine)
-                    pipeline_id = 'structured_only'
+                    selected_pipeline_id = 'structured_only'
                 else:
                     setup_default_pipeline(engine)
-                    pipeline_id = 'default'
+                    selected_pipeline_id = 'default'
                 
-                log_queue.put({'type': 'log', 'level': 'info', 'message': f'Pipeline: {pipeline_id} (mode: {mode})', 'timestamp': datetime.now().isoformat()})
+                result_holder['pipeline_id'] = selected_pipeline_id
+                
+                log_queue.put({'type': 'log', 'level': 'info', 'message': f'Pipeline: {selected_pipeline_id} (mode: {mode})', 'timestamp': datetime.now().isoformat()})
                 
                 request_obj = TransformRequest(text=text)
                 log_queue.put({'type': 'log', 'level': 'info', 'message': f'Processing {len(text)} characters...', 'timestamp': datetime.now().isoformat()})
                 
-                result = engine.transform(request_obj, pipeline_id)
+                result = engine.transform(request_obj, selected_pipeline_id)
                 result_holder['result'] = result
                 
                 log_queue.put({'type': 'log', 'level': 'info', 'message': f'Transform complete: {result.status.value}', 'timestamp': datetime.now().isoformat()})
@@ -365,6 +367,7 @@ def transform_stream():
                 })
             
             # Generate the appropriate output format based on mode
+            pipeline_id = result_holder.get('pipeline_id', 'default')
             if mode == 'structured':
                 rendered_output = format_structured_output(
                     rendered_text=result.rendered_text or '',
