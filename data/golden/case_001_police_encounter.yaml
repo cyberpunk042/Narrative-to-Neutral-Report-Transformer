@@ -1,0 +1,44 @@
+# Golden Test Case 001: Basic Police Encounter
+# This test locks the expected transformation behavior
+
+input: |
+  I was walking home around 11 PM when a police officer stopped me.
+  He said I looked suspicious.
+  He clearly wanted to intimidate me, standing way too close and staring at me.
+  He intentionally blocked my path.
+  After 20 minutes he let me go without any explanation.
+
+expected_transformations:
+  - original: "suspicious"
+    becomes: "described as suspicious"
+    type: interpretation_reframing
+    
+  - original: "clearly"
+    becomes: ""
+    type: intensifier_removal
+    
+  - original: "wanted to"
+    becomes: "appeared to"
+    type: intent_neutralization
+    
+  - original: "intentionally"
+    becomes: ""
+    type: intent_removal
+
+expected_preserved:
+  - "11 PM"
+  - "police officer"
+  - "20 minutes"
+  - "stopped me"
+  - "staring at me"
+  - "blocked my path"
+
+expected_diagnostics:
+  - code: "INTENT_ATTRIBUTION_DETECTED"
+    min_count: 2
+    
+validation_rules:
+  - "Output must not contain 'clearly wanted to'"
+  - "Output must not contain 'intentionally'"
+  - "Output must contain 'appeared to'"
+  - "Output must contain 'described as suspicious'"

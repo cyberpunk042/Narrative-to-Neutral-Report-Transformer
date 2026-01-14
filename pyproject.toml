@@ -7,7 +7,7 @@ name = "nnrt"
 version = "0.1.0"
 description = "Narrative-to-Neutral Report Transformer"
 readme = "README.md"
-license = "MIT"
+license = "Apache"
 requires-python = ">=3.11"
 authors = [
     { name = "NNRT Contributors" }
@@ -41,6 +41,11 @@ dev = [
 nlp = [
     "transformers>=4.35",
     "torch>=2.0",
+    "spacy>=3.7",
+    "accelerate>=0.25",
+]
+all = [
+    "nnrt[dev,nlp]",
 ]
 
 [project.scripts]

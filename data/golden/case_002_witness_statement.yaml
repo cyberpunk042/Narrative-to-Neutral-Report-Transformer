@@ -1,0 +1,33 @@
+# Golden Test Case 002: Witness Statement
+# Tests transformation of third-person witness account
+
+input: |
+  I saw two officers approach a man on the corner.
+  One officer grabbed him aggressively.
+  The man fell to the ground.
+  I believe the officer used excessive force.
+
+expected_transformations:
+  - original: "aggressively"
+    becomes: "described as aggressively"
+    type: interpretation_reframing
+    
+  - original: "excessive force"
+    becomes_one_of:
+      - "force"
+      - "described as excessive force"
+    type: legal_term_handling
+
+expected_preserved:
+  - "two officers"
+  - "fell to the ground"
+  - "man on the corner"
+  - "I saw"
+  - "I believe"
+
+expected_diagnostics: []
+
+validation_rules:
+  - "Output must preserve '(I|i) saw'"
+  - "Output must preserve 'fell to the ground'"
+  - "Output should neutralize 'aggressively'"

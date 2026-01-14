@@ -1,0 +1,26 @@
+# Golden Test Case 003: Pure Factual (No Transform Needed)
+# Tests that neutral factual content is preserved unchanged
+
+input: |
+  At 3:45 PM on January 5th, I was at the intersection of Main and Oak.
+  A vehicle stopped at the red light.
+  The driver exited the vehicle and walked toward my car.
+  He asked me for directions to the hospital.
+  I provided directions and he returned to his vehicle.
+
+expected_transformations: []
+
+expected_preserved:
+  - "3:45 PM"
+  - "January 5th"
+  - "Main and Oak"
+  - "red light"
+  - "directions to the hospital"
+  - "returned to his vehicle"
+
+expected_diagnostics: []
+
+validation_rules:
+  - "Output should be nearly identical to input"
+  - "Core factual content must be preserved verbatim"
+  - "No intent language to remove"

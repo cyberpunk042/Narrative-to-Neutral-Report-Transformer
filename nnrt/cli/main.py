@@ -102,7 +102,8 @@ def run_transform(args: argparse.Namespace) -> int:
     # Get input text
     if args.input == "-":
         text = sys.stdin.read()
-    elif Path(args.input).exists():
+    elif len(args.input) < 256 and Path(args.input).exists():
+        # Only check as path if it's short enough to be a valid path
         text = Path(args.input).read_text()
     else:
         text = args.input
