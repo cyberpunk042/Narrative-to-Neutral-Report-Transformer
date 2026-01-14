@@ -1,5 +1,5 @@
 /**
- * NNRT Web Interface — Application Logic (FIXED)
+ * NNRT Web Interface — Application Logic (v2 with Atomic Statements)
  */
 
 const API_BASE = 'http://localhost:5050/api';
@@ -12,6 +12,8 @@ let logs = [];
 let useLLM = false;
 let showLogs = false;
 let showMetadata = false;
+let outputMode = 'prose';  // prose, structured, raw
+let fastMode = false;      // no_prose mode
 
 // DOM Elements - cached on load
 let elements = {};
@@ -31,11 +33,17 @@ document.addEventListener('DOMContentLoaded', () => {
         examplesBtn: document.getElementById('examplesBtn'),
         llmToggle: document.getElementById('llmToggle'),
         logsToggle: document.getElementById('logsToggle'),
+        modeSelect: document.getElementById('modeSelect'),
+        fastModeToggle: document.getElementById('fastModeToggle'),
         statusIndicator: document.getElementById('statusIndicator'),
         statusText: document.getElementById('statusText'),
         stats: document.getElementById('stats'),
         outputText: document.getElementById('outputText'),
         outputBadge: document.getElementById('outputBadge'),
+        // NEW: Atomic statements
+        atomicStatementsList: document.getElementById('atomicStatementsList'),
+        atomicStatementsBadge: document.getElementById('atomicStatementsBadge'),
+        // Legacy statements
         statementsList: document.getElementById('statementsList'),
         statementsBadge: document.getElementById('statementsBadge'),
         entitiesList: document.getElementById('entitiesList'),
@@ -70,6 +78,26 @@ document.addEventListener('DOMContentLoaded', () => {
     elements.historyBtn?.addEventListener('click', () => openSidebar('historySidebar'));
     elements.examplesBtn?.addEventListener('click', () => openSidebar('examplesSidebar'));
     elements.findOnlineBtn?.addEventListener('click', findOnlineResources);
+
+    // Mode selector
+    elements.modeSelect?.addEventListener('change', (e) => {
+        outputMode = e.target.value;
+        savePrefs();
+        addLog(`Output mode: ${outputMode}`);
+        // Disable fast mode for raw (it's already no-prose)
+        if (outputMode === 'raw') {
+            elements.fastModeToggle.checked = false;
+            fastMode = false;
+        }
+    });
+
+    // Fast mode (no prose)
+    elements.fastModeToggle?.addEventListener('change', (e) => {
+        fastMode = e.target.checked;
+        savePrefs();
+        addLog(fastMode ? '⚡ Fast mode enabled (no prose)' : 'Fast mode disabled');
+    });
+
     elements.llmToggle?.addEventListener('change', (e) => {
         useLLM = e.target.checked;
         savePrefs();
@@ -108,7 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadHistory();
     loadPrefs();
 
-    console.log('NNRT initialized');
+    console.log('NNRT v2 initialized');
 });
 
 // =============================================================================
@@ -147,24 +175,25 @@ async function transformText() {
 
     showStatus('processing', 'Transforming...');
     if (elements.transformBtn) elements.transformBtn.disabled = true;
-    addLog(`Starting transform (${text.length} chars)`);
+
+    // Clear logs for fresh start
+    logs = [];
+    addLog(`Starting transform (${text.length} chars, mode=${outputMode}, fast=${fastMode})`);
+
+    // Show logs panel during processing if enabled
+    if (showLogs) {
+        const logsPanel = document.getElementById('logsPanel');
+        logsPanel?.classList.remove('hidden');
+        logsPanel?.classList.remove('collapsed');
+    }
 
     try {
-        const response = await fetch(`${API_BASE}/transform`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text, use_llm: useLLM }),
-        });
-
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-        currentResult = await response.json();
-        addLog(`Complete: ${currentResult.status}`);
-
-        // Populate and expand panels
-        displayResults(currentResult);
-        saveToHistory(currentResult);
-        showStatus('success', 'Transformed successfully');
+        // Use streaming endpoint for real-time logs
+        if (showLogs) {
+            await transformWithStreaming(text);
+        } else {
+            await transformDirect(text);
+        }
 
     } catch (error) {
         console.error('Transform error:', error);
@@ -175,29 +204,168 @@ async function transformText() {
     }
 }
 
+async function transformDirect(text) {
+    const response = await fetch(`${API_BASE}/transform`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            text,
+            use_llm: useLLM,
+            mode: outputMode,
+            no_prose: fastMode
+        }),
+    });
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    currentResult = await response.json();
+    addLog(`Complete: ${currentResult.status}`);
+
+    displayResults(currentResult);
+    saveToHistory(currentResult);
+    showStatus('success', 'Transformed successfully');
+}
+
+async function transformWithStreaming(text) {
+    return new Promise((resolve, reject) => {
+        const body = JSON.stringify({
+            text,
+            use_llm: useLLM,
+            mode: outputMode,
+            no_prose: fastMode
+        });
+
+        // Use fetch for SSE (EventSource doesn't support POST)
+        fetch(`${API_BASE}/transform-stream`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: body
+        }).then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            function processChunk() {
+                reader.read().then(({ done, value }) => {
+                    if (done) {
+                        resolve();
+                        return;
+                    }
+
+                    buffer += decoder.decode(value, { stream: true });
+
+                    // Process complete SSE messages
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop(); // Keep incomplete line in buffer
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.slice(6));
+                                handleStreamEvent(data);
+                            } catch (e) {
+                                console.warn('Failed to parse SSE:', line);
+                            }
+                        }
+                    }
+
+                    processChunk();
+                }).catch(reject);
+            }
+
+            processChunk();
+        }).catch(reject);
+    });
+}
+
+function handleStreamEvent(data) {
+    if (data.type === 'log') {
+        // Real-time log from server
+        addLog(data.message, data.level);
+    } else if (data.type === 'error') {
+        addLog(`Error: ${data.message}`, 'error');
+        showStatus('error', `Error: ${data.message}`);
+    } else if (data.type === 'result') {
+        // Final result
+        currentResult = data;
+        addLog(`Complete: ${currentResult.status}`);
+        displayResults(currentResult);
+        saveToHistory(currentResult);
+        showStatus('success', 'Transformed successfully');
+    } else if (data.type === 'keepalive') {
+        // Ignore keepalive
+    }
+}
+
 function displayResults(result) {
     // Stats
     if (elements.stats) {
         elements.stats.innerHTML = `
+            <span class="stat"><span class="stat-value">${result.stats?.atomic_statements || 0}</span> atomic</span>
             <span class="stat"><span class="stat-value">${result.stats?.statements || 0}</span> statements</span>
             <span class="stat"><span class="stat-value">${result.stats?.entities || 0}</span> entities</span>
             <span class="stat"><span class="stat-value">${result.stats?.events || 0}</span> events</span>
-            <span class="stat"><span class="stat-value">${result.stats?.transformations || 0}</span> transforms</span>
+            <span class="stat"><span class="stat-value">${result.metadata?.processing_time_ms || 0}</span>ms</span>
         `;
     }
 
     // Output
     if (elements.outputText) {
-        elements.outputText.innerHTML = result.rendered_text
-            ? escapeHtml(result.rendered_text)
-            : '<span class="placeholder">No output</span>';
+        if (result.rendered_text) {
+            elements.outputText.innerHTML = escapeHtml(result.rendered_text);
+        } else {
+            elements.outputText.innerHTML = '<span class="placeholder">No prose output (use prose mode or disable fast mode)</span>';
+        }
     }
     if (elements.outputBadge) {
         elements.outputBadge.textContent = `${result.rendered_text?.length || 0} chars`;
     }
     expandPanel('outputPanel');
 
-    // Statements
+    // Atomic Statements (NEW)
+    const atomicStatements = result.atomic_statements || [];
+    if (elements.atomicStatementsBadge) elements.atomicStatementsBadge.textContent = atomicStatements.length;
+    if (elements.atomicStatementsList) {
+        elements.atomicStatementsList.innerHTML = atomicStatements.length ? atomicStatements.map(s => `
+            <div class="atomic-statement">
+                <div class="atomic-statement-header">
+                    <span class="stmt-type-badge ${s.type}">${s.type}</span>
+                    <div class="stmt-confidence" title="Confidence: ${(s.confidence * 100).toFixed(0)}%">
+                        <div class="confidence-bar">
+                            <div class="confidence-fill" style="width: ${s.confidence * 100}%"></div>
+                        </div>
+                        <span>${(s.confidence * 100).toFixed(0)}%</span>
+                    </div>
+                    <span class="stmt-id">${s.id}</span>
+                </div>
+                <div class="atomic-statement-text">${escapeHtml(s.text)}</div>
+                <div class="atomic-statement-meta">
+                    <span class="meta-tag clause">${s.clause_type}</span>
+                    ${s.connector ? `<span class="meta-tag connector">${s.connector}</span>` : ''}
+                    ${(s.flags || []).map(f => `<span class="meta-tag flag">${f}</span>`).join('')}
+                </div>
+                ${s.derived_from && s.derived_from.length ? `
+                    <div class="provenance-link">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                        </svg>
+                        <span>Derived from:</span>
+                        <div class="provenance-ids">
+                            ${s.derived_from.map(id => `<span class="provenance-id">${id}</span>`).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+        `).join('') : '<div class="empty-state">No atomic statements</div>';
+    }
+    if (atomicStatements.length) expandPanel('atomicStatementsPanel');
+
+    // Statements (Legacy)
     const statements = result.statements || [];
     if (elements.statementsBadge) elements.statementsBadge.textContent = statements.length;
     if (elements.statementsList) {
@@ -215,7 +383,8 @@ function displayResults(result) {
             </div>
         `).join('') : '<div class="empty-state">No statements</div>';
     }
-    if (statements.length) expandPanel('statementsPanel');
+    // Don't auto-expand legacy statements if we have atomic ones
+    if (statements.length && !atomicStatements.length) expandPanel('statementsPanel');
 
     // Entities
     const entities = result.entities || [];
@@ -439,11 +608,19 @@ function loadPrefs() {
             elements.metadataPanel.classList.remove('hidden');
             elements.extractedPanel?.classList.remove('hidden');
         }
+        if (p.outputMode && elements.modeSelect) {
+            outputMode = p.outputMode;
+            elements.modeSelect.value = outputMode;
+        }
+        if (p.fastMode && elements.fastModeToggle) {
+            fastMode = true;
+            elements.fastModeToggle.checked = true;
+        }
     } catch (e) { }
 }
 
 function savePrefs() {
-    localStorage.setItem('nnrt_prefs', JSON.stringify({ useLLM, showLogs, showMetadata }));
+    localStorage.setItem('nnrt_prefs', JSON.stringify({ useLLM, showLogs, showMetadata, outputMode, fastMode }));
 }
 
 // =============================================================================
