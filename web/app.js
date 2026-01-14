@@ -149,6 +149,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Add collapse footers to panels
     initPanelFooters();
 
+    // Initialize scroll-to-top button
+    initScrollToTop();
+
     console.log('NNRT v2 initialized');
 });
 
@@ -198,6 +201,29 @@ function initPanelFooters() {
         `;
         content.appendChild(footer);
     });
+}
+
+function initScrollToTop() {
+    const scrollBtn = document.getElementById('scrollToTop');
+    const mainContent = document.querySelector('.main-content');
+
+    if (!scrollBtn || !mainContent) return;
+
+    // Show/hide button based on scroll position
+    mainContent.addEventListener('scroll', () => {
+        if (mainContent.scrollTop > 300) {
+            scrollBtn.classList.add('visible');
+        } else {
+            scrollBtn.classList.remove('visible');
+        }
+    });
+}
+
+function scrollToTop() {
+    const mainContent = document.querySelector('.main-content');
+    if (mainContent) {
+        mainContent.scrollTo({ top: 0, behavior: 'smooth' });
+    }
 }
 
 // =============================================================================
