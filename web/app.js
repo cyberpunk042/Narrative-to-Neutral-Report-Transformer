@@ -648,20 +648,20 @@ function displayResults(result) {
         `;
     }
 
-    // Output - format based on mode
+    // Output - backend handles all formatting based on mode
     if (elements.outputText) {
-        const mode = result.metadata?.pipeline || outputMode;
+        const mode = result.metadata?.mode || outputMode;
 
         if (result.rendered_text) {
-            if (mode === 'structured' || mode === 'structured_only') {
-                // Structured mode: format as official document
-                elements.outputText.innerHTML = formatAsStructuredDocument(result);
+            if (mode === 'structured' || mode === 'raw') {
+                // Structured/Raw: Plain text with preserved formatting (from backend)
+                elements.outputText.innerHTML = `<pre class="output-pre">${escapeHtml(result.rendered_text)}</pre>`;
             } else {
-                // Prose and Raw: show flowing neutral text
+                // Prose: Show flowing neutral text
                 elements.outputText.innerHTML = escapeHtml(result.rendered_text);
             }
         } else {
-            elements.outputText.innerHTML = '<span class="placeholder">Processing failed - no output</span>';
+            elements.outputText.innerHTML = '<span class="placeholder">No output generated</span>';
         }
     }
     if (elements.outputBadge) {

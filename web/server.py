@@ -28,6 +28,7 @@ from nnrt.core.context import TransformRequest
 from nnrt.core.engine import Engine
 from nnrt.cli.main import setup_default_pipeline, setup_raw_pipeline, setup_structured_only_pipeline
 from nnrt.output.structured import build_structured_output
+from nnrt.render.structured import format_structured_output
 
 app = Flask(__name__, static_folder='static', static_url_path='')
 CORS(app)
@@ -134,13 +135,40 @@ def transform():
                 'flags': stmt.flags,
             })
         
+        # Generate the appropriate output format based on mode
+        if mode == 'structured':
+            # Structured mode: Generate official report format
+            rendered_output = format_structured_output(
+                rendered_text=result.rendered_text or '',
+                atomic_statements=result.atomic_statements,
+                entities=result.entities,
+                events=result.events,
+                identifiers=result.identifiers,
+                metadata={'mode': mode, 'pipeline': pipeline_id},
+            )
+        elif mode == 'raw':
+            # Raw mode: Simple neutralization with disclaimer
+            disclaimer = "═" * 70 + "\n"
+            disclaimer += "                    RAW MODE (v1 Pipeline)\n"
+            disclaimer += "═" * 70 + "\n"
+            disclaimer += "This output was generated using the simplified v1 pipeline.\n"
+            disclaimer += "No advanced decomposition, classification, or provenance\n"
+            disclaimer += "analysis was performed. For full analysis, use Prose mode.\n"
+            disclaimer += "─" * 70 + "\n\n"
+            rendered_output = disclaimer + (result.rendered_text or '')
+        elif no_prose:
+            rendered_output = None
+        else:
+            # Prose mode: Normal rendered text
+            rendered_output = result.rendered_text
+        
         # Convert to dict with comprehensive structure
         output = {
             'id': str(uuid4())[:8],
             'timestamp': datetime.now().isoformat(),
             'status': result.status.value,
             'input': text,
-            'rendered_text': result.rendered_text if not no_prose else None,
+            'rendered_text': rendered_output,
             'statements': [s.model_dump() for s in structured.statements],
             
             # NEW: Atomic statements from decomposition
@@ -336,13 +364,37 @@ def transform_stream():
                     'flags': stmt.flags,
                 })
             
+            # Generate the appropriate output format based on mode
+            if mode == 'structured':
+                rendered_output = format_structured_output(
+                    rendered_text=result.rendered_text or '',
+                    atomic_statements=result.atomic_statements,
+                    entities=result.entities,
+                    events=result.events,
+                    identifiers=result.identifiers,
+                    metadata={'mode': mode, 'pipeline': pipeline_id},
+                )
+            elif mode == 'raw':
+                disclaimer = "═" * 70 + "\n"
+                disclaimer += "                    RAW MODE (v1 Pipeline)\n"
+                disclaimer += "═" * 70 + "\n"
+                disclaimer += "This output was generated using the simplified v1 pipeline.\n"
+                disclaimer += "No advanced decomposition, classification, or provenance\n"
+                disclaimer += "analysis was performed. For full analysis, use Prose mode.\n"
+                disclaimer += "─" * 70 + "\n\n"
+                rendered_output = disclaimer + (result.rendered_text or '')
+            elif no_prose:
+                rendered_output = None
+            else:
+                rendered_output = result.rendered_text
+            
             output = {
                 'type': 'result',
                 'id': str(uuid4())[:8],
                 'timestamp': datetime.now().isoformat(),
                 'status': result.status.value,
                 'input': text,
-                'rendered_text': result.rendered_text if not no_prose else None,
+                'rendered_text': rendered_output,
                 'statements': [s.model_dump() for s in structured.statements],
                 'atomic_statements': atomic_statements_output,
                 'entities': [e.model_dump() for e in structured.entities],
