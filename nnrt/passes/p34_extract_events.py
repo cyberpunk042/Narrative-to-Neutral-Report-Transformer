@@ -1,8 +1,14 @@
 """
 Pass 34 — Event Extraction
 
-Extracts events (actions, interactions) by analyzing verbs and linking them
-to the high-fidelity entities extracted in Pass 32.
+Extracts events (actions, interactions) by using the EventExtractor interface
+and linking results to the high-fidelity entities extracted in Pass 32.
+
+This pass:
+- Delegates NLP extraction to EventExtractor interface
+- Links extracted events to entities from p32
+- Assembles Event IR objects
+- Does NOT directly access spaCy (that's the backend's job)
 """
 
 from typing import Optional, List, Dict
@@ -11,137 +17,131 @@ from uuid import uuid4
 from nnrt.core.context import TransformContext
 from nnrt.ir.enums import EventType, EntityRole
 from nnrt.ir.schema_v0_1 import Event, Entity
-from nnrt.nlp.spacy_loader import get_nlp
+from nnrt.nlp.interfaces import EventExtractor, EventExtractResult
+from nnrt.nlp.backends.spacy_backend import get_event_extractor
 
 PASS_NAME = "p34_extract_events"
 
+# Default extractor (can be swapped for testing)
+_extractor: Optional[EventExtractor] = None
 
-# -----------------------------------------------------------------------------
-# Event Taxonomy Mappings
-# -----------------------------------------------------------------------------
 
-# Verbs mapping to EventTypes
-VERB_TYPES = {
-    # Physical
-    "grab": EventType.ACTION,
-    "hit": EventType.ACTION,
-    "punch": EventType.ACTION,
-    "push": EventType.ACTION,
-    "shove": EventType.ACTION,
-    "strike": EventType.ACTION,
-    "kick": EventType.ACTION,
-    "tackle": EventType.ACTION,
-    "restrain": EventType.ACTION,
-    "cuff": EventType.ACTION,
-    "handcuff": EventType.ACTION,
-    "resist": EventType.ACTION,
-    
-    # Movement
-    "walk": EventType.MOVEMENT,
-    "run": EventType.MOVEMENT,
-    "drive": EventType.MOVEMENT,
-    "approach": EventType.MOVEMENT,
-    "leave": EventType.MOVEMENT,
-    "arrive": EventType.MOVEMENT,
-    "enter": EventType.MOVEMENT,
-    "exit": EventType.MOVEMENT,
-    
-    # Verbal
-    "say": EventType.VERBAL,
-    "yell": EventType.VERBAL,
-    "scream": EventType.VERBAL,
-    "shout": EventType.VERBAL,
-    "tell": EventType.VERBAL,
-    "ask": EventType.VERBAL,
-    "command": EventType.VERBAL,
-    "order": EventType.VERBAL,
-}
+def get_extractor() -> EventExtractor:
+    """Get the event extractor instance."""
+    global _extractor
+    if _extractor is None:
+        _extractor = get_event_extractor()
+    return _extractor
+
+
+def set_extractor(extractor: EventExtractor) -> None:
+    """Set a custom extractor (for testing)."""
+    global _extractor
+    _extractor = extractor
+
+
+def reset_extractor() -> None:
+    """Reset to default extractor."""
+    global _extractor
+    _extractor = None
+
 
 # -----------------------------------------------------------------------------
 # Pass Implementation
 # -----------------------------------------------------------------------------
 
 def extract_events(ctx: TransformContext) -> TransformContext:
-    nlp = get_nlp()
+    """
+    Extract events using the EventExtractor interface.
+    
+    This pass:
+    1. Uses EventExtractor to get raw extraction results
+    2. Links actor/target mentions to entities from p32
+    3. Creates Event IR objects
+    """
     events: List[Event] = []
+    extractor = get_extractor()
     
-    # Build Entity Lookup (Text -> Entity)
-    # This is a heuristic lookup. p32 should ideally pass this map, 
-    # but rebuilding it from mentions is okay for now.
-    text_to_entity: Dict[str, Entity] = {}
-    
-    # Optimizing lookup: map identifying tokens to entities
-    for ent in ctx.entities:
-        for mention in ent.mentions:
-            text_to_entity[mention.lower()] = ent
-            
-        # Also map label parts? "Officer Smith" -> "Smith"
-        if ent.label:
-            text_to_entity[ent.label.lower()] = ent
-            for part in ent.label.split():
-                 if len(part) > 2: # Skip initials
-                     text_to_entity[part.lower()] = ent
+    # Build Entity Lookup for linking
+    text_to_entity = _build_entity_lookup(ctx.entities)
 
-    # Process Segments
+    # Process each segment using the interface
     for segment in ctx.segments:
-        doc = nlp(segment.text)
+        # Use the interface - not direct spaCy
+        extraction_results = extractor.extract(segment.text)
         
-        for token in doc:
-            if token.pos_ == "VERB":
-                lemma = token.lemma_.lower()
-                
-                # Determine Event Type
-                event_type = VERB_TYPES.get(lemma)
-                if not event_type:
-                    # Generic fallback
-                    event_type = EventType.ACTION
-                
-                # Find Actor (Subject)
-                actor_id = None
-                nsubj = next((c for c in token.children if c.dep_ in ("nsubj", "nsubjpass")), None)
-                if nsubj:
-                    actor_ent = _resolve_entity(nsubj.text, text_to_entity)
-                    if actor_ent:
-                        actor_id = actor_ent.id
-                
-                # Find Target (Object)
-                target_id = None
-                dobj = next((c for c in token.children if c.dep_ in ("dobj", "pobj")), None)
-                if dobj:
-                    target_ent = _resolve_entity(dobj.text, text_to_entity)
-                    if target_ent:
-                        target_id = target_ent.id
-                
-                # Only create event if we have at least an Actor or specific verb type
-                if actor_id or lemma in VERB_TYPES:
-                    # Construct description (verb + obj)
-                    desc = token.text
-                    if dobj:
-                        desc += f" {dobj.text}"
-                    
-                    event = Event(
-                        id=f"evt_{uuid4().hex[:8]}",
-                        type=event_type,
-                        description=desc,
-                        source_spans=[], # TODO: Link to span ID
-                        confidence=0.8,
-                        actor_id=actor_id,
-                        target_id=target_id,
-                        is_uncertain=False # Could check modifiers
-                    )
-                    events.append(event)
+        # Convert extraction results to Event IR objects
+        for result in extraction_results:
+            event = _result_to_event(result, text_to_entity, segment.id)
+            if event:
+                events.append(event)
 
     ctx.events = events
     
     ctx.add_trace(
         pass_name=PASS_NAME,
         action="extracted_events",
-        after=f"{len(events)} events extracted",
+        after=f"{len(events)} events extracted (via {extractor.name})",
     )
     
     return ctx
 
-def _resolve_entity(text: str, lookup: Dict[str, Entity]) -> Optional[Entity]:
-    """Resolve text to an entity using the lookup map."""
-    text_lower = text.lower()
-    return lookup.get(text_lower)
+
+def _build_entity_lookup(entities: List[Entity]) -> Dict[str, Entity]:
+    """Build a text -> entity lookup from existing entities."""
+    lookup: Dict[str, Entity] = {}
+    
+    for ent in entities:
+        # Map mentions to entity
+        for mention in ent.mentions:
+            # Handle both span IDs (span_XXX) and text fallbacks (text:XXX)
+            if isinstance(mention, str):
+                if mention.startswith("text:"):
+                    text = mention[5:]  # Strip "text:" prefix
+                    lookup[text.lower()] = ent
+                elif not mention.startswith("span_"):
+                    # Legacy plain text mentions
+                    lookup[mention.lower()] = ent
+        
+        # Also map label parts for flexible matching
+        if ent.label:
+            lookup[ent.label.lower()] = ent
+            for part in ent.label.split():
+                if len(part) > 2:  # Skip initials
+                    lookup[part.lower()] = ent
+    
+    return lookup
+
+
+def _result_to_event(
+    result: EventExtractResult,
+    entity_lookup: Dict[str, Entity],
+    segment_id: str
+) -> Optional[Event]:
+    """Convert an EventExtractResult to an Event IR object."""
+    # Link actor mention to entity
+    actor_id = None
+    if result.actor_mention:
+        actor_ent = entity_lookup.get(result.actor_mention.lower())
+        if actor_ent:
+            actor_id = actor_ent.id
+    
+    # Link target mention to entity
+    target_id = None
+    if result.target_mention:
+        target_ent = entity_lookup.get(result.target_mention.lower())
+        if target_ent:
+            target_id = target_ent.id
+    
+    # Create Event IR object
+    return Event(
+        id=f"evt_{uuid4().hex[:8]}",
+        type=result.type,
+        description=result.description,
+        source_spans=[],  # TODO: Link to span IDs from segment
+        confidence=result.confidence,
+        actor_id=actor_id,
+        target_id=target_id,
+        is_uncertain=False,
+    )
+

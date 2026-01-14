@@ -25,21 +25,21 @@ PASS_NAME = "p40_build_ir"
 
 
 
-# Speech act verbs and their types
+# Speech act verbs and their types (using lemmas, not past tense)
 SPEECH_ACT_VERBS = {
-    "said": SpeechActType.STATEMENT,
-    "told": SpeechActType.STATEMENT,
-    "stated": SpeechActType.STATEMENT,
-    "replied": SpeechActType.STATEMENT,
-    "responded": SpeechActType.STATEMENT,
-    "asked": SpeechActType.QUESTION,
-    "questioned": SpeechActType.QUESTION,
-    "demanded": SpeechActType.COMMAND,
-    "ordered": SpeechActType.COMMAND,
-    "commanded": SpeechActType.COMMAND,
-    "yelled": SpeechActType.STATEMENT,
-    "shouted": SpeechActType.STATEMENT,
-    "threatened": SpeechActType.THREAT,
+    "say": SpeechActType.STATEMENT,
+    "tell": SpeechActType.STATEMENT,
+    "state": SpeechActType.STATEMENT,
+    "reply": SpeechActType.STATEMENT,
+    "respond": SpeechActType.STATEMENT,
+    "ask": SpeechActType.QUESTION,
+    "question": SpeechActType.QUESTION,
+    "demand": SpeechActType.COMMAND,
+    "order": SpeechActType.COMMAND,
+    "command": SpeechActType.COMMAND,
+    "yell": SpeechActType.STATEMENT,
+    "shout": SpeechActType.STATEMENT,
+    "threaten": SpeechActType.THREAT,
 }
 
 

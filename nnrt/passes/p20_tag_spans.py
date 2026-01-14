@@ -12,32 +12,14 @@ to identify different types of semantic content:
 - Temporal/Spatial markers
 """
 
-from typing import Optional
 from uuid import uuid4
 
 from nnrt.core.context import TransformContext
 from nnrt.ir.enums import SpanLabel
 from nnrt.ir.schema_v0_1 import SemanticSpan
+from nnrt.nlp.spacy_loader import get_nlp
 
 PASS_NAME = "p20_tag_spans"
-
-# Lazy-loaded spaCy model
-_nlp: Optional["spacy.language.Language"] = None
-
-
-def _get_nlp() -> "spacy.language.Language":
-    """Get or load the spaCy model."""
-    global _nlp
-    if _nlp is None:
-        try:
-            import spacy
-            _nlp = spacy.load("en_core_web_sm")
-        except OSError:
-            raise RuntimeError(
-                "spaCy model 'en_core_web_sm' not found. "
-                "Install with: python -m spacy download en_core_web_sm"
-            )
-    return _nlp
 
 
 # Keywords that indicate interpretation/judgment
@@ -127,7 +109,7 @@ def tag_spans(ctx: TransformContext) -> TransformContext:
         )
         return ctx
 
-    nlp = _get_nlp()
+    nlp = get_nlp()
     spans: list[SemanticSpan] = []
     span_counter = 0
 

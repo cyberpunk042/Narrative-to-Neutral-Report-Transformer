@@ -9,12 +9,12 @@ be preserved exactly as stated in the original narrative.
 """
 
 import re
-from typing import Optional
 from uuid import uuid4
 
 from nnrt.core.context import TransformContext
 from nnrt.ir.enums import IdentifierType
 from nnrt.ir.schema_v0_1 import Identifier
+from nnrt.nlp.spacy_loader import get_nlp
 
 PASS_NAME = "p30_extract_identifiers"
 
@@ -51,24 +51,6 @@ IDENTIFIER_PATTERNS = {
         r'\b(\d+\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\s+(?:Street|St\.?|Avenue|Ave\.?|Boulevard|Blvd\.?|Road|Rd\.?|Drive|Dr\.?|Lane|Ln\.?))\b',
     ],
 }
-
-# Lazy-loaded spaCy model for NER
-_nlp: Optional["spacy.language.Language"] = None
-
-
-def _get_nlp() -> "spacy.language.Language":
-    """Get or load the spaCy model."""
-    global _nlp
-    if _nlp is None:
-        try:
-            import spacy
-            _nlp = spacy.load("en_core_web_sm")
-        except OSError:
-            raise RuntimeError(
-                "spaCy model 'en_core_web_sm' not found. "
-                "Install with: python -m spacy download en_core_web_sm"
-            )
-    return _nlp
 
 
 def extract_identifiers(ctx: TransformContext) -> TransformContext:
@@ -163,7 +145,7 @@ def _extract_ner_identifiers(text: str, segment_id: str) -> list[Identifier]:
     """Extract identifiers using spaCy NER."""
     results: list[Identifier] = []
     
-    nlp = _get_nlp()
+    nlp = get_nlp()
     doc = nlp(text)
     
     # Map spaCy entity types to our identifier types

@@ -4,31 +4,13 @@ Pass 10 — Lexical & Syntactic Segmentation
 Segments normalized text into sentences using spaCy.
 """
 
-from typing import Optional
 from uuid import uuid4
 
 from nnrt.core.context import TransformContext
 from nnrt.ir.schema_v0_1 import Segment
+from nnrt.nlp.spacy_loader import get_nlp
 
 PASS_NAME = "p10_segment"
-
-# Lazy-loaded spaCy model
-_nlp: Optional["spacy.language.Language"] = None
-
-
-def _get_nlp() -> "spacy.language.Language":
-    """Get or load the spaCy model."""
-    global _nlp
-    if _nlp is None:
-        try:
-            import spacy
-            _nlp = spacy.load("en_core_web_sm", disable=["ner", "lemmatizer"])
-        except OSError:
-            raise RuntimeError(
-                "spaCy model 'en_core_web_sm' not found. "
-                "Install with: python -m spacy download en_core_web_sm"
-            )
-    return _nlp
 
 
 def segment(ctx: TransformContext) -> TransformContext:
@@ -50,8 +32,8 @@ def segment(ctx: TransformContext) -> TransformContext:
         )
         return ctx
 
-    # Process with spaCy
-    nlp = _get_nlp()
+    # Process with spaCy (centralized loader)
+    nlp = get_nlp()
     doc = nlp(text)
 
     # Build segments from sentences

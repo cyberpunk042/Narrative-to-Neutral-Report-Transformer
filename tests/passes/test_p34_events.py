@@ -166,3 +166,38 @@ class TestEdgeCases:
         
         # Should have at least 2 events
         assert len(ctx.events) >= 2
+
+
+class TestInterfaceSwapping:
+    """Tests demonstrating interface-based backend swapping."""
+    
+    def test_can_use_stub_extractor(self):
+        """Verify stub extractor can be injected for testing."""
+        from nnrt.nlp.backends.stub import StubEventExtractor
+        from nnrt.passes.p34_extract_events import set_extractor, reset_extractor
+        
+        try:
+            # Inject stub extractor
+            set_extractor(StubEventExtractor())
+            
+            ctx = _make_context("He ran away quickly.")
+            extract_events(ctx)
+            
+            # Stub returns no events
+            assert len(ctx.events) == 0
+        finally:
+            # Reset to default
+            reset_extractor()
+    
+    def test_default_extractor_works_after_reset(self):
+        """Verify reset_extractor restores default behavior."""
+        from nnrt.passes.p34_extract_events import reset_extractor
+        
+        reset_extractor()
+        
+        ctx = _make_context("He ran away quickly.")
+        extract_events(ctx)
+        
+        # Default spaCy extractor should find events
+        assert len(ctx.events) > 0
+
