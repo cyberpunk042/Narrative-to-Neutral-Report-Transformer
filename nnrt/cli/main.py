@@ -70,21 +70,22 @@ def setup_default_pipeline(engine: Engine, profile: str = "law_enforcement") -> 
 
 def setup_raw_pipeline(engine: Engine, profile: str = "law_enforcement") -> None:
     """
-    Register a RAW pipeline that skips rendering.
+    Register a RAW pipeline - the original v1 pipeline.
     
-    This is a DEBUG feature that exposes what the pipeline extracts
-    BEFORE any rewriting happens. Useful for:
-    - Debugging information loss
-    - Understanding decomposition
-    - Designing structured output
+    This is the simple/fast neutralization WITHOUT the v2 safety measures:
+    - NO atomic decomposition
+    - NO statement classification
+    - NO provenance linking
+    - NO entity/event extraction
     
-    The output includes:
-    - Segments with contexts
-    - Spans with labels
-    - Policy decisions (what would be changed)
-    - Entities and events
-    - NO rendered prose (that's the point)
+    Just basic neutralization: normalize → segment → policy → render
+    
+    Use this for:
+    - Fast processing when structured analysis isn't needed
+    - Comparing v1 vs v2 output
+    - Legacy compatibility
     """
+    from nnrt.passes import cleanup_punctuation
     from nnrt.policy.loader import clear_cache
     from nnrt.policy.engine import set_default_profile
     
@@ -93,23 +94,21 @@ def setup_raw_pipeline(engine: Engine, profile: str = "law_enforcement") -> None
     
     raw_pipeline = Pipeline(
         id="raw",
-        name="Raw NNRT Pipeline (No Rewrite)",
+        name="Raw NNRT Pipeline (v1 Simple)",
         passes=[
             normalize,
             segment,
             tag_spans,
             annotate_context,
             classify_statements,
-            decompose,
-            classify_atomic,
-            link_provenance,      # NEW: Provenance linking
-            extract_identifiers,
-            extract_entities,
-            extract_events,
+            # NO decompose, classify_atomic, link_provenance
+            # NO extract_identifiers, extract_entities, extract_events
             build_ir,
             evaluate_policy,
-            # NOTE: No render, no cleanup, no package
-            # This preserves the IR before rewriting
+            augment_ir,
+            render,                # YES - render neutral output
+            cleanup_punctuation,   # YES - fix punctuation
+            package,               # YES - package output
         ],
     )
     engine.register_pipeline(raw_pipeline)
@@ -117,15 +116,22 @@ def setup_raw_pipeline(engine: Engine, profile: str = "law_enforcement") -> None
 
 def setup_structured_only_pipeline(engine: Engine, profile: str = "law_enforcement") -> None:
     """
-    Register a structured-only pipeline that skips prose rendering.
+    Register the structured pipeline - full v2 with all safety measures.
     
-    This is the v2 preferred output mode:
-    - Full decomposition and classification
-    - Policy evaluation (but no rendering)
-    - Faster than default pipeline
+    Identical to default pipeline (full decomposition, classification, etc.)
+    The difference is the OUTPUT FORMAT: structured document style instead of prose.
     
-    Use with --no-prose or --format structured-only.
+    Both produce:
+    - rendered_text (neutral prose)
+    - atomic_statements
+    - entities, events
+    - identifiers
+    - diagnostics
+    
+    The UI formats the Neutral Output panel as an "official document" with
+    bullet points and sections rather than flowing prose.
     """
+    from nnrt.passes import cleanup_punctuation
     from nnrt.policy.loader import clear_cache
     from nnrt.policy.engine import set_default_profile
     
@@ -134,7 +140,7 @@ def setup_structured_only_pipeline(engine: Engine, profile: str = "law_enforceme
     
     structured_pipeline = Pipeline(
         id="structured_only",
-        name="Structured-Only Pipeline (No Prose)",
+        name="Structured Pipeline (v2 Full)",
         passes=[
             normalize,
             segment,
@@ -149,8 +155,10 @@ def setup_structured_only_pipeline(engine: Engine, profile: str = "law_enforceme
             extract_events,
             build_ir,
             evaluate_policy,
-            # NOTE: No render, no cleanup, no package
-            # Structured output is built from the IR
+            augment_ir,
+            render,                # YES - render neutral output
+            cleanup_punctuation,   # YES - fix punctuation
+            package,               # YES - package output
         ],
     )
     engine.register_pipeline(structured_pipeline)

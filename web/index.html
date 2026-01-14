@@ -300,6 +300,7 @@
                             </svg>
                             <span>Request Info</span>
                         </div>
+                        <div class="panel-badge" id="metadataBadge">—</div>
                         <svg class="chevron" width="20" height="20" viewBox="0 0 24 24" fill="none"
                             stroke="currentColor" stroke-width="2">
                             <polyline points="6 9 12 15 18 9"></polyline>
@@ -362,7 +363,10 @@ Example: 'The officer intentionally grabbed my arm and deliberately twisted it. 
         <aside class="sidebar sidebar-history" id="historySidebar">
             <div class="sidebar-header">
                 <h2>History</h2>
-                <button class="btn-close" onclick="closeSidebar('historySidebar')">×</button>
+                <div class="sidebar-actions">
+                    <button class="btn-text" onclick="clearHistory()" title="Clear all history">Clear</button>
+                    <button class="btn-close" onclick="closeSidebar('historySidebar')">×</button>
+                </div>
             </div>
             <div class="sidebar-content" id="historyList">
                 <div class="empty-state">No history yet</div>

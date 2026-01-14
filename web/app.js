@@ -18,6 +18,7 @@ let fastMode = false;      // no_prose mode
 // Filter state for each panel
 const filters = {
     atomicStatements: 'all',    // all, observation, claim, interpretation, quote
+    statements: 'all',          // all + dynamic types
     entities: 'all',            // all, reporter, subject, witness, organization, location
     events: 'all',              // all, action, state, speech
     diagnostics: 'all',         // all, error, warning, info
@@ -68,6 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
         metadataToggle: document.getElementById('metadataToggle'),
         metadataPanel: document.getElementById('metadataPanel'),
         metadataGrid: document.getElementById('metadataGrid'),
+        metadataBadge: document.getElementById('metadataBadge'),
         extractedPanel: document.getElementById('extractedPanel'),
         extractedGrid: document.getElementById('extractedGrid'),
         extractedBadge: document.getElementById('extractedBadge'),
@@ -144,6 +146,9 @@ document.addEventListener('DOMContentLoaded', () => {
     loadHistory();
     loadPrefs();
 
+    // Add collapse footers to panels
+    initPanelFooters();
+
     console.log('NNRT v2 initialized');
 });
 
@@ -168,6 +173,31 @@ function expandPanel(panelId) {
 
 function collapsePanel(panelId) {
     document.getElementById(panelId)?.classList.add('collapsed');
+}
+
+function initPanelFooters() {
+    // Add collapse footer to all panels with panel-content
+    const panels = document.querySelectorAll('.panel');
+    panels.forEach(panel => {
+        const content = panel.querySelector('.panel-content');
+        if (!content) return;
+
+        // Check if footer already exists
+        if (content.querySelector('.panel-footer')) return;
+
+        const panelId = panel.id;
+        const footer = document.createElement('div');
+        footer.className = 'panel-footer';
+        footer.innerHTML = `
+            <button class="collapse-btn" onclick="collapsePanel('${panelId}')">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="18 15 12 9 6 15"></polyline>
+                </svg>
+                <span>Collapse</span>
+            </button>
+        `;
+        content.appendChild(footer);
+    });
 }
 
 // =============================================================================
@@ -248,6 +278,87 @@ async function copyOutput() {
     } catch (err) {
         console.error('Failed to copy:', err);
     }
+}
+
+// =============================================================================
+// Structured Document Formatter
+// =============================================================================
+
+function formatAsStructuredDocument(result) {
+    const statements = result.statements || [];
+    const entities = result.entities || [];
+    const events = result.events || [];
+    const atomicStatements = result.atomic_statements || [];
+
+    let html = '<div class="structured-document">';
+
+    // Header
+    html += '<div class="doc-header">📄 NEUTRAL INCIDENT REPORT</div>';
+
+    // Neutral Prose section
+    if (result.rendered_text) {
+        html += `
+            <div class="doc-section">
+                <div class="doc-section-title">NARRATIVE (Neutralized)</div>
+                <div class="doc-content">${escapeHtml(result.rendered_text)}</div>
+            </div>
+        `;
+    }
+
+    // Statements section
+    if (atomicStatements.length > 0) {
+        html += `
+            <div class="doc-section">
+                <div class="doc-section-title">STATEMENTS (${atomicStatements.length})</div>
+                <ul class="doc-list">
+                    ${atomicStatements.map((s, i) => `
+                        <li>
+                            <span class="doc-label">${s.type.toUpperCase()}</span>: 
+                            ${escapeHtml(s.text)}
+                            ${s.confidence < 0.7 ? '<span class="doc-warning">(low confidence)</span>' : ''}
+                        </li>
+                    `).join('')}
+                </ul>
+            </div>
+        `;
+    }
+
+    // Entities section
+    if (entities.length > 0) {
+        html += `
+            <div class="doc-section">
+                <div class="doc-section-title">PARTIES INVOLVED (${entities.length})</div>
+                <ul class="doc-list">
+                    ${entities.map(e => `
+                        <li>
+                            <span class="doc-label">${(e.role || 'unknown').toUpperCase()}</span>: 
+                            ${escapeHtml(e.label || 'Unknown')}
+                        </li>
+                    `).join('')}
+                </ul>
+            </div>
+        `;
+    }
+
+    // Events section
+    if (events.length > 0) {
+        html += `
+            <div class="doc-section">
+                <div class="doc-section-title">ACTIONS/EVENTS (${events.length})</div>
+                <ul class="doc-list">
+                    ${events.map(e => `
+                        <li>
+                            <span class="doc-label">${(e.type || 'action').toUpperCase()}</span>: 
+                            ${escapeHtml(e.description || '')}
+                        </li>
+                    `).join('')}
+                </ul>
+            </div>
+        `;
+    }
+
+    html += '</div>';
+    return html;
 }
 
 // =============================================================================
@@ -457,16 +568,24 @@ function displayResults(result) {
         `;
     }
 
-    // Output
+    // Output - format based on mode
     if (elements.outputText) {
+        const mode = result.metadata?.pipeline || outputMode;
+
         if (result.rendered_text) {
-            elements.outputText.innerHTML = escapeHtml(result.rendered_text);
+            if (mode === 'structured' || mode === 'structured_only') {
+                // Structured mode: format as official document
+                elements.outputText.innerHTML = formatAsStructuredDocument(result);
+            } else {
+                // Prose and Raw: show flowing neutral text
+                elements.outputText.innerHTML = escapeHtml(result.rendered_text);
+            }
         } else {
-            elements.outputText.innerHTML = '<span class="placeholder">No prose output (use prose mode or disable fast mode)</span>';
+            elements.outputText.innerHTML = '<span class="placeholder">Processing failed - no output</span>';
         }
     }
     if (elements.outputBadge) {
-        elements.outputBadge.textContent = `${result.rendered_text?.length || 0} chars`;
+        elements.outputBadge.textContent = result.rendered_text ? `${result.rendered_text.length} chars` : 'N/A';
     }
     expandPanel('outputPanel');
 
@@ -474,26 +593,10 @@ function displayResults(result) {
     renderAtomicStatements(result.atomic_statements || []);
     if ((result.atomic_statements || []).length) expandPanel('atomicStatementsPanel');
 
-    // Statements (Legacy)
-    const statements = result.statements || [];
-    if (elements.statementsBadge) elements.statementsBadge.textContent = statements.length;
-    if (elements.statementsList) {
-        elements.statementsList.innerHTML = statements.length ? statements.map(s => `
-            <div class="item-card ${s.type || ''}">
-                <div class="item-header">
-                    <span class="item-type ${s.type || ''}">${s.type || 'unknown'}</span>
-                    <span class="item-id">${s.id || ''}</span>
-                </div>
-                <div class="item-text">${escapeHtml(s.original || '')}</div>
-                ${s.neutral ? `<div class="item-neutral">→ ${escapeHtml(s.neutral)}</div>` : ''}
-                ${(s.transformations || []).length ? `
-                    <div class="item-meta">${s.transformations.map(t => `<span class="meta-tag">${t.rule_id}</span>`).join('')}</div>
-                ` : ''}
-            </div>
-        `).join('') : '<div class="empty-state">No statements</div>';
-    }
+    // Statements (Legacy) with filter
+    renderStatements(result.statements || []);
     // Don't auto-expand legacy statements if we have atomic ones
-    if (statements.length && !(result.atomic_statements || []).length) expandPanel('statementsPanel');
+    if ((result.statements || []).length && !(result.atomic_statements || []).length) expandPanel('statementsPanel');
 
     // Entities with filter
     renderEntities(result.entities || []);
@@ -526,6 +629,10 @@ function displayResults(result) {
 
     // Metadata
     const meta = result.metadata || {};
+    const metaCount = Object.keys(meta).length;
+    if (elements.metadataBadge) {
+        elements.metadataBadge.textContent = metaCount > 0 ? metaCount : '—';
+    }
     if (elements.metadataGrid) {
         elements.metadataGrid.innerHTML = `
             <div class="metadata-item">
@@ -775,6 +882,44 @@ function renderDiagnostics(diagnostics) {
     }
 }
 
+function renderStatements(statements) {
+    // Collect unique types from statements
+    const types = [...new Set(statements.map(s => s.type).filter(Boolean))];
+    const filterOptions = [
+        { value: 'all', label: 'All' },
+        ...types.map(t => ({ value: t, label: t.charAt(0).toUpperCase() + t.slice(1) }))
+    ];
+
+    const filtered = filters.statements === 'all'
+        ? statements
+        : statements.filter(s => s.type === filters.statements);
+
+    if (elements.statementsBadge) {
+        elements.statementsBadge.textContent = `${filtered.length}/${statements.length}`;
+    }
+
+    if (elements.statementsList) {
+        elements.statementsList.innerHTML = `
+            ${statements.length > 0 ? buildFilterBar('statements', filterOptions) : ''}
+            <div class="filtered-items">
+                ${filtered.length ? filtered.map(s => `
+                    <div class="item-card ${s.type || ''}">
+                        <div class="item-header">
+                            <span class="item-type ${s.type || ''}">${s.type || 'unknown'}</span>
+                            <span class="item-id">${s.id || ''}</span>
+                        </div>
+                        <div class="item-text">${escapeHtml(s.original || '')}</div>
+                        ${s.neutral ? `<div class="item-neutral">→ ${escapeHtml(s.neutral)}</div>` : ''}
+                        ${(s.transformations || []).length ? `
+                            <div class="item-meta">${s.transformations.map(t => `<span class="meta-tag">${t.rule_id}</span>`).join('')}</div>
+                        ` : ''}
+                    </div>
+                `).join('') : '<div class="empty-state">No statements</div>'}
+            </div>
+        `;
+    }
+}
+
 // =============================================================================
 // Status & Logging
 // =============================================================================
@@ -917,6 +1062,13 @@ async function loadHistoryItem(id) {
             closeSidebar('historySidebar');
         }
     } catch (e) { }
+}
+
+function clearHistory() {
+    if (!confirm('Clear all transformation history?')) return;
+    history = [];
+    localStorage.removeItem('nnrt_history');
+    renderHistory();
 }
 
 async function saveToHistory(result) {

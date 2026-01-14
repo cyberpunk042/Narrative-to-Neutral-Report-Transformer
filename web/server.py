@@ -77,14 +77,17 @@ def transform():
         else:
             os.environ.pop('NNRT_USE_LLM', None)
         
-        # Create a fresh engine for each request to handle mode changes
+        # Create a fresh engine for each request
         engine = Engine()
         
-        # Select pipeline based on mode
+        # Select pipeline based on mode:
+        # - prose: Default v2 pipeline (full analysis + prose output)
+        # - structured: Same as prose, but UI formats output as "official document"
+        # - raw: v1 pipeline (simple neutralization, no decomposition/classification)
         if mode == 'raw':
             setup_raw_pipeline(engine)
             pipeline_id = 'raw'
-        elif no_prose or mode == 'structured':
+        elif mode == 'structured':
             setup_structured_only_pipeline(engine)
             pipeline_id = 'structured_only'
         else:
@@ -257,18 +260,18 @@ def transform_stream():
                 
                 engine = Engine()
                 
-                # Select pipeline
+                # Select pipeline based on mode
                 if mode == 'raw':
                     setup_raw_pipeline(engine)
                     pipeline_id = 'raw'
-                elif no_prose or mode == 'structured':
+                elif mode == 'structured':
                     setup_structured_only_pipeline(engine)
                     pipeline_id = 'structured_only'
                 else:
                     setup_default_pipeline(engine)
                     pipeline_id = 'default'
                 
-                log_queue.put({'type': 'log', 'level': 'info', 'message': f'Pipeline: {pipeline_id}', 'timestamp': datetime.now().isoformat()})
+                log_queue.put({'type': 'log', 'level': 'info', 'message': f'Pipeline: {pipeline_id} (mode: {mode})', 'timestamp': datetime.now().isoformat()})
                 
                 request_obj = TransformRequest(text=text)
                 log_queue.put({'type': 'log', 'level': 'info', 'message': f'Processing {len(text)} characters...', 'timestamp': datetime.now().isoformat()})
