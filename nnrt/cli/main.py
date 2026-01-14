@@ -23,6 +23,7 @@ from nnrt.passes import (
     extract_entities,
     extract_events,
     extract_identifiers,
+    link_provenance,
     normalize,
     package,
     render,
@@ -96,8 +97,9 @@ def setup_raw_pipeline(engine: Engine, profile: str = "law_enforcement") -> None
             tag_spans,
             annotate_context,
             classify_statements,
-            decompose,           # NEW: Atomic statement decomposition
-            classify_atomic,     # NEW: Classify atomic statements
+            decompose,
+            classify_atomic,
+            link_provenance,      # NEW: Provenance linking
             extract_identifiers,
             extract_entities,
             extract_events,
@@ -284,7 +286,9 @@ def format_raw_output(result, original_text: str) -> str:
         lines.append(f"    Clause: {stmt.clause_type}")
         if stmt.connector:
             lines.append(f"    Connector: '{stmt.connector}'")
-        if flags:
+        if stmt.derived_from:
+            lines.append(f"    Derived from: {stmt.derived_from}")
+        if stmt.flags:
             lines.append(f"    Flags: {stmt.flags}")
     
     if len(result.atomic_statements) > 30:

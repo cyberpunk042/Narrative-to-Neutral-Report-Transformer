@@ -6,7 +6,8 @@ from nnrt.passes.p20_tag_spans import tag_spans
 from nnrt.passes.p22_classify_statements import classify_statements
 from nnrt.passes.p25_annotate_context import annotate_context
 from nnrt.passes.p26_decompose import decompose
-from nnrt.passes.p27_classify_atomic import classify_atomic  # NEW
+from nnrt.passes.p27_classify_atomic import classify_atomic
+from nnrt.passes.p28_link_provenance import link_provenance
 from nnrt.passes.p30_extract_identifiers import extract_identifiers
 from nnrt.passes.p32_extract_entities import extract_entities
 from nnrt.passes.p34_extract_events import extract_events
@@ -25,6 +26,7 @@ __all__ = [
     "annotate_context",
     "decompose",
     "classify_atomic",
+    "link_provenance",
     "extract_identifiers",
     "extract_entities",
     "extract_events",
