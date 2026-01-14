@@ -59,6 +59,16 @@ class Segment(BaseModel):
         ge=0.0, le=1.0,
         description="Confidence in statement_type classification"
     )
+    
+    # Rendering output (set by p70_render)
+    neutral_text: Optional[str] = Field(
+        default=None,
+        description="Neutralized text after policy rules applied (None if unchanged)"
+    )
+    applied_rules: list[str] = Field(
+        default_factory=list,
+        description="IDs of policy rules that were applied to this segment"
+    )
 
 
 class SemanticSpan(BaseModel):

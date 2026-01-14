@@ -431,6 +431,78 @@ rules:
   # Individual segment sarcasm is flagged via SegmentContext.SARCASM
   # Future: Add specific pattern-based rules for sarcasm handling
 
+  # ═══════════════════════════════════════════════════════════════════
+  # SEMANTIC MATCHING RULES
+  # These rules match on the Entity/Event graph, not just text patterns.
+  # Enabled in policy engine via ENTITY_ROLE, ENTITY_TYPE, EVENT_TYPE match types.
+  # ═══════════════════════════════════════════════════════════════════
+
+  # Flag events involving authority figures for review
+  - id: semantic_authority_events
+    category: semantic
+    priority: 150
+    description: "Flag content involving authority figures for review"
+    match:
+      type: entity_role
+      patterns: ["authority"]
+    action: flag
+    diagnostic:
+      level: info
+      code: AUTHORITY_INVOLVEMENT
+      message: "Authority figure mentioned - flagged for review"
+
+  # Flag content involving reporters/victims for sensitivity review
+  - id: semantic_reporter_involvement
+    category: semantic
+    priority: 140
+    description: "Flag reporter/victim involvement for sensitivity review"
+    match:
+      type: entity_role
+      patterns: ["reporter"]
+    action: flag
+    diagnostic:
+      level: info
+      code: REPORTER_MENTIONED
+      message: "Reporter perspective captured"
+
+  # Flag physical action events for fact verification
+  - id: semantic_action_events
+    category: semantic
+    priority: 130
+    description: "Flag action events for factual verification"
+    match:
+      type: event_type
+      patterns: ["action"]
+    action: flag
+    diagnostic:
+      level: info
+      code: ACTION_EVENT_DETECTED
+      message: "Physical action described - preserved for factual record"
+
+  # Flag verbal events (statements, commands, quotes)
+  - id: semantic_verbal_events
+    category: semantic
+    priority: 120
+    description: "Flag verbal exchanges"
+    match:
+      type: event_type
+      patterns: ["verbal"]
+    action: flag
+    diagnostic:
+      level: info
+      code: VERBAL_EVENT_DETECTED
+      message: "Verbal exchange detected"
+
+  # Preserve person entities for attribution
+  - id: semantic_person_preserve
+    category: semantic
+    priority: 200
+    description: "Preserve person entity references"
+    match:
+      type: entity_type
+      patterns: ["person"]
+    action: preserve
+
 # Validation rules run after transformation
 validation:
   - id: val_no_new_facts

@@ -134,11 +134,13 @@ def _result_to_event(
             target_id = target_ent.id
     
     # Create Event IR object
+    # Note: source_spans linked to segment - span-level linking requires 
+    # position tracking which EventExtractor doesn't provide yet
     return Event(
         id=f"evt_{uuid4().hex[:8]}",
         type=result.type,
         description=result.description,
-        source_spans=[],  # TODO: Link to span IDs from segment
+        source_spans=[segment_id],  # Link to segment as source
         confidence=result.confidence,
         actor_id=actor_id,
         target_id=target_id,

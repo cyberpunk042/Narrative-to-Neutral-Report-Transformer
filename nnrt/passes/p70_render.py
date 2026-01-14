@@ -111,6 +111,7 @@ def _render_template(ctx: TransformContext) -> TransformContext:
     - Context annotations (from p25_annotate_context) inform rule conditions
     - This pass ONLY applies policy decisions, no independent logic
     - span_decisions and protected_ranges enable cross-pass communication
+    - neutral_text and applied_rules stored on each segment for traceability
     """
     engine = get_policy_engine()
     
@@ -128,6 +129,14 @@ def _render_template(ctx: TransformContext) -> TransformContext:
         )
         total_transforms += len(decisions)
         
+        # Store per-segment neutral text for traceability
+        cleaned_rendered = _clean_text(rendered)
+        if cleaned_rendered != segment.text:
+            segment.neutral_text = cleaned_rendered
+        
+        # Store applied rule IDs for traceability
+        segment.applied_rules = [d.rule_id for d in decisions]
+        
         # Record decisions for each affected span (for downstream traceability)
         segment_spans = [s for s in ctx.spans if s.segment_id == segment.id]
         for decision in decisions:
@@ -136,10 +145,9 @@ def _render_template(ctx: TransformContext) -> TransformContext:
                 if span.id in decision.affected_ids:
                     ctx.set_span_decision(span.id, decision)
         
-        # Clean up the rendered text
-        rendered = _clean_text(rendered)
-        if rendered.strip():
-            rendered_segments.append(rendered)
+        # Add to combined output
+        if cleaned_rendered.strip():
+            rendered_segments.append(cleaned_rendered)
 
     ctx.rendered_text = " ".join(rendered_segments)
     

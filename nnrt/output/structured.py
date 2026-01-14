@@ -136,15 +136,26 @@ def build_structured_output(result: TransformResult, input_text: str) -> Structu
     # Build statements from segments
     statements = []
     for i, seg in enumerate(result.segments):
+        # Build transformation records from applied rules
+        transformations = [
+            TransformationRecord(
+                rule_id=rule_id,
+                action="transform",  # Generic action - could be enhanced
+                original=seg.text,
+                replacement=seg.neutral_text,
+            )
+            for rule_id in seg.applied_rules
+        ]
+        
         stmt = StatementOutput(
             id=f"stmt_{i+1:03d}",
             type=seg.statement_type.value,
             original=seg.text,
-            neutral=None,  # TODO: Track per-segment rendering
+            neutral=seg.neutral_text,  # Now populated from segment
             segment_id=seg.id,
             classification_confidence=seg.statement_confidence,
             contexts=seg.contexts,
-            transformations=[],  # TODO: Link transformations to segments
+            transformations=transformations,  # Now populated from segment
             flags=[],
         )
         statements.append(stmt)
