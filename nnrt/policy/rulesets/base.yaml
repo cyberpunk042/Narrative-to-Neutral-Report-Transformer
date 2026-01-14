@@ -422,6 +422,11 @@ rules:
       context_includes: ["direct_quote"]
     action: preserve
 
+  # M3: Note - Sarcasm and neutral detection is handled in p25_annotate_context
+  # The pass adds INPUT_ALREADY_NEUTRAL diagnostic when all segments are neutral
+  # Individual segment sarcasm is flagged via SegmentContext.SARCASM
+  # Future: Add specific pattern-based rules for sarcasm handling
+
 # Validation rules run after transformation
 validation:
   - id: val_no_new_facts

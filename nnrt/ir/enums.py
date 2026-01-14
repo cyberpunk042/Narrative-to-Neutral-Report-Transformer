@@ -67,6 +67,12 @@ class SegmentContext(str, Enum):
     CREDIBILITY_ASSERTION = "credibility"  # "I swear I'm telling the truth"
     SARCASM = "sarcasm"                    # Detected sarcasm/irony
     
+    # M3: Meta-detection contexts
+    ALREADY_NEUTRAL = "already_neutral"    # No biased language detected
+    OPINION_ONLY = "opinion_only"          # No verifiable facts
+    AMBIGUOUS = "ambiguous"                # Unclear references
+    CONTRADICTS_PREVIOUS = "contradiction" # Conflicts with earlier statement
+    
     # Neutral
     NEUTRAL = "neutral"                    # Already neutral content
     UNKNOWN = "unknown"

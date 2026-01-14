@@ -89,6 +89,49 @@ OFFICIAL_REPORT_PATTERNS = [
     r"\bthe\s+vehicle\s+(was|is)\b",
 ]
 
+# ============================================================================
+# M3: Biased Language Detection (for meta-detection)
+# If NONE of these match, segment is likely already neutral
+# ============================================================================
+
+# Inflammatory language markers
+BIASED_INFLAMMATORY = [
+    r"\b(brutal|vicious|violent|savage|ruthless)\b",
+    r"\b(thug|pig|goon|bully|monster)\b",
+    r"\b(attacked|assaulted|brutalized)\b",
+    r"\b(terrified|horrified|traumatized)\b",
+]
+
+# Intent attribution markers
+BIASED_INTENT = [
+    r"\b(wanted\s+to|tried\s+to|meant\s+to)\b",
+    r"\b(clearly|obviously|deliberately|intentionally)\b",
+    r"\b(on\s+purpose)\b",
+]
+
+# Legal conclusion markers
+BIASED_LEGAL = [
+    r"\b(assaulted|guilty|innocent|convicted)\b",
+    r"\b(illegal|unlawful|unconstitutional)\b",
+    r"\b(rights\s+violated|excessive\s+force)\b",
+]
+
+# Opinion/interpretation markers
+OPINION_MARKERS = [
+    r"\b(I\s+think|I\s+believe|I\s+feel\s+like)\b",
+    r"\b(probably|maybe|might\s+have)\b",
+    r"\b(seemed\s+like|looked\s+like|appeared\s+to)\b",
+    r"\b(in\s+my\s+opinion)\b",
+]
+
+# Sarcasm indicators
+SARCASM_PATTERNS = [
+    r"\bso\s+(gentle|nice|kind|polite|helpful)\b",  # Exaggerated positive
+    r'["\'](?:safety|protection|help)["\']',  # Quoted positive words
+    r"\byeah\s+right\b",
+    r"\bof\s+course\b.*\bnot\b",
+]
+
 
 def annotate_context(ctx: TransformContext) -> TransformContext:
     """
@@ -145,6 +188,45 @@ def annotate_context(ctx: TransformContext) -> TransformContext:
             contexts.append(SegmentContext.DIRECT_QUOTE.value)
             segment.quote_depth = 1
         
+        # ================================================================
+        # M3: Meta-Detection — Check for biased language
+        # ================================================================
+        
+        # Check for sarcasm indicators
+        has_sarcasm = _matches_any(text_lower, SARCASM_PATTERNS)
+        if has_sarcasm:
+            contexts.append(SegmentContext.SARCASM.value)
+            ctx.add_diagnostic(
+                level="warning",
+                code="SARCASM_DETECTED",
+                message=f"Possible sarcasm detected - literal meaning may differ: '{text[:50]}...'",
+                source=PASS_NAME,
+                affected_ids=[segment.id],
+            )
+        
+        # Check for biased language (inflammatory, intent, legal conclusions)
+        has_biased_content = (
+            _matches_any(text_lower, BIASED_INFLAMMATORY) or
+            _matches_any(text_lower, BIASED_INTENT) or
+            _matches_any(text_lower, BIASED_LEGAL) or
+            has_sarcasm  # Sarcasm also counts as needing transformation
+        )
+        
+        # Check for opinion-only content
+        is_opinion_only = (
+            _matches_any(text_lower, OPINION_MARKERS) and
+            not _matches_any(text_lower, PHYSICAL_FORCE_PATTERNS) and
+            not _matches_any(text_lower, INJURY_PATTERNS) and
+            not _matches_any(text_lower, TIMELINE_PATTERNS)
+        )
+        
+        if is_opinion_only:
+            contexts.append(SegmentContext.OPINION_ONLY.value)
+        
+        # If NO biased content detected, mark as already neutral
+        if not has_biased_content and not is_opinion_only:
+            contexts.append(SegmentContext.ALREADY_NEUTRAL.value)
+        
         # If no specific context, mark as observation (default)
         if not contexts:
             contexts.append(SegmentContext.OBSERVATION.value)
@@ -161,10 +243,26 @@ def annotate_context(ctx: TransformContext) -> TransformContext:
             affected_ids=[segment.id],
         )
     
+    # ================================================================
+    # M3: Global meta-detection — Is the entire input neutral?
+    # ================================================================
+    all_neutral = all(
+        SegmentContext.ALREADY_NEUTRAL.value in seg.contexts
+        for seg in ctx.segments
+    )
+    if all_neutral:
+        ctx.add_diagnostic(
+            level="info",
+            code="INPUT_ALREADY_NEUTRAL",
+            message="Input appears to be already neutral. No transformation needed.",
+            source=PASS_NAME,
+        )
+    
     ctx.add_trace(
         pass_name=PASS_NAME,
         action="completed",
-        after=f"{len(ctx.segments)} segments, {total_annotations} context annotations",
+        after=f"{len(ctx.segments)} segments, {total_annotations} context annotations" +
+              (" (all neutral)" if all_neutral else ""),
     )
     
     return ctx
