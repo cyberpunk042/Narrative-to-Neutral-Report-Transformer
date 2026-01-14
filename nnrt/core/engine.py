@@ -77,32 +77,49 @@ class Engine:
         pipeline = self._pipelines[pipeline_id]
         ctx = TransformContext.from_request(request)
 
+        # Initialize logging
+        from nnrt.core.logging import TransformLogger
+        tlog = TransformLogger(request.request_id)
+
         # Run passes in order
         for pass_fn in pipeline.passes:
+            pass_name = pass_fn.__name__
             try:
+                tlog.pass_start(pass_name)
                 ctx = pass_fn(ctx)
+                tlog.pass_end(pass_name)
                 
                 # Check for refusal
                 if ctx.status == TransformStatus.REFUSED:
                     ctx.add_trace(
-                        pass_name=pass_fn.__name__,
+                        pass_name=pass_name,
                         action="pipeline_halted",
                     )
                     break
                     
             except Exception as e:
+                tlog.pass_error(pass_name, e)
                 ctx.status = TransformStatus.ERROR
                 ctx.add_diagnostic(
                     level="error",
                     code="PASS_ERROR",
-                    message=f"Pass '{pass_fn.__name__}' failed: {e}",
+                    message=f"Pass '{pass_name}' failed: {e}",
                     source="engine",
                 )
                 ctx.add_trace(
-                    pass_name=pass_fn.__name__,
+                    pass_name=pass_name,
                     action="error",
                 )
                 break
+
+        # Log completion
+        tlog.transform_complete(
+            status=ctx.status.value,
+            segments=len(ctx.segments),
+            spans=len(ctx.spans),
+            identifiers=len(ctx.identifiers),
+            diagnostics=len(ctx.diagnostics),
+        )
 
         return ctx.to_result()
 

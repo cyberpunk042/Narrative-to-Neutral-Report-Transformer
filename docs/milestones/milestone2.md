@@ -152,15 +152,11 @@ Milestone 2 is complete when:
 - [x] Identifiers are extracted (badge, location, time) — *regex + spaCy NER*
 - [x] LLM rendering produces fluent neutral text (optional mode) — *Flan-T5-small*
 - [x] LLM output is validated against IR (no new facts) — *validate_llm_output()*
-- [ ] Structured logging is implemented — *deferred*
-- [ ] Configuration is externalized — *partially (env vars, YAML)*
+- [x] Structured logging is implemented — *structlog with timing*
+- [x] Configuration is externalized — *env vars (NNRT_LOG_LEVEL, NNRT_USE_LLM)*
 - [x] Tests cover all new functionality — *34 tests passing*
 
-**STATUS: MOSTLY COMPLETE** as of 2026-01-13
-
-Remaining:
-- Structured logging (structlog integration)
-- Full configuration management
+**STATUS: COMPLETE** as of 2026-01-13
 
 ---
 
