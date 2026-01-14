@@ -132,6 +132,39 @@ SARCASM_PATTERNS = [
     r"\bof\s+course\b.*\bnot\b",
 ]
 
+# ============================================================================
+# M3: Ambiguity Detection Patterns
+# ============================================================================
+
+# Pronouns that often lead to ambiguity
+AMBIGUOUS_PRONOUNS = [
+    # Multiple pronouns in interactions (who did what to whom?)
+    r"\bhe\s+\w+\s+him\b",          # "he hit him"  
+    r"\bshe\s+\w+\s+her\b",          # "she pushed her"
+    r"\bthey\s+\w+\s+them\b",        # "they attacked them"
+]
+
+# Vague references without clear antecedents
+VAGUE_REFERENCES = [
+    r"\bthey\s+said\b",              # "they said I was..." (who is they?)
+    r"\bthey\s+told\s+me\b",         # "they told me to..." 
+    r"\bsomeone\s+(said|told)\b",    # "someone said..."
+    r"\bpeople\s+(said|told)\b",     # "people said..."
+    r"\bhe\s+said\s+he\b",           # "he said he would..." (which he?)
+    r"\bshe\s+said\s+she\b",         # "she said she would..."
+]
+
+# Start-of-sentence pronouns after unclear context
+DANGLING_PRONOUNS = [
+    r"^\s*(He|She|They|It)\s+(was|were|did|had|is|are)\b",  # Starts with pronoun
+]
+
+# Contradictory or confusing qualifiers
+CONFUSING_QUALIFIERS = [
+    r"\b(sort\s+of|kind\s+of)\s+\w+\s+(but|and)\s+",  # "sort of hit but also"
+    r"\b(maybe|probably)\s+\w+\s+(or|but)\s+",        # "maybe pushed or maybe"
+]
+
 
 def annotate_context(ctx: TransformContext) -> TransformContext:
     """
@@ -203,6 +236,43 @@ def annotate_context(ctx: TransformContext) -> TransformContext:
                 source=PASS_NAME,
                 affected_ids=[segment.id],
             )
+        
+        # ================================================================
+        # M3: Ambiguity Detection
+        # ================================================================
+        
+        # Check for ambiguous pronouns (he hit him, etc.)
+        has_ambiguous_pronouns = _matches_any(text_lower, AMBIGUOUS_PRONOUNS)
+        
+        # Check for vague references (they said, someone told me)
+        has_vague_references = _matches_any(text_lower, VAGUE_REFERENCES)
+        
+        # Check for confusing qualifiers
+        has_confusing = _matches_any(text_lower, CONFUSING_QUALIFIERS)
+        
+        # Combined ambiguity check
+        has_ambiguity = has_ambiguous_pronouns or has_vague_references or has_confusing
+        
+        if has_ambiguity:
+            contexts.append(SegmentContext.AMBIGUOUS.value)
+            
+            # Specific diagnostics
+            if has_ambiguous_pronouns:
+                ctx.add_diagnostic(
+                    level="warning",
+                    code="AMBIGUOUS_PRONOUN",
+                    message=f"Ambiguous pronoun reference - unclear who did what: '{text[:60]}...'",
+                    source=PASS_NAME,
+                    affected_ids=[segment.id],
+                )
+            if has_vague_references:
+                ctx.add_diagnostic(
+                    level="warning",
+                    code="VAGUE_REFERENCE",
+                    message=f"Vague reference - unclear who 'they'/'someone' refers to: '{text[:60]}...'",
+                    source=PASS_NAME,
+                    affected_ids=[segment.id],
+                )
         
         # Check for biased language (inflammatory, intent, legal conclusions)
         has_biased_content = (
