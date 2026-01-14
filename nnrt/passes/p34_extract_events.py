@@ -8,21 +8,13 @@ to the high-fidelity entities extracted in Pass 32.
 from typing import Optional, List, Dict
 from uuid import uuid4
 
-import spacy
-
 from nnrt.core.context import TransformContext
 from nnrt.ir.enums import EventType, EntityRole
 from nnrt.ir.schema_v0_1 import Event, Entity
+from nnrt.nlp.spacy_loader import get_nlp
 
 PASS_NAME = "p34_extract_events"
 
-_nlp = None
-
-def _get_nlp():
-    global _nlp
-    if _nlp is None:
-        _nlp = spacy.load("en_core_web_sm")
-    return _nlp
 
 # -----------------------------------------------------------------------------
 # Event Taxonomy Mappings
@@ -70,7 +62,7 @@ VERB_TYPES = {
 # -----------------------------------------------------------------------------
 
 def extract_events(ctx: TransformContext) -> TransformContext:
-    nlp = _get_nlp()
+    nlp = get_nlp()
     events: List[Event] = []
     
     # Build Entity Lookup (Text -> Entity)

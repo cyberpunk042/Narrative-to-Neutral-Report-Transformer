@@ -10,12 +10,10 @@ from collections import defaultdict
 from typing import Optional, Dict, List
 from uuid import uuid4
 
-import spacy
-from spacy.tokens import Doc, span
-
 from nnrt.core.context import TransformContext
 from nnrt.ir.enums import EntityRole, EntityType, IdentifierType, UncertaintyType
 from nnrt.ir.schema_v0_1 import Entity, UncertaintyMarker
+from nnrt.nlp.spacy_loader import get_nlp
 
 PASS_NAME = "p32_extract_entities"
 
@@ -36,20 +34,13 @@ RESOLVABLE_PRONOUNS = {
 GENERIC_SUBJECTS = {"subject", "suspect", "individual", "male", "female", "driver", "passenger", "partner", "manager", "employee"}
 AUTHORITY_TITLES = {"officer", "deputy", "sergeant", "detective", "lieutenant", "chief", "sheriff", "trooper"}
 
-_nlp = None
-
-def _get_nlp():
-    global _nlp
-    if _nlp is None:
-        _nlp = spacy.load("en_core_web_sm")
-    return _nlp
-
 # -----------------------------------------------------------------------------
 # Pass Implementation
 # -----------------------------------------------------------------------------
 
+
 def extract_entities(ctx: TransformContext) -> TransformContext:
-    nlp = _get_nlp()
+    nlp = get_nlp()
     
     # 1. Initialize Canonical Entities
     entities: List[Entity] = []

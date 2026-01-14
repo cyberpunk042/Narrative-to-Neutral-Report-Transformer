@@ -1,49 +1,29 @@
 """
-Pass 40 — IR Construction
+Pass 40 — IR Assembly
 
-Builds the core IR structures (entities, events, speech acts)
-from segments and tagged spans using NLP analysis.
+Assembles the Intermediate Representation from components extracted by
+previous passes (p32: entities, p34: events).
+
+This pass does NOT extract entities or events — that's p32/p34's job.
+This pass:
+- Extracts speech acts (unique responsibility)
+- Links entities to events
+- Validates cross-references
+- Assembles final IR structure
 """
 
+import re
 from typing import Optional
 from uuid import uuid4
 
 from nnrt.core.context import TransformContext
-from nnrt.ir.enums import EntityRole, EventType, SpanLabel, SpeechActType
+from nnrt.ir.enums import EntityRole, SpeechActType
 from nnrt.ir.schema_v0_1 import Entity, Event, SpeechAct
+from nnrt.nlp.spacy_loader import get_nlp
 
 PASS_NAME = "p40_build_ir"
 
-# Lazy-loaded spaCy model
-_nlp: Optional["spacy.language.Language"] = None
 
-
-def _get_nlp() -> "spacy.language.Language":
-    """Get or load the spaCy model."""
-    global _nlp
-    if _nlp is None:
-        try:
-            import spacy
-            _nlp = spacy.load("en_core_web_sm")
-        except OSError:
-            raise RuntimeError(
-                "spaCy model 'en_core_web_sm' not found. "
-                "Install with: python -m spacy download en_core_web_sm"
-            )
-    return _nlp
-
-
-# Pronouns that typically refer to reporter
-REPORTER_PRONOUNS = {"i", "me", "my", "myself", "we", "us", "our"}
-
-# Pronouns that typically refer to subject
-SUBJECT_PRONOUNS = {"he", "she", "they", "him", "her", "them", "his", "their"}
-
-# Authority role indicators
-AUTHORITY_INDICATORS = {
-    "officer", "police", "cop", "detective", "sergeant", "deputy",
-    "guard", "agent", "official", "security",
-}
 
 # Speech act verbs and their types
 SPEECH_ACT_VERBS = {
@@ -63,51 +43,18 @@ SPEECH_ACT_VERBS = {
 }
 
 
-def _identify_role(text: str) -> EntityRole:
-    """Identify the role of an entity mention."""
-    text_lower = text.lower()
-    
-    if any(p in text_lower.split() for p in REPORTER_PRONOUNS):
-        return EntityRole.REPORTER
-    
-    if any(ind in text_lower for ind in AUTHORITY_INDICATORS):
-        return EntityRole.AUTHORITY
-    
-    if any(p in text_lower.split() for p in SUBJECT_PRONOUNS):
-        return EntityRole.SUBJECT
-    
-    return EntityRole.UNKNOWN
-
-
-def _extract_event_type(verb_text: str) -> EventType:
-    """Determine event type from verb."""
-    verb_lower = verb_text.lower()
-    
-    # Movement verbs
-    if any(v in verb_lower for v in ["walk", "go", "come", "run", "drove", "left", "arrived"]):
-        return EventType.MOVEMENT
-    
-    # Verbal events
-    if any(v in verb_lower for v in SPEECH_ACT_VERBS.keys()):
-        return EventType.VERBAL
-    
-    # State changes
-    if any(v in verb_lower for v in ["became", "turned", "got", "stopped", "started"]):
-        return EventType.STATE_CHANGE
-    
-    # Default to action
-    return EventType.ACTION
-
-
 def build_ir(ctx: TransformContext) -> TransformContext:
     """
-    Build IR structures from segments and spans.
+    Assemble IR from extracted components.
     
     This pass:
-    - Identifies entities and their roles
-    - Extracts events from action spans
-    - Detects speech acts
-    - Links entities to events
+    - Uses entities from p32 (does NOT extract its own)
+    - Uses events from p34 (does NOT extract its own)
+    - Extracts speech acts (unique to this pass)
+    - Links and validates cross-references
+    
+    If p32/p34 produced no entities/events, this pass does NOT
+    fall back to inferior extraction. Empty IR = transparent failure.
     """
     if not ctx.segments:
         ctx.add_diagnostic(
@@ -118,105 +65,53 @@ def build_ir(ctx: TransformContext) -> TransformContext:
         )
         return ctx
 
-    nlp = _get_nlp()
-    
-    # Use existing IR if present (from Phase 4 passes), otherwise initialize empty
+    # Use entities/events from p32/p34 — NO FALLBACK EXTRACTION
     entities: list[Entity] = list(ctx.entities) if ctx.entities else []
     events: list[Event] = list(ctx.events) if ctx.events else []
     speech_acts: list[SpeechAct] = list(ctx.speech_acts) if ctx.speech_acts else []
     
-    run_entity_extraction = len(entities) == 0
-    run_event_extraction = len(events) == 0
+    # Log if extraction passes produced nothing (transparent, not hidden)
+    if len(entities) == 0:
+        ctx.add_diagnostic(
+            level="info",
+            code="NO_ENTITIES",
+            message="No entities from p32. IR will have no entities.",
+            source=PASS_NAME,
+        )
     
-    # Track entity mentions for deduplication (only used if running legacy extraction)
-    entity_map: dict[str, Entity] = {}  # role -> entity
+    if len(events) == 0:
+        ctx.add_diagnostic(
+            level="info",
+            code="NO_EVENTS", 
+            message="No events from p34. IR will have no events.",
+            source=PASS_NAME,
+        )
     
-    entity_counter = len(entities)
-    event_counter = len(events)
+    # Build entity lookup for speech act speaker resolution
+    entity_by_role: dict[str, Entity] = {}
+    for ent in entities:
+        if ent.role.value not in entity_by_role:
+            entity_by_role[ent.role.value] = ent
+    
+    # Extract speech acts (p40's unique responsibility)
+    nlp = get_nlp()
     speech_act_counter = len(speech_acts)
     
     for segment in ctx.segments:
         doc = nlp(segment.text)
-        
-        # Find segment's spans
         segment_spans = [s for s in ctx.spans if s.segment_id == segment.id]
         span_ids = [s.id for s in segment_spans]
         
-        # Extract entities from noun chunks
-        if run_entity_extraction:
-            for chunk in doc.noun_chunks:
-                role = _identify_role(chunk.text)
-                
-                # Create or find entity
-                role_key = role.value
-                if role_key not in entity_map:
-                    entity = Entity(
-                        id=f"ent_{entity_counter:03d}",
-                        role=role,
-                        mentions=[],
-                    )
-                    entity_map[role_key] = entity
-                    entities.append(entity)
-                    entity_counter += 1
-                
-                # Find matching span and add as mention
-                for span in segment_spans:
-                    if span.start_char <= chunk.start_char and chunk.end_char <= span.end_char:
-                        if span.id not in entity_map[role_key].mentions:
-                            entity_map[role_key].mentions.append(span.id)
-                        break
-        
-        # Extract events from verbs
-        if run_event_extraction:
-            for token in doc:
-                if token.pos_ == "VERB" and token.dep_ not in ("aux", "auxpass"):
-                    # Get verb text
-                    verb_text = token.text
-                    event_type = _extract_event_type(verb_text)
-                    
-                    # Find actor (subject)
-                    actor_id = None
-                    target_id = None
-                    
-                    for child in token.children:
-                        if child.dep_ in ("nsubj", "nsubjpass"):
-                            subj_role = _identify_role(child.text)
-                            if subj_role.value in entity_map:
-                                actor_id = entity_map[subj_role.value].id
-                        elif child.dep_ in ("dobj", "pobj"):
-                            obj_role = _identify_role(child.text)
-                            if obj_role.value in entity_map:
-                                target_id = entity_map[obj_role.value].id
-                    
-                    # Build neutral description
-                    description = _build_neutral_description(token, doc)
-                    
-                    event = Event(
-                        id=f"evt_{event_counter:03d}",
-                        type=event_type,
-                        description=description,
-                        source_spans=span_ids[:2],  # Link to first spans as evidence
-                        confidence=0.75,
-                        actor_id=actor_id,
-                        target_id=target_id,
-                        is_uncertain=False,
-                        requires_context=False,
-                    )
-                    events.append(event)
-                    event_counter += 1
-        
-        # Extract speech acts
         for token in doc:
             if token.lemma_.lower() in SPEECH_ACT_VERBS:
                 speech_type = SPEECH_ACT_VERBS.get(token.lemma_.lower(), SpeechActType.STATEMENT)
                 
-                # Find speaker
+                # Find speaker by matching subject to known entities
                 speaker_id = None
                 for child in token.children:
                     if child.dep_ == "nsubj":
-                        speaker_role = _identify_role(child.text)
-                        if speaker_role.value in entity_map:
-                            speaker_id = entity_map[speaker_role.value].id
+                        # Try to match to existing entity
+                        speaker_id = _resolve_speaker(child.text, entities)
                 
                 # Extract quoted content if present
                 content = _extract_speech_content(segment.text)
@@ -235,44 +130,37 @@ def build_ir(ctx: TransformContext) -> TransformContext:
                     speech_acts.append(speech_act)
                     speech_act_counter += 1
 
+    # Update context with assembled IR
     ctx.entities = entities
     ctx.events = events
     ctx.speech_acts = speech_acts
     
     ctx.add_trace(
         pass_name=PASS_NAME,
-        action="built_ir",
+        action="assembled_ir",
         after=f"{len(entities)} entities, {len(events)} events, {len(speech_acts)} speech acts",
     )
 
     return ctx
 
 
-def _build_neutral_description(verb_token, doc) -> str:
-    """Build a neutral description of an event from a verb token."""
-    # Collect verb and its dependents
-    parts = []
+def _resolve_speaker(text: str, entities: list[Entity]) -> Optional[str]:
+    """Resolve speaker text to an entity ID."""
+    text_lower = text.lower()
     
-    # Subject
-    for child in verb_token.children:
-        if child.dep_ in ("nsubj", "nsubjpass"):
-            parts.append(child.text)
+    # Check if text matches any entity label or mention
+    for ent in entities:
+        if ent.label and ent.label.lower() in text_lower:
+            return ent.id
+        for mention in ent.mentions:
+            if isinstance(mention, str) and mention.lower() in text_lower:
+                return ent.id
     
-    # Verb phrase
-    parts.append(verb_token.text)
-    
-    # Objects and complements
-    for child in verb_token.children:
-        if child.dep_ in ("dobj", "pobj", "attr", "acomp"):
-            parts.append(child.text)
-    
-    return " ".join(parts) if parts else verb_token.text
+    return None
 
 
 def _extract_speech_content(text: str) -> str:
     """Extract quoted speech content from text."""
-    import re
-    
     # Try double quotes first
     double_match = re.search(r'"([^"]+)"', text)
     if double_match:
