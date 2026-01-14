@@ -179,27 +179,23 @@ function collapsePanel(panelId) {
 }
 
 function initPanelFooters() {
-    // Add collapse footer to all panels with panel-content
+    // Add clickable toggle zone at bottom of each panel
     const panels = document.querySelectorAll('.panel');
     panels.forEach(panel => {
         const content = panel.querySelector('.panel-content');
         if (!content) return;
 
         // Check if footer already exists
-        if (content.querySelector('.panel-footer')) return;
+        if (content.querySelector('.panel-toggle-zone')) return;
 
         const panelId = panel.id;
-        const footer = document.createElement('div');
-        footer.className = 'panel-footer';
-        footer.innerHTML = `
-            <button class="collapse-btn" onclick="collapsePanel('${panelId}')">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="18 15 12 9 6 15"></polyline>
-                </svg>
-                <span>Collapse</span>
-            </button>
-        `;
-        content.appendChild(footer);
+        const zone = document.createElement('div');
+        zone.className = 'panel-toggle-zone';
+        zone.title = 'Click to collapse';
+        zone.onclick = () => togglePanel(panelId);
+        // Visual indicator line
+        zone.innerHTML = '<div class="toggle-line"></div>';
+        content.appendChild(zone);
     });
 }
 
