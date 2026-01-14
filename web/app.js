@@ -146,8 +146,9 @@ document.addEventListener('DOMContentLoaded', () => {
     loadHistory();
     loadPrefs();
 
-    // Add collapse footers to panels
+    // Add collapse footers and copy buttons to panels
     initPanelFooters();
+    initPanelCopyButtons();
 
     // Initialize scroll-to-top button
     initScrollToTop();
@@ -196,6 +197,87 @@ function initPanelFooters() {
         // Visual indicator line
         zone.innerHTML = '<div class="toggle-line"></div>';
         content.appendChild(zone);
+    });
+}
+
+function initPanelCopyButtons() {
+    // Add copy buttons to all panels that don't have one
+    const panels = document.querySelectorAll('.panel');
+    panels.forEach(panel => {
+        const header = panel.querySelector('.panel-header');
+        if (!header) return;
+
+        // Skip if already has a copy button
+        if (header.querySelector('.copy-btn')) return;
+
+        const panelId = panel.id;
+        const btn = document.createElement('button');
+        btn.className = 'copy-btn';
+        btn.title = 'Copy to clipboard';
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            copyPanelContent(panelId);
+        };
+        btn.innerHTML = `
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+        `;
+
+        // Insert before badge or chevron
+        const badge = header.querySelector('.panel-badge');
+        const chevron = header.querySelector('.chevron');
+        if (badge) {
+            header.insertBefore(btn, badge);
+        } else if (chevron) {
+            header.insertBefore(btn, chevron);
+        } else {
+            header.appendChild(btn);
+        }
+    });
+}
+
+function copyPanelContent(panelId) {
+    let text = '';
+    const panel = document.getElementById(panelId);
+    if (!panel) return;
+
+    const content = panel.querySelector('.panel-content');
+    if (!content) return;
+
+    // Get text content based on panel type
+    const itemsList = content.querySelector('.items-list');
+    const outputText = content.querySelector('.output-text');
+    const logsOutput = content.querySelector('.logs-output');
+    const metaList = content.querySelector('.meta-list');
+
+    if (outputText) {
+        text = outputText.textContent;
+    } else if (logsOutput) {
+        text = logsOutput.textContent;
+    } else if (itemsList) {
+        // Extract text from item cards
+        const items = itemsList.querySelectorAll('.item-card');
+        text = Array.from(items).map(item => item.textContent.trim()).join('\n\n');
+    } else if (metaList) {
+        const items = metaList.querySelectorAll('.meta-item');
+        text = Array.from(items).map(item => item.textContent.trim()).join('\n');
+    } else {
+        text = content.textContent;
+    }
+
+    navigator.clipboard.writeText(text.trim()).then(() => {
+        const btn = panel.querySelector('.copy-btn');
+        if (btn) {
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '✓';
+            btn.classList.add('copied');
+            setTimeout(() => {
+                btn.innerHTML = originalHTML;
+                btn.classList.remove('copied');
+            }, 1500);
+        }
     });
 }
 
@@ -744,13 +826,14 @@ function displayResults(result) {
     }
     expandPanel('outputPanel');
 
-    // Atomic Statements with filter
-    const atomicStmts = result.atomic_statements || [];
+    // Get mode for panel visibility
     const mode = result.metadata?.mode || outputMode;
-    const atomicPanel = document.getElementById('atomicStatementsPanel');
+    const isRawMode = mode === 'raw';
 
-    if (mode === 'raw' && atomicStmts.length === 0) {
-        // Hide panel in raw mode when no atomic statements
+    // Atomic Statements - hide in raw mode (v2 feature)
+    const atomicStmts = result.atomic_statements || [];
+    const atomicPanel = document.getElementById('atomicStatementsPanel');
+    if (isRawMode) {
         atomicPanel?.classList.add('hidden');
     } else {
         atomicPanel?.classList.remove('hidden');
@@ -758,20 +841,31 @@ function displayResults(result) {
         if (atomicStmts.length) expandPanel('atomicStatementsPanel');
     }
 
-    // Statements (Legacy) with filter
+    // Statements (Legacy) - always show
     renderStatements(result.statements || []);
-    // Don't auto-expand legacy statements if we have atomic ones
-    if ((result.statements || []).length && !(result.atomic_statements || []).length) expandPanel('statementsPanel');
+    if ((result.statements || []).length && isRawMode) expandPanel('statementsPanel');
 
-    // Entities with filter
-    renderEntities(result.entities || []);
-    if ((result.entities || []).length) expandPanel('entitiesPanel');
+    // Entities - hide in raw mode (v2 feature)
+    const entitiesPanel = document.getElementById('entitiesPanel');
+    if (isRawMode) {
+        entitiesPanel?.classList.add('hidden');
+    } else {
+        entitiesPanel?.classList.remove('hidden');
+        renderEntities(result.entities || []);
+        if ((result.entities || []).length) expandPanel('entitiesPanel');
+    }
 
-    // Events with filter
-    renderEvents(result.events || []);
-    if ((result.events || []).length) expandPanel('eventsPanel');
+    // Events - hide in raw mode (v2 feature)
+    const eventsPanel = document.getElementById('eventsPanel');
+    if (isRawMode) {
+        eventsPanel?.classList.add('hidden');
+    } else {
+        eventsPanel?.classList.remove('hidden');
+        renderEvents(result.events || []);
+        if ((result.events || []).length) expandPanel('eventsPanel');
+    }
 
-    // Diagnostics with filter
+    // Diagnostics - always show
     renderDiagnostics(result.diagnostics || []);
     if ((result.diagnostics || []).length) expandPanel('diagnosticsPanel');
 

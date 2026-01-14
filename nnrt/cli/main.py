@@ -86,6 +86,7 @@ def setup_raw_pipeline(engine: Engine, profile: str = "law_enforcement") -> None
     - Legacy compatibility
     """
     from nnrt.passes import cleanup_punctuation
+    from nnrt.passes import extract_identifiers
     from nnrt.policy.loader import clear_cache
     from nnrt.policy.engine import set_default_profile
     
@@ -101,8 +102,9 @@ def setup_raw_pipeline(engine: Engine, profile: str = "law_enforcement") -> None
             tag_spans,
             annotate_context,
             classify_statements,
+            extract_identifiers,    # YES - extract dates, locations, badges, etc.
             # NO decompose, classify_atomic, link_provenance
-            # NO extract_identifiers, extract_entities, extract_events
+            # NO extract_entities, extract_events
             build_ir,
             evaluate_policy,
             augment_ir,

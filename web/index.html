@@ -82,6 +82,8 @@
                 </button>
             </div>
             <div class="sticky-nav-links">
+                <a href="#logsPanel" data-panel="logsPanel"
+                    onclick="event.preventDefault(); scrollToPanel('logsPanel')">Logs</a>
                 <a href="#outputPanel" data-panel="outputPanel"
                     onclick="event.preventDefault(); scrollToPanel('outputPanel')">Output</a>
                 <a href="#atomicStatementsPanel" data-panel="atomicStatementsPanel"
@@ -92,14 +94,14 @@
                     onclick="event.preventDefault(); scrollToPanel('entitiesPanel')">Entities</a>
                 <a href="#eventsPanel" data-panel="eventsPanel"
                     onclick="event.preventDefault(); scrollToPanel('eventsPanel')">Events</a>
-                <a href="#transformsPanel" data-panel="transformsPanel"
-                    onclick="event.preventDefault(); scrollToPanel('transformsPanel')">Transforms</a>
                 <a href="#diagnosticsPanel" data-panel="diagnosticsPanel"
                     onclick="event.preventDefault(); scrollToPanel('diagnosticsPanel')">Diagnostics</a>
                 <a href="#extractedPanel" data-panel="extractedPanel"
                     onclick="event.preventDefault(); scrollToPanel('extractedPanel')">Extracted</a>
                 <a href="#metadataPanel" data-panel="metadataPanel"
                     onclick="event.preventDefault(); scrollToPanel('metadataPanel')">Request</a>
+                <a href="#transformsPanel" data-panel="transformsPanel"
+                    onclick="event.preventDefault(); scrollToPanel('transformsPanel')">Transforms</a>
             </div>
         </nav>
 
