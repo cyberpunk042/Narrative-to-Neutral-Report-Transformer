@@ -18,10 +18,12 @@ import re
 from uuid import uuid4
 
 from nnrt.core.context import TransformContext
+from nnrt.core.logging import get_pass_logger
 from nnrt.ir.enums import SegmentContext, UncertaintyType
 from nnrt.ir.schema_v0_1 import UncertaintyMarker
 
-PASS_NAME = "annotate_context"
+PASS_NAME = "p25_annotate_context"
+log = get_pass_logger(PASS_NAME)
 
 
 # ============================================================================
@@ -203,7 +205,10 @@ def annotate_context(ctx: TransformContext) -> TransformContext:
     This pass does NOT transform text. It only adds metadata
     that downstream passes can use to make decisions.
     """
+    log.verbose("starting_annotation", segments=len(ctx.segments))
+    
     total_annotations = 0
+    context_counts = {}
     
     for segment in ctx.segments:
         text = segment.text
@@ -259,6 +264,7 @@ def annotate_context(ctx: TransformContext) -> TransformContext:
         has_sarcasm = _matches_any(text_lower, SARCASM_PATTERNS)
         if has_sarcasm:
             contexts.append(SegmentContext.SARCASM.value)
+            log.verbose("sarcasm_detected", segment_id=segment.id)
             ctx.add_diagnostic(
                 level="warning",
                 code="SARCASM_DETECTED",
@@ -285,6 +291,11 @@ def annotate_context(ctx: TransformContext) -> TransformContext:
         
         if has_ambiguity:
             contexts.append(SegmentContext.AMBIGUOUS.value)
+            log.verbose("ambiguity_detected", 
+                segment_id=segment.id,
+                pronouns=has_ambiguous_pronouns,
+                vague=has_vague_references,
+            )
             
             # Specific diagnostics
             if has_ambiguous_pronouns:
@@ -355,6 +366,12 @@ def annotate_context(ctx: TransformContext) -> TransformContext:
         segment.contexts = contexts
         total_annotations += len(contexts)
         
+        # Track context distribution
+        for c in contexts:
+            context_counts[c] = context_counts.get(c, 0) + 1
+        
+        log.debug("segment_annotated", segment_id=segment.id, contexts=contexts)
+        
         # Add trace
         ctx.add_trace(
             pass_name=PASS_NAME,
@@ -382,6 +399,14 @@ def annotate_context(ctx: TransformContext) -> TransformContext:
     # M3: Cross-Segment Contradiction Detection
     # ================================================================
     _detect_contradictions(ctx)
+    
+    log.info("annotated",
+        segments=len(ctx.segments),
+        total_annotations=total_annotations,
+        all_neutral=all_neutral,
+        uncertainties=len(ctx.uncertainty),
+    )
+    log.debug("context_distribution", **context_counts)
     
     ctx.add_trace(
         pass_name=PASS_NAME,

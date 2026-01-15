@@ -13,8 +13,10 @@ This pass runs AFTER rendering to fix:
 import re
 
 from nnrt.core.context import TransformContext
+from nnrt.core.logging import get_pass_logger
 
 PASS_NAME = "p75_cleanup_punctuation"
+log = get_pass_logger(PASS_NAME)
 
 
 def cleanup_punctuation(ctx: TransformContext) -> TransformContext:
@@ -89,11 +91,17 @@ def cleanup_punctuation(ctx: TransformContext) -> TransformContext:
     ctx.rendered_text = text
     
     if changes_made:
+        log.info("cleaned",
+            fixes_applied=len(changes_made),
+            fix_types=changes_made,
+        )
         ctx.add_trace(
             pass_name=PASS_NAME,
             action="cleanup_punctuation",
             before=original[:100] + "..." if len(original) > 100 else original,
             after=f"Applied fixes: {', '.join(changes_made)}",
         )
+    else:
+        log.verbose("no_changes", message="No punctuation cleanup needed")
     
     return ctx

@@ -57,7 +57,7 @@ class TestPolicyDecisions:
         engine = PolicyEngine("base")
         
         text = "He intentionally pushed me."
-        transformed, decisions = engine.apply_rules(text)
+        transformed, decisions, _ = engine.apply_rules(text)
         
         # Should have at least one decision
         assert len(decisions) >= 1
@@ -71,7 +71,7 @@ class TestPolicyDecisions:
         engine = PolicyEngine("base")
         
         text = "He deliberately walked away."
-        transformed, decisions = engine.apply_rules(text)
+        transformed, decisions, _ = engine.apply_rules(text)
         
         # All decisions should have a reason
         for d in decisions:

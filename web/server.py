@@ -10,6 +10,7 @@ Provides REST endpoints for:
 
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -220,6 +221,9 @@ def transform():
             
             # Extracted metadata (from content)
             'extracted': identifiers_by_type,
+            
+            # Diff data for visualization
+            'diff_data': structured.diff_data.model_dump() if structured.diff_data else None,
         }
         
         return jsonify(output)
@@ -235,7 +239,13 @@ def transform():
 # =============================================================================
 
 class LogCapture(logging.Handler):
-    """Custom logging handler that captures logs to a queue."""
+    """
+    Logging handler that captures logs to a queue for SSE streaming.
+    Strips ANSI color codes and extracts structured data from structlog output.
+    """
+    
+    # Regex to strip ANSI escape codes
+    ANSI_ESCAPE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
     
     def __init__(self, log_queue):
         super().__init__()
@@ -244,15 +254,44 @@ class LogCapture(logging.Handler):
     
     def emit(self, record):
         try:
-            msg = self.format(record)
+            raw_msg = self.format(record)
+            
+            # Strip ANSI color codes first!
+            msg = self.ANSI_ESCAPE.sub('', raw_msg)
+            
+            # Extract channel from the message (structlog puts it as channel=XXX)
+            channel = 'SYSTEM'
+            channel_match = re.search(r'channel=(\w+)', msg)
+            if channel_match:
+                channel = channel_match.group(1)
+            
+            # Extract pass name
+            pass_name = None
+            pass_match = re.search(r'pass=(\w+)', msg)
+            if pass_match:
+                pass_name = pass_match.group(1)
+            
+            # Extract the event name (word after [info] or [debug])
+            event_match = re.search(r'\]\s+(\w+)\s+\[', msg)
+            display_msg = event_match.group(1) if event_match else msg[:80]
+            
             self.log_queue.put({
                 'type': 'log',
                 'level': record.levelname.lower(),
-                'message': msg,
+                'channel': channel,
+                'pass': pass_name,
+                'message': display_msg,
                 'timestamp': datetime.now().isoformat()
             })
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[LogCapture ERROR] {e}")
+            self.log_queue.put({
+                'type': 'log',
+                'level': 'error',
+                'channel': 'SYSTEM',
+                'message': f'LogCapture error: {e}',
+                'timestamp': datetime.now().isoformat()
+            })
 
 
 @app.route('/api/transform-stream', methods=['POST'])
@@ -263,23 +302,40 @@ def transform_stream():
     use_llm = data.get('use_llm', False)
     mode = data.get('mode', 'prose')
     no_prose = data.get('no_prose', False)
+    log_level = data.get('log_level', 'info')  # info, verbose, debug
     
     if not text.strip():
         return jsonify({'error': 'No text provided'}), 400
     
     def generate():
         log_queue = queue.Queue()
-        
-        # Set up log capture
-        nnrt_logger = logging.getLogger('nnrt')
-        handler = LogCapture(log_queue)
-        handler.setLevel(logging.INFO)
-        nnrt_logger.addHandler(handler)
-        
-        result_holder = {'result': None, 'error': None}
+        result_holder = {'result': None, 'error': None, 'handler': None}
         
         def run_transform():
             try:
+                # Configure channel-aware logging for this request
+                # This must happen FIRST, before we add our handler
+                from nnrt.core.logging import configure_logging
+                configure_logging(level=log_level, force=True)
+                
+                # NOW add our handler AFTER configure_logging has set up structlog
+                # (basicConfig with force=True removes handlers, so we add after)
+                handler = LogCapture(log_queue)
+                py_level = logging.DEBUG if log_level == 'debug' else logging.INFO
+                handler.setLevel(py_level)
+                
+                # Add filter to only capture nnrt logs
+                class NNRTFilter(logging.Filter):
+                    def filter(self, record):
+                        return record.name.startswith('nnrt')
+                
+                handler.addFilter(NNRTFilter())
+                
+                # Add to root logger to catch all nnrt.* loggers
+                root_logger = logging.getLogger()
+                root_logger.addHandler(handler)
+                result_holder['handler'] = handler
+                
                 # Set LLM mode
                 if use_llm:
                     os.environ['NNRT_USE_LLM'] = '1'
@@ -301,20 +357,43 @@ def transform_stream():
                 
                 result_holder['pipeline_id'] = selected_pipeline_id
                 
-                log_queue.put({'type': 'log', 'level': 'info', 'message': f'Pipeline: {selected_pipeline_id} (mode: {mode})', 'timestamp': datetime.now().isoformat()})
+                log_queue.put({
+                    'type': 'log', 
+                    'level': 'info', 
+                    'channel': 'SYSTEM',
+                    'message': f'Pipeline: {selected_pipeline_id} (mode: {mode})', 
+                    'timestamp': datetime.now().isoformat()
+                })
                 
                 request_obj = TransformRequest(text=text)
-                log_queue.put({'type': 'log', 'level': 'info', 'message': f'Processing {len(text)} characters...', 'timestamp': datetime.now().isoformat()})
+                log_queue.put({
+                    'type': 'log', 
+                    'level': 'info', 
+                    'channel': 'PIPELINE',
+                    'message': f'Processing {len(text)} characters...', 
+                    'timestamp': datetime.now().isoformat()
+                })
                 
                 result = engine.transform(request_obj, selected_pipeline_id)
                 result_holder['result'] = result
-                
-                log_queue.put({'type': 'log', 'level': 'info', 'message': f'Transform complete: {result.status.value}', 'timestamp': datetime.now().isoformat()})
+
+                log_queue.put({
+                    'type': 'log', 
+                    'level': 'info', 
+                    'channel': 'SYSTEM',
+                    'message': f'Transform complete: {result.status.value}', 
+                    'timestamp': datetime.now().isoformat()
+                })
                 
             except Exception as e:
                 import traceback
                 result_holder['error'] = str(e)
-                log_queue.put({'type': 'error', 'message': str(e), 'timestamp': datetime.now().isoformat()})
+                log_queue.put({
+                    'type': 'error', 
+                    'channel': 'SYSTEM',
+                    'message': str(e), 
+                    'timestamp': datetime.now().isoformat()
+                })
                 traceback.print_exc()
             finally:
                 log_queue.put({'type': 'done'})
@@ -340,8 +419,9 @@ def transform_stream():
         # Wait for thread to finish
         thread.join(timeout=5)
         
-        # Remove handler
-        nnrt_logger.removeHandler(handler)
+        # Remove handler from root logger
+        if result_holder.get('handler'):
+            logging.getLogger().removeHandler(result_holder['handler'])
         
         # Send final result
         if result_holder['error']:
@@ -438,6 +518,8 @@ def transform_stream():
                 },
                 # Extracted identifiers by type (same as regular endpoint)
                 'extracted': {},
+                # Diff data for visualization
+                'diff_data': structured.diff_data.model_dump() if structured.diff_data else None,
             }
             
             # Build extracted identifiers by type

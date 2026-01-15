@@ -15,11 +15,13 @@ to identify different types of semantic content:
 from uuid import uuid4
 
 from nnrt.core.context import TransformContext
+from nnrt.core.logging import get_pass_logger
 from nnrt.ir.enums import SpanLabel
 from nnrt.ir.schema_v0_1 import SemanticSpan
 from nnrt.nlp.spacy_loader import get_nlp
 
 PASS_NAME = "p20_tag_spans"
+log = get_pass_logger(PASS_NAME)
 
 
 # Keywords that indicate interpretation/judgment
@@ -101,6 +103,7 @@ def tag_spans(ctx: TransformContext) -> TransformContext:
     - Flags problematic content (legal conclusions, intent attribution)
     """
     if not ctx.segments:
+        log.warning("no_segments", message="No segments to tag")
         ctx.add_diagnostic(
             level="warning",
             code="NO_SEGMENTS",
@@ -109,9 +112,12 @@ def tag_spans(ctx: TransformContext) -> TransformContext:
         )
         return ctx
 
+    log.verbose("starting_tagging", segments=len(ctx.segments))
+    
     nlp = get_nlp()
     spans: list[SemanticSpan] = []
     span_counter = 0
+    flags_detected = {"legal_conclusions": 0, "intent_attributions": 0}
 
     for segment in ctx.segments:
         doc = nlp(segment.text)
@@ -201,6 +207,11 @@ def tag_spans(ctx: TransformContext) -> TransformContext:
                     )
                 )
                 span_counter += 1
+                flags_detected["legal_conclusions"] += 1
+                log.verbose("legal_conclusion_found", 
+                    term=term, 
+                    segment_id=segment.id,
+                )
                 ctx.add_diagnostic(
                     level="warning",
                     code="LEGAL_CONCLUSION_DETECTED",
@@ -226,6 +237,11 @@ def tag_spans(ctx: TransformContext) -> TransformContext:
                     )
                 )
                 span_counter += 1
+                flags_detected["intent_attributions"] += 1
+                log.verbose("intent_attribution_found", 
+                    term=term, 
+                    segment_id=segment.id,
+                )
                 ctx.add_diagnostic(
                     level="warning",
                     code="INTENT_ATTRIBUTION_DETECTED",
@@ -236,6 +252,13 @@ def tag_spans(ctx: TransformContext) -> TransformContext:
         
         spans.extend(segment_spans)
 
+    log.info("tagged",
+        total_spans=len(spans),
+        segments=len(ctx.segments),
+        legal_conclusions=flags_detected["legal_conclusions"],
+        intent_attributions=flags_detected["intent_attributions"],
+    )
+    
     ctx.spans = spans
     ctx.add_trace(
         pass_name=PASS_NAME,
@@ -247,6 +270,8 @@ def tag_spans(ctx: TransformContext) -> TransformContext:
     label_counts = {}
     for span in spans:
         label_counts[span.label.value] = label_counts.get(span.label.value, 0) + 1
+    
+    log.debug("label_distribution", **label_counts)
     
     ctx.add_trace(
         pass_name=PASS_NAME,

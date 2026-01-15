@@ -12,11 +12,13 @@ import re
 from uuid import uuid4
 
 from nnrt.core.context import TransformContext
+from nnrt.core.logging import get_pass_logger
 from nnrt.ir.enums import IdentifierType
 from nnrt.ir.schema_v0_1 import Identifier
 from nnrt.nlp.spacy_loader import get_nlp
 
 PASS_NAME = "p30_extract_identifiers"
+log = get_pass_logger(PASS_NAME)
 
 # Regex patterns for common identifiers
 IDENTIFIER_PATTERNS = {
@@ -104,6 +106,11 @@ def extract_identifiers(ctx: TransformContext) -> TransformContext:
     type_counts = {}
     for ident in identifiers:
         type_counts[ident.type.value] = type_counts.get(ident.type.value, 0) + 1
+    
+    log.info("extracted",
+        total_identifiers=len(identifiers),
+        **type_counts,
+    )
     
     ctx.add_trace(
         pass_name=PASS_NAME,

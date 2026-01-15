@@ -1211,6 +1211,12 @@ body {
     border-left: 3px solid var(--error);
 }
 
+/* Hide filter bar and logs when panel is collapsed */
+.panel-logs.collapsed .logs-filters,
+.panel-logs.collapsed .logs-container {
+    display: none;
+}
+
 .panel-logs .logs-container {
     max-height: 200px;
     overflow-y: auto;
@@ -1247,6 +1253,152 @@ body {
 
 .log-entry.error {
     color: var(--error);
+}
+
+/* Channel-aware log styling */
+.log-entry {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 3px 0;
+    flex-wrap: wrap;
+}
+
+.log-time {
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    flex-shrink: 0;
+}
+
+.log-channel {
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    flex-shrink: 0;
+}
+
+.log-channel.channel-pipeline {
+    background: rgba(59, 130, 246, 0.2);
+    color: #3b82f6;
+    border: 1px solid rgba(59, 130, 246, 0.4);
+}
+
+.log-channel.channel-transform {
+    background: rgba(139, 92, 246, 0.2);
+    color: #8b5cf6;
+    border: 1px solid rgba(139, 92, 246, 0.4);
+}
+
+.log-channel.channel-extract {
+    background: rgba(16, 185, 129, 0.2);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.log-channel.channel-policy {
+    background: rgba(245, 158, 11, 0.2);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.log-channel.channel-render {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.log-channel.channel-system {
+    background: rgba(107, 114, 128, 0.2);
+    color: #6b7280;
+    border: 1px solid rgba(107, 114, 128, 0.4);
+}
+
+.log-pass {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.log-message {
+    color: var(--text-secondary);
+    flex: 1;
+}
+
+/* Logs filter bar */
+.logs-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: var(--space-sm);
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+
+.logs-filters .filter-chip {
+    font-size: 0.7rem;
+    padding: 3px 10px;
+    border-radius: 12px;
+    background: var(--bg-primary);
+    color: var(--text-muted);
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.logs-filters .filter-chip:hover {
+    border-color: var(--border-hover);
+    color: var(--text-primary);
+}
+
+.logs-filters .filter-chip.active {
+    background: var(--accent-primary);
+    color: white;
+    border-color: var(--accent-primary);
+}
+
+/* Channel-specific filter chip colors when active */
+.logs-filters .filter-chip.channel-pipeline.active {
+    background: #3b82f6;
+    border-color: #3b82f6;
+}
+
+.logs-filters .filter-chip.channel-transform.active {
+    background: #8b5cf6;
+    border-color: #8b5cf6;
+}
+
+.logs-filters .filter-chip.channel-extract.active {
+    background: #10b981;
+    border-color: #10b981;
+}
+
+.logs-filters .filter-chip.channel-policy.active {
+    background: #f59e0b;
+    border-color: #f59e0b;
+}
+
+.logs-filters .filter-chip.channel-render.active {
+    background: #ef4444;
+    border-color: #ef4444;
+}
+
+.logs-filters .filter-chip.channel-system.active {
+    background: #6b7280;
+    border-color: #6b7280;
+}
+
+/* Log level selector styling */
+.log-level-selector {
+    margin-left: 4px;
+}
+
+.log-level-selector select {
+    font-size: 0.75rem;
+    padding: 4px 8px;
 }
 
 .atomic-statements-list {
@@ -1698,4 +1850,190 @@ body {
 
 .scroll-to-top:active {
     transform: translateY(0);
+}
+
+
+/* =============================================================================
+   Diff View Styling
+   ============================================================================= */
+
+/* View toggle buttons */
+.output-view-toggle {
+    display: flex;
+    gap: var(--space-xs);
+    margin-bottom: var(--space-sm);
+}
+
+.view-btn {
+    padding: var(--space-xs) var(--space-sm);
+    font-size: 0.75rem;
+    font-weight: 500;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--bg-secondary);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.view-btn:hover {
+    border-color: var(--accent-primary);
+    color: var(--text-primary);
+}
+
+.view-btn.active {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+    color: white;
+}
+
+/* Diff view container */
+.diff-view {
+    background: var(--bg-primary);
+    border-radius: var(--radius-sm);
+    padding: var(--space-sm);
+}
+
+.diff-view.hidden {
+    display: none;
+}
+
+/* Diff legend */
+.diff-legend {
+    display: flex;
+    gap: var(--space-md);
+    margin-bottom: var(--space-sm);
+    padding-bottom: var(--space-sm);
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.diff-legend-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+}
+
+.diff-deleted-sample {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+    text-decoration: line-through;
+    padding: 1px 4px;
+    border-radius: 2px;
+}
+
+.diff-added-sample {
+    background: rgba(34, 197, 94, 0.2);
+    color: #22c55e;
+    padding: 1px 4px;
+    border-radius: 2px;
+}
+
+/* Diff content */
+.diff-content {
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    line-height: 1.8;
+    color: var(--text-primary);
+}
+
+.diff-segment {
+    margin-bottom: var(--space-sm);
+    padding: var(--space-sm);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-sm);
+    border-left: 3px solid var(--border-color);
+}
+
+.diff-segment.changed {
+    border-left-color: var(--accent-primary);
+}
+
+/* Deleted text (struck through, red) */
+.diff-deleted {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    text-decoration: line-through;
+    padding: 1px 2px;
+    border-radius: 2px;
+    cursor: help;
+    position: relative;
+}
+
+.diff-deleted:hover {
+    background: rgba(239, 68, 68, 0.3);
+}
+
+/* Added text (green underline) */
+.diff-added {
+    background: rgba(34, 197, 94, 0.15);
+    color: #22c55e;
+    padding: 1px 2px;
+    border-radius: 2px;
+    cursor: help;
+    position: relative;
+}
+
+.diff-added:hover {
+    background: rgba(34, 197, 94, 0.3);
+}
+
+/* Tooltip for diff items */
+.diff-tooltip {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    white-space: nowrap;
+    box-shadow: var(--shadow-md);
+    z-index: 100;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+    pointer-events: none;
+}
+
+.diff-deleted:hover .diff-tooltip,
+.diff-added:hover .diff-tooltip {
+    opacity: 1;
+    visibility: visible;
+}
+
+.diff-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: var(--bg-elevated);
+}
+
+/* Summary stats */
+.diff-summary {
+    margin-bottom: var(--space-sm);
+    padding: var(--space-xs) var(--space-sm);
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    display: flex;
+    gap: var(--space-md);
+}
+
+.diff-stat {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+}
+
+.diff-stat-value {
+    font-weight: 600;
+    color: var(--accent-primary);
 }

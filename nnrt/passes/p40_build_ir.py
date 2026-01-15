@@ -17,11 +17,13 @@ from typing import Optional
 from uuid import uuid4
 
 from nnrt.core.context import TransformContext
+from nnrt.core.logging import get_pass_logger
 from nnrt.ir.enums import EntityRole, SpeechActType
 from nnrt.ir.schema_v0_1 import Entity, Event, SpeechAct
 from nnrt.nlp.spacy_loader import get_nlp
 
 PASS_NAME = "p40_build_ir"
+log = get_pass_logger(PASS_NAME)
 
 
 
@@ -134,6 +136,12 @@ def build_ir(ctx: TransformContext) -> TransformContext:
     ctx.entities = entities
     ctx.events = events
     ctx.speech_acts = speech_acts
+    
+    log.info("assembled",
+        entities=len(entities),
+        events=len(events),
+        speech_acts=len(speech_acts),
+    )
     
     ctx.add_trace(
         pass_name=PASS_NAME,

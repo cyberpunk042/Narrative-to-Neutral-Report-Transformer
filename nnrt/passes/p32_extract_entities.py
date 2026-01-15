@@ -17,12 +17,14 @@ from typing import Optional, Dict, List
 from uuid import uuid4
 
 from nnrt.core.context import TransformContext
+from nnrt.core.logging import get_pass_logger
 from nnrt.ir.enums import EntityRole, EntityType, IdentifierType, UncertaintyType
 from nnrt.ir.schema_v0_1 import Entity, UncertaintyMarker, SemanticSpan
 from nnrt.nlp.interfaces import EntityExtractor, EntityExtractResult
 from nnrt.nlp.backends.spacy_backend import get_entity_extractor
 
 PASS_NAME = "p32_extract_entities"
+log = get_pass_logger(PASS_NAME)
 
 # Default extractor (can be swapped for testing)
 _extractor: Optional[EntityExtractor] = None
@@ -132,6 +134,17 @@ def extract_entities(ctx: TransformContext) -> TransformContext:
     _resolve_mentions_to_spans(entities, pending_mentions, ctx.spans)
     
     ctx.entities = entities
+    
+    # Count by role
+    role_counts = {}
+    for ent in entities:
+        role_counts[ent.role.value] = role_counts.get(ent.role.value, 0) + 1
+    
+    log.info("extracted",
+        total_entities=len(entities),
+        backend=extractor.name,
+        **role_counts,
+    )
     
     ctx.add_trace(
         pass_name=PASS_NAME,

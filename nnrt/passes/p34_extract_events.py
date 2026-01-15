@@ -15,12 +15,14 @@ from typing import Optional, List, Dict
 from uuid import uuid4
 
 from nnrt.core.context import TransformContext
+from nnrt.core.logging import get_pass_logger
 from nnrt.ir.enums import EventType, EntityRole
 from nnrt.ir.schema_v0_1 import Event, Entity
 from nnrt.nlp.interfaces import EventExtractor, EventExtractResult
 from nnrt.nlp.backends.spacy_backend import get_event_extractor
 
 PASS_NAME = "p34_extract_events"
+log = get_pass_logger(PASS_NAME)
 
 # Default extractor (can be swapped for testing)
 _extractor: Optional[EventExtractor] = None
@@ -77,6 +79,17 @@ def extract_events(ctx: TransformContext) -> TransformContext:
                 events.append(event)
 
     ctx.events = events
+    
+    # Count by type
+    type_counts = {}
+    for evt in events:
+        type_counts[evt.type.value] = type_counts.get(evt.type.value, 0) + 1
+    
+    log.info("extracted",
+        total_events=len(events),
+        backend=extractor.name,
+        **type_counts,
+    )
     
     ctx.add_trace(
         pass_name=PASS_NAME,

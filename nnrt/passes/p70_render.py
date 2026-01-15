@@ -16,9 +16,11 @@ Per LLM policy:
 
 import os
 from nnrt.core.context import TransformContext
+from nnrt.core.logging import get_pass_logger
 from nnrt.policy.engine import get_policy_engine
 
 PASS_NAME = "p70_render"
+log = get_pass_logger(PASS_NAME)
 
 
 def _use_llm_render() -> bool:
@@ -35,6 +37,7 @@ def render(ctx: TransformContext) -> TransformContext:
     - Default is template-based rendering
     """
     if not ctx.segments:
+        log.warning("empty_input", message="No segments to render")
         ctx.rendered_text = ""
         ctx.add_trace(
             pass_name=PASS_NAME,
@@ -43,7 +46,13 @@ def render(ctx: TransformContext) -> TransformContext:
         )
         return ctx
 
-    if _use_llm_render() and _llm_available():
+    use_llm = _use_llm_render() and _llm_available()
+    log.info("starting", 
+        mode="llm" if use_llm else "template",
+        segments=len(ctx.segments),
+    )
+    
+    if use_llm:
         return _render_llm(ctx)
     else:
         return _render_template(ctx)
@@ -77,7 +86,7 @@ def _render_llm(ctx: TransformContext) -> TransformContext:
         
         # First apply policy rules to get fallback
         engine = get_policy_engine()
-        fallback_text, _ = engine.apply_rules(segment.text)
+        fallback_text, _, _ = engine.apply_rules(segment.text)
         
         # Then render with LLM (falls back if validation fails)
         rendered = renderer.render(
@@ -91,8 +100,16 @@ def _render_llm(ctx: TransformContext) -> TransformContext:
         rendered = _clean_text(rendered)
         if rendered.strip():
             rendered_segments.append(rendered)
+            log.debug("llm_segment_rendered", segment_id=segment.id)
     
     ctx.rendered_text = " ".join(rendered_segments)
+    
+    log.info("completed",
+        mode="llm",
+        segments_rendered=len(rendered_segments),
+        output_chars=len(ctx.rendered_text),
+    )
+    
     ctx.add_trace(
         pass_name=PASS_NAME,
         action="rendered_llm",
@@ -112,7 +129,10 @@ def _render_template(ctx: TransformContext) -> TransformContext:
     - This pass ONLY applies policy decisions, no independent logic
     - span_decisions and protected_ranges enable cross-pass communication
     - neutral_text and applied_rules stored on each segment for traceability
+    - transforms[] records individual changes for diff visualization
     """
+    from nnrt.ir.schema_v0_1 import SegmentTransform
+    
     engine = get_policy_engine()
     
     rendered_segments: list[str] = []
@@ -124,7 +144,8 @@ def _render_template(ctx: TransformContext) -> TransformContext:
         # 1. Find matching rules
         # 2. Check rule conditions against segment.contexts
         # 3. Apply only rules whose conditions are met
-        rendered, decisions = engine.apply_rules_with_context(
+        # 4. Return detailed transform records for diff visualization
+        rendered, decisions, transform_details = engine.apply_rules_with_context(
             segment.text, segment.contexts
         )
         total_transforms += len(decisions)
@@ -137,6 +158,18 @@ def _render_template(ctx: TransformContext) -> TransformContext:
         # Store applied rule IDs for traceability
         segment.applied_rules = [d.rule_id for d in decisions]
         
+        # NEW: Store transform details for diff visualization
+        for td in transform_details:
+            segment.transforms.append(SegmentTransform(
+                original_text=td.original_text,
+                replacement_text=td.replacement_text,
+                start_offset=td.start_offset,
+                end_offset=td.end_offset,
+                reason_code=td.reason_code,
+                reason_message=td.reason_message,
+                policy_rule_id=td.rule_id,
+            ))
+        
         # Record decisions for each affected span (for downstream traceability)
         segment_spans = [s for s in ctx.spans if s.segment_id == segment.id]
         for decision in decisions:
@@ -148,8 +181,19 @@ def _render_template(ctx: TransformContext) -> TransformContext:
         # Add to combined output
         if cleaned_rendered.strip():
             rendered_segments.append(cleaned_rendered)
+            log.debug("segment_rendered", 
+                segment_id=segment.id, 
+                transforms=len(decisions),
+            )
 
     ctx.rendered_text = " ".join(rendered_segments)
+    
+    log.info("completed",
+        mode="template",
+        segments_rendered=len(rendered_segments),
+        total_transforms=total_transforms,
+        output_chars=len(ctx.rendered_text),
+    )
     
     ctx.add_trace(
         pass_name=PASS_NAME,

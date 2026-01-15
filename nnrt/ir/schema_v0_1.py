@@ -26,6 +26,22 @@ from nnrt.ir.enums import (
 IR_VERSION = "0.1.0"
 
 
+class SegmentTransform(BaseModel):
+    """
+    Record of a single text transformation within a segment.
+    
+    Used for diff visualization - tracks exactly what changed, where, and why.
+    """
+    
+    original_text: str = Field(..., description="Text that was changed")
+    replacement_text: str = Field(default="", description="What it became (empty if deleted)")
+    reason_code: str = Field(..., description="Machine-readable reason code (e.g., intent_attribution)")
+    reason_message: str = Field(..., description="Human-readable explanation")
+    start_offset: int = Field(..., description="Start position within segment.text")
+    end_offset: int = Field(..., description="End position within segment.text")
+    policy_rule_id: Optional[str] = Field(None, description="ID of the policy rule that triggered this")
+
+
 class Segment(BaseModel):
     """A contiguous chunk of input text."""
 
@@ -68,6 +84,12 @@ class Segment(BaseModel):
     applied_rules: list[str] = Field(
         default_factory=list,
         description="IDs of policy rules that were applied to this segment"
+    )
+    
+    # NEW: Transform tracking for diff visualization
+    transforms: list[SegmentTransform] = Field(
+        default_factory=list,
+        description="Individual transformations applied to this segment"
     )
 
 

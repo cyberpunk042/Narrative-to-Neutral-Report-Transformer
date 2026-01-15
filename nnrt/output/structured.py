@@ -116,6 +116,38 @@ class EventOutput(BaseModel):
     confidence: float = Field(default=0.8)
 
 
+class DiffTransform(BaseModel):
+    """A single text transformation for diff visualization."""
+    
+    original: str = Field(..., description="Text that was changed")
+    replacement: str = Field(default="", description="What it became (empty if deleted)")
+    reason_code: str = Field(..., description="Machine-readable reason code")
+    reason: str = Field(..., description="Human-readable explanation")
+    position: list[int] = Field(..., description="[start, end] offsets in original segment")
+    rule_id: Optional[str] = Field(None, description="Policy rule ID")
+
+
+class DiffSegment(BaseModel):
+    """Diff data for a single segment."""
+    
+    segment_id: str = Field(..., description="Segment identifier")
+    original: str = Field(..., description="Original segment text")
+    neutral: Optional[str] = Field(None, description="Neutralized text (if changed)")
+    start_char: int = Field(..., description="Start offset in original input")
+    end_char: int = Field(..., description="End offset in original input")
+    transforms: list[DiffTransform] = Field(default_factory=list)
+    changed: bool = Field(..., description="Whether this segment was modified")
+
+
+class DiffData(BaseModel):
+    """Complete diff visualization data."""
+    
+    segments: list[DiffSegment] = Field(default_factory=list)
+    total_transforms: int = Field(default=0, description="Total number of transformations")
+    segments_changed: int = Field(default=0, description="Number of segments that were modified")
+    segments_unchanged: int = Field(default=0, description="Number of segments unchanged")
+
+
 class StructuredOutput(BaseModel):
     """
     Complete structured output from NNRT.
@@ -149,6 +181,9 @@ class StructuredOutput(BaseModel):
     
     # Diagnostics
     diagnostics: list[dict] = Field(default_factory=list)
+    
+    # Diff visualization data (NEW)
+    diff_data: Optional[DiffData] = Field(None, description="Detailed diff data for visualization")
     
     # Rendered output
     rendered_text: str = Field(..., description="Final neutralized text")
@@ -272,6 +307,49 @@ def build_structured_output(result: TransformResult, input_text: str) -> Structu
             confidence=evt.confidence
         ))
 
+    # Build diff data from segment transforms (NEW)
+    diff_segments = []
+    total_transforms = 0
+    segments_changed = 0
+    segments_unchanged = 0
+    
+    for seg in result.segments:
+        segment_transforms = []
+        for t in seg.transforms:
+            segment_transforms.append(DiffTransform(
+                original=t.original_text,
+                replacement=t.replacement_text,
+                reason_code=t.reason_code,
+                reason=t.reason_message,
+                position=[t.start_offset, t.end_offset],
+                rule_id=t.policy_rule_id,
+            ))
+        
+        changed = seg.neutral_text is not None and seg.neutral_text != seg.text
+        if changed:
+            segments_changed += 1
+        else:
+            segments_unchanged += 1
+        
+        total_transforms += len(segment_transforms)
+        
+        diff_segments.append(DiffSegment(
+            segment_id=seg.id,
+            original=seg.text,
+            neutral=seg.neutral_text,
+            start_char=seg.start_char,
+            end_char=seg.end_char,
+            transforms=segment_transforms,
+            changed=changed,
+        ))
+    
+    diff_data = DiffData(
+        segments=diff_segments,
+        total_transforms=total_transforms,
+        segments_changed=segments_changed,
+        segments_unchanged=segments_unchanged,
+    )
+
     return StructuredOutput(
         nnrt_version=__version__,
         schema_version=SCHEMA_VERSION,
@@ -285,6 +363,7 @@ def build_structured_output(result: TransformResult, input_text: str) -> Structu
         entities=entities_out,
         events=events_out,
         diagnostics=[d.model_dump() for d in result.diagnostics],
+        diff_data=diff_data,
         rendered_text=result.rendered_text or "",
     )
 

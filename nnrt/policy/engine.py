@@ -30,6 +30,22 @@ class RuleMatch:
     end: int
 
 
+@dataclass
+class TransformDetail:
+    """
+    Detailed record of a text transformation for diff visualization.
+    
+    Contains all information needed to show what changed, where, and why.
+    """
+    original_text: str      # Text that was changed
+    replacement_text: str   # What it became (empty string if deleted)
+    start_offset: int       # Start position in original text
+    end_offset: int         # End position in original text
+    reason_code: str        # Machine-readable code (e.g., "intent_attribution")
+    reason_message: str     # Human-readable explanation
+    rule_id: str            # ID of the rule that triggered this
+
+
 class PolicyEngine:
     """
     Deterministic policy rule engine.
@@ -207,7 +223,7 @@ class PolicyEngine:
         
         return True
 
-    def apply_rules(self, text: str) -> tuple[str, list[PolicyDecision]]:
+    def apply_rules(self, text: str) -> tuple[str, list[PolicyDecision], list[TransformDetail]]:
         """
         Apply all matching rules to text.
         
@@ -215,13 +231,13 @@ class PolicyEngine:
             text: Text to transform
             
         Returns:
-            Tuple of (transformed_text, policy_decisions)
+            Tuple of (transformed_text, policy_decisions, transform_details)
         """
         return self.apply_rules_with_context(text, [])
     
     def apply_rules_with_context(
         self, text: str, segment_contexts: list[str]
-    ) -> tuple[str, list[PolicyDecision]]:
+    ) -> tuple[str, list[PolicyDecision], list[TransformDetail]]:
         """
         Apply all matching rules to text, respecting segment contexts.
         
@@ -316,6 +332,22 @@ class PolicyEngine:
             for match in group:
                 decisions.append(self._create_decision(match))
         
+        # Build TransformDetail records for diff visualization
+        transform_details: list[TransformDetail] = []
+        for start, end, replacement, rules in transformations:
+            original_text = text[start:end]
+            # Use first rule's info (all rules in group have same intent)
+            primary_rule = rules[0]
+            transform_details.append(TransformDetail(
+                original_text=original_text,
+                replacement_text=replacement,
+                start_offset=start,
+                end_offset=end,
+                reason_code=primary_rule.category or "policy",
+                reason_message=primary_rule.description or f"Applied rule: {primary_rule.id}",
+                rule_id=primary_rule.id,
+            ))
+        
         # Apply transformations in reverse order (to preserve positions)
         result = text
         for start, end, replacement, rules in sorted(
@@ -323,7 +355,7 @@ class PolicyEngine:
         ):
             result = result[:start] + replacement + result[end:]
         
-        return result, decisions
+        return result, decisions, transform_details
     
     def _group_adjacent_matches(
         self, text: str, matches: list[RuleMatch]

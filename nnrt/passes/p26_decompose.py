@@ -13,10 +13,12 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from nnrt.core.context import TransformContext
+from nnrt.core.logging import get_pass_logger
 from nnrt.ir.enums import StatementType
 from nnrt.nlp.spacy_loader import get_nlp
 
-PASS_NAME = "p25_decompose"
+PASS_NAME = "p26_decompose"
+log = get_pass_logger(PASS_NAME)
 
 
 @dataclass
@@ -63,6 +65,7 @@ def decompose(ctx: TransformContext) -> TransformContext:
     Each clause becomes an atomic statement.
     """
     if not ctx.segments:
+        log.warning("no_segments", message="No segments to decompose")
         ctx.add_diagnostic(
             level="warning",
             code="NO_SEGMENTS",
@@ -71,9 +74,12 @@ def decompose(ctx: TransformContext) -> TransformContext:
         )
         return ctx
     
+    log.verbose("starting_decomposition", segments=len(ctx.segments))
+    
     nlp = get_nlp()
     all_statements: list[AtomicStatement] = []
     statement_counter = 0
+    clause_type_counts = {}
     
     for segment in ctx.segments:
         # Skip segments that are pure quotes (preserve verbatim)
@@ -131,9 +137,17 @@ def decompose(ctx: TransformContext) -> TransformContext:
                 )
                 all_statements.append(stmt)
                 statement_counter += 1
+                clause_type_counts[clause["clause_type"]] = clause_type_counts.get(clause["clause_type"], 0) + 1
     
     # Store in context
     ctx.atomic_statements = all_statements
+    
+    log.info("decomposed",
+        atomic_statements=len(all_statements),
+        segments=len(ctx.segments),
+        avg_per_segment=round(len(all_statements) / max(len(ctx.segments), 1), 2),
+    )
+    log.debug("clause_types", **clause_type_counts)
     
     ctx.add_trace(
         pass_name=PASS_NAME,

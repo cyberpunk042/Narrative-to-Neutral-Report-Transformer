@@ -228,6 +228,21 @@ def main() -> int:
         action="store_true",
         help="Skip prose rendering, output structured data only (faster).",
     )
+    
+    # Logging configuration
+    transform_parser.add_argument(
+        "--log-level",
+        type=str,
+        choices=["silent", "info", "verbose", "debug"],
+        default=None,
+        help="Log verbosity level (default: info, or NNRT_LOG_LEVEL env var)",
+    )
+    transform_parser.add_argument(
+        "--log-channel",
+        type=str,
+        default=None,
+        help="Comma-separated log channels to show (pipeline,transform,extract,policy,render,system). Default: all",
+    )
 
     args = parser.parse_args()
 
@@ -243,6 +258,22 @@ def main() -> int:
 
 def run_transform(args: argparse.Namespace) -> int:
     """Run transformation command."""
+    # Configure logging first
+    from nnrt.core.logging import configure_logging, LogLevel, LogChannel
+    
+    log_level = getattr(args, 'log_level', None)
+    log_channel = getattr(args, 'log_channel', None)
+    
+    channels = None
+    if log_channel:
+        channels = [ch.strip() for ch in log_channel.split(",")]
+    
+    configure_logging(
+        level=log_level,
+        channels=channels,
+        force=True,
+    )
+    
     # Get input text
     if args.input == "-":
         text = sys.stdin.read()

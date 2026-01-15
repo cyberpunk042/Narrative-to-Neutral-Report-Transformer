@@ -12,9 +12,11 @@ This enriches the IR with epistemic metadata for structured output.
 
 import re
 from nnrt.core.context import TransformContext
+from nnrt.core.logging import get_pass_logger
 from nnrt.ir.enums import SegmentContext, StatementType
 
-PASS_NAME = "classify_statements"
+PASS_NAME = "p22_classify_statements"
+log = get_pass_logger(PASS_NAME)
 
 # ============================================================================
 # Classification Patterns
@@ -108,6 +110,12 @@ def classify_statements(ctx: TransformContext) -> TransformContext:
     for seg in ctx.segments:
         t = seg.statement_type.value
         type_counts[t] = type_counts.get(t, 0) + 1
+    
+    log.info("classified",
+        segments=classified,
+        **type_counts,
+    )
+    log.debug("distribution", **type_counts)
     
     ctx.add_trace(
         pass_name=PASS_NAME,

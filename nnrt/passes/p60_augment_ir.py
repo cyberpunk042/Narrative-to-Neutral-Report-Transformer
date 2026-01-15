@@ -6,8 +6,10 @@ Only adds structure that is policy-approved.
 """
 
 from nnrt.core.context import TransformContext
+from nnrt.core.logging import get_pass_logger
 
 PASS_NAME = "p60_augment_ir"
+log = get_pass_logger(PASS_NAME)
 
 
 def augment_ir(ctx: TransformContext) -> TransformContext:
@@ -20,6 +22,8 @@ def augment_ir(ctx: TransformContext) -> TransformContext:
     that policy rules have approved.
     """
     # Stub: no augmentation
+    log.verbose("stub_implementation", message="No augmentation applied")
+    
     ctx.add_trace(
         pass_name=PASS_NAME,
         action="augment_ir_stub",
@@ -27,3 +31,4 @@ def augment_ir(ctx: TransformContext) -> TransformContext:
     )
 
     return ctx
+

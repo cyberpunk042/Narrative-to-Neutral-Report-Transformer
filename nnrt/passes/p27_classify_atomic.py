@@ -16,10 +16,12 @@ import re
 from typing import Optional
 
 from nnrt.core.context import TransformContext
+from nnrt.core.logging import get_pass_logger
 from nnrt.ir.enums import StatementType
 from nnrt.nlp.spacy_loader import get_nlp
 
 PASS_NAME = "p27_classify_atomic"
+log = get_pass_logger(PASS_NAME)
 
 # ============================================================================
 # Linguistic Markers (Research-Grounded)
@@ -120,6 +122,11 @@ def classify_atomic(ctx: TransformContext) -> TransformContext:
         stmt.flags.extend(flags)
         
         classified_counts[stmt_type.value] += 1
+    
+    log.info("classified",
+        statements=len(ctx.atomic_statements),
+        **classified_counts,
+    )
     
     # Trace
     ctx.add_trace(

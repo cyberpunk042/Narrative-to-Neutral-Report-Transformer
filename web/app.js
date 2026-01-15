@@ -14,13 +14,15 @@ let showLogs = false;
 let showMetadata = false;
 let outputMode = 'prose';  // prose, structured, raw
 let fastMode = false;      // no_prose mode
+let logLevel = 'info';     // info, verbose, debug
+let logChannelFilter = 'all';  // all, PIPELINE, TRANSFORM, EXTRACT, POLICY, RENDER, SYSTEM
 
 // Filter state for each panel
 const filters = {
     atomicStatements: 'all',    // all, observation, claim, interpretation, quote
     statements: 'all',          // all + dynamic types
     entities: 'all',            // all, reporter, subject, witness, organization, location
-    events: 'all',              // all, action, state, speech
+    events: 'all',              // all, error, warning, info
     diagnostics: 'all',         // all, error, warning, info
 };
 
@@ -66,6 +68,11 @@ document.addEventListener('DOMContentLoaded', () => {
         logsPanel: document.getElementById('logsPanel'),
         logsOutput: document.getElementById('logsOutput'),
         logsBadge: document.getElementById('logsBadge'),
+        // Diff view elements
+        diffView: document.getElementById('diffView'),
+        diffContent: document.getElementById('diffContent'),
+        outputViewToggle: document.getElementById('outputViewToggle'),
+        // Metadata
         metadataToggle: document.getElementById('metadataToggle'),
         metadataPanel: document.getElementById('metadataPanel'),
         metadataGrid: document.getElementById('metadataGrid'),
@@ -123,6 +130,14 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             logsPanel?.classList.add('hidden');
         }
+    });
+
+    // Log level selector
+    const logLevelSelect = document.getElementById('logLevelSelect');
+    logLevelSelect?.addEventListener('change', (e) => {
+        logLevel = e.target.value;
+        savePrefs();
+        addLog(`Log level: ${logLevel}`, 'info', 'SYSTEM');
     });
     elements.metadataToggle?.addEventListener('change', (e) => {
         showMetadata = e.target.checked;
@@ -738,7 +753,8 @@ async function transformWithStreaming(text) {
             text,
             use_llm: useLLM,
             mode: outputMode,
-            no_prose: fastMode
+            no_prose: fastMode,
+            log_level: logLevel
         });
 
         // Use fetch for SSE (EventSource doesn't support POST)
@@ -790,15 +806,15 @@ async function transformWithStreaming(text) {
 
 function handleStreamEvent(data) {
     if (data.type === 'log') {
-        // Real-time log from server
-        addLog(data.message, data.level);
+        // Real-time log from server with channel info
+        addLog(data.message, data.level, data.channel || 'SYSTEM', data.pass, data.data);
     } else if (data.type === 'error') {
-        addLog(`Error: ${data.message}`, 'error');
+        addLog(`Error: ${data.message}`, 'error', 'SYSTEM');
         showStatus('error', `Error: ${data.message}`);
     } else if (data.type === 'result') {
         // Final result
         currentResult = data;
-        addLog(`Complete: ${currentResult.status}`);
+        addLog(`Complete: ${currentResult.status}`, 'info', 'SYSTEM');
         displayResults(currentResult);
         saveToHistory(currentResult);
         showStatus('success', 'Transformed successfully');
@@ -838,6 +854,12 @@ function displayResults(result) {
     if (elements.outputBadge) {
         elements.outputBadge.textContent = result.rendered_text ? `${result.rendered_text.length} chars` : 'N/A';
     }
+
+    // Render diff view if diff_data is available
+    if (result.diff_data && elements.diffContent) {
+        renderDiffView(result.diff_data);
+    }
+
     expandPanel('outputPanel');
 
     // Get mode for panel visibility
@@ -1205,18 +1227,51 @@ function showStatus(type, message) {
     if (elements.statusText) elements.statusText.textContent = message;
 }
 
-function addLog(message, level = 'info') {
+function addLog(message, level = 'info', channel = 'SYSTEM', passName = null, data = {}) {
     const time = new Date().toLocaleTimeString();
-    logs.push({ time, message, level });
-    if (logs.length > 50) logs = logs.slice(-50);
+    logs.push({ time, message, level, channel, pass: passName, data });
+    if (logs.length > 5000) logs = logs.slice(-5000);  // Keep last 500 logs
 
-    if (elements.logsBadge) elements.logsBadge.textContent = logs.length;
+    renderLogs();
+}
+
+function renderLogs() {
+    // Filter logs based on current channel filter
+    const filteredLogs = logs.filter(l => {
+        if (logChannelFilter === 'all') return true;
+        return l.channel === logChannelFilter;
+    });
+
+    if (elements.logsBadge) elements.logsBadge.textContent = filteredLogs.length;
     if (elements.logsOutput) {
-        elements.logsOutput.innerHTML = logs.map(l =>
-            `<span class="log-entry ${l.level}">[${l.time}] ${escapeHtml(l.message)}</span>`
-        ).join('\n');
+        elements.logsOutput.innerHTML = filteredLogs.map(l => {
+            const channelClass = `channel-${(l.channel || 'system').toLowerCase()}`;
+            const passLabel = l.pass ? `<span class="log-pass">${l.pass}</span>` : '';
+            return `<span class="log-entry ${l.level}">` +
+                `<span class="log-time">[${l.time}]</span>` +
+                `<span class="log-channel ${channelClass}">${l.channel || 'SYSTEM'}</span>` +
+                `${passLabel}` +
+                `<span class="log-message">${escapeHtml(l.message)}</span>` +
+                `</span>`;
+        }).join('\n');
         elements.logsOutput.scrollTop = elements.logsOutput.scrollHeight;
     }
+}
+
+function setLogChannelFilter(channel) {
+    logChannelFilter = channel;
+
+    // Update chip active states
+    const filterChips = document.querySelectorAll('#logsFilters .filter-chip');
+    filterChips.forEach(chip => {
+        if (chip.dataset.channel === channel) {
+            chip.classList.add('active');
+        } else {
+            chip.classList.remove('active');
+        }
+    });
+
+    renderLogs();
 }
 
 // =============================================================================
@@ -1434,9 +1489,114 @@ function formatTime(iso) {
     } catch (e) { return 'Unknown'; }
 }
 
+// =============================================================================
+// Diff View Functions
+// =============================================================================
+
+/**
+ * Switch between normal and diff view
+ */
+function setOutputView(view) {
+    const toggle = elements.outputViewToggle;
+    if (!toggle) return;
+
+    // Update button states
+    toggle.querySelectorAll('.view-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.view === view);
+    });
+
+    // Toggle visibility
+    if (elements.outputText) {
+        elements.outputText.classList.toggle('hidden', view === 'diff');
+    }
+    if (elements.diffView) {
+        elements.diffView.classList.toggle('hidden', view !== 'diff');
+    }
+}
+
+/**
+ * Render diff data with inline annotations
+ */
+function renderDiffView(diffData) {
+    if (!elements.diffContent || !diffData) return;
+
+    const { segments, total_transforms, segments_changed, segments_unchanged } = diffData;
+
+    // Build summary
+    let html = `
+        <div class="diff-summary">
+            <span class="diff-stat">
+                <span class="diff-stat-value">${total_transforms}</span> changes
+            </span>
+            <span class="diff-stat">
+                <span class="diff-stat-value">${segments_changed}</span> segments modified
+            </span>
+            <span class="diff-stat">
+                <span class="diff-stat-value">${segments_unchanged}</span> unchanged
+            </span>
+        </div>
+    `;
+
+    // Render each segment with transforms
+    for (const seg of segments) {
+        if (!seg.changed) continue; // Skip unchanged segments
+
+        html += `<div class="diff-segment changed">`;
+        html += renderSegmentDiff(seg);
+        html += `</div>`;
+    }
+
+    if (segments_changed === 0) {
+        html += '<div class="placeholder">No transformations were applied to this text.</div>';
+    }
+
+    elements.diffContent.innerHTML = html;
+}
+
+/**
+ * Render a single segment with inline diff markers
+ */
+function renderSegmentDiff(segment) {
+    const { original, transforms } = segment;
+
+    if (!transforms || transforms.length === 0) {
+        return escapeHtml(original);
+    }
+
+    // Sort transforms by position (reverse order for processing)
+    const sortedTransforms = [...transforms].sort((a, b) => b.position[0] - a.position[0]);
+
+    // Build the diff HTML by inserting markers
+    let result = original;
+
+    for (const t of sortedTransforms) {
+        const [start, end] = t.position;
+        const before = result.slice(0, start);
+        const after = result.slice(end);
+
+        // Build the diff marker
+        let marker = '';
+
+        // Show deleted text
+        if (t.original) {
+            marker += `<span class="diff-deleted">${escapeHtml(t.original)}<span class="diff-tooltip">${escapeHtml(t.reason)}</span></span>`;
+        }
+
+        // Show added text (if any)
+        if (t.replacement) {
+            marker += `<span class="diff-added">${escapeHtml(t.replacement)}<span class="diff-tooltip">${escapeHtml(t.reason)}</span></span>`;
+        }
+
+        result = before + marker + after;
+    }
+
+    return result;
+}
+
 // Global exports for onclick handlers
 window.togglePanel = togglePanel;
 window.closeSidebar = closeSidebar;
 window.closeAllSidebars = closeAllSidebars;
 window.loadHistoryItem = loadHistoryItem;
 window.useExample = useExample;
+window.setOutputView = setOutputView;

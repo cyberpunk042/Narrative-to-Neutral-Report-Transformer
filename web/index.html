@@ -45,6 +45,13 @@
                         <span class="toggle-slider"></span>
                         <span class="toggle-label">Logs</span>
                     </label>
+                    <div class="mode-selector log-level-selector" title="Log verbosity level">
+                        <select id="logLevelSelect">
+                            <option value="info">Info</option>
+                            <option value="verbose">Verbose</option>
+                            <option value="debug">Debug</option>
+                        </select>
+                    </div>
                     <label class="toggle-option" title="Show extracted data and request info">
                         <input type="checkbox" id="metadataToggle">
                         <span class="toggle-slider"></span>
@@ -136,6 +143,22 @@
                         </svg>
                     </div>
                     <div class="panel-content">
+                        <div class="logs-filters" id="logsFilters">
+                            <button class="filter-chip active" data-channel="all"
+                                onclick="setLogChannelFilter('all')">All</button>
+                            <button class="filter-chip channel-pipeline" data-channel="PIPELINE"
+                                onclick="setLogChannelFilter('PIPELINE')">Pipeline</button>
+                            <button class="filter-chip channel-transform" data-channel="TRANSFORM"
+                                onclick="setLogChannelFilter('TRANSFORM')">Transform</button>
+                            <button class="filter-chip channel-extract" data-channel="EXTRACT"
+                                onclick="setLogChannelFilter('EXTRACT')">Extract</button>
+                            <button class="filter-chip channel-policy" data-channel="POLICY"
+                                onclick="setLogChannelFilter('POLICY')">Policy</button>
+                            <button class="filter-chip channel-render" data-channel="RENDER"
+                                onclick="setLogChannelFilter('RENDER')">Render</button>
+                            <button class="filter-chip channel-system" data-channel="SYSTEM"
+                                onclick="setLogChannelFilter('SYSTEM')">System</button>
+                        </div>
                         <div class="logs-container">
                             <pre class="logs-output"
                                 id="logsOutput">Enable logs toggle to see real-time processing...</pre>
@@ -172,8 +195,27 @@
                         </svg>
                     </div>
                     <div class="panel-content">
+                        <div class="output-view-toggle" id="outputViewToggle">
+                            <button class="view-btn active" data-view="normal" onclick="setOutputView('normal')">
+                                Normal
+                            </button>
+                            <button class="view-btn" data-view="diff" onclick="setOutputView('diff')">
+                                Show Diff
+                            </button>
+                        </div>
                         <div class="output-text" id="outputText">
                             <span class="placeholder">Neutral output will appear here...</span>
+                        </div>
+                        <div class="diff-view hidden" id="diffView">
+                            <div class="diff-legend">
+                                <span class="diff-legend-item"><span class="diff-deleted-sample">deleted</span> =
+                                    removed text</span>
+                                <span class="diff-legend-item"><span class="diff-added-sample">added</span> =
+                                    replacement text</span>
+                            </div>
+                            <div class="diff-content" id="diffContent">
+                                <!-- Diff will be rendered here -->
+                            </div>
                         </div>
                     </div>
                 </section>

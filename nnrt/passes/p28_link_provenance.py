@@ -14,9 +14,11 @@ This creates the "derived_from" links essential for proper NNRT output.
 from typing import Optional
 
 from nnrt.core.context import TransformContext
+from nnrt.core.logging import get_pass_logger
 from nnrt.ir.enums import StatementType
 
 PASS_NAME = "p28_link_provenance"
+log = get_pass_logger(PASS_NAME)
 
 # Clause types that indicate derivation from parent
 DERIVED_CLAUSE_TYPES = {"advcl", "ccomp", "relcl"}
@@ -82,6 +84,11 @@ def link_provenance(ctx: TransformContext) -> TransformContext:
                 if derived_from and not stmt.derived_from:
                     stmt.derived_from = derived_from
                     links_created += 1
+    
+    log.info("linked",
+        provenance_links=links_created,
+        statements=len(ctx.atomic_statements),
+    )
     
     ctx.add_trace(
         pass_name=PASS_NAME,

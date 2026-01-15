@@ -9,10 +9,12 @@ import re
 from uuid import uuid4
 
 from nnrt.core.context import TransformContext
+from nnrt.core.logging import get_pass_logger
 from nnrt.ir.schema_v0_1 import Segment
 from nnrt.nlp.spacy_loader import get_nlp
 
 PASS_NAME = "p10_segment"
+log = get_pass_logger(PASS_NAME)
 
 # Regex to find quote boundaries
 QUOTE_PATTERN = re.compile(r'"[^"]*"')
@@ -30,6 +32,7 @@ def segment(ctx: TransformContext) -> TransformContext:
     """
     text = ctx.normalized_text
     if not text:
+        log.warning("empty_input", message="Normalized text is empty")
         ctx.add_diagnostic(
             level="warning",
             code="EMPTY_INPUT",
@@ -38,10 +41,14 @@ def segment(ctx: TransformContext) -> TransformContext:
         )
         return ctx
 
+    log.verbose("starting_segmentation", input_chars=len(text))
+
     # Find all quoted regions first
     quote_ranges: list[tuple[int, int]] = []
     for match in QUOTE_PATTERN.finditer(text):
         quote_ranges.append((match.start(), match.end()))
+    
+    log.debug("found_quotes", quote_count=len(quote_ranges))
 
     # Process with spaCy (centralized loader)
     nlp = get_nlp()
@@ -51,9 +58,15 @@ def segment(ctx: TransformContext) -> TransformContext:
     raw_segments: list[tuple[str, int, int]] = []
     for sent in doc.sents:
         raw_segments.append((sent.text.strip(), sent.start_char, sent.end_char))
+    
+    log.debug("spacy_segments", raw_count=len(raw_segments))
 
     # Merge segments that are inside the same quote
     merged_segments = _merge_quoted_segments(text, raw_segments, quote_ranges)
+    
+    merges_performed = len(raw_segments) - len(merged_segments)
+    if merges_performed > 0:
+        log.verbose("quote_merges", merges=merges_performed)
 
     # Build final Segment objects
     segments: list[Segment] = []
@@ -67,8 +80,16 @@ def segment(ctx: TransformContext) -> TransformContext:
                 source_line=None,
             )
         )
+        log.debug("created_segment", segment_id=f"seg_{i:03d}", chars=len(seg_text))
 
     ctx.segments = segments
+    
+    log.info(
+        "segmented", 
+        segment_count=len(segments),
+        quote_merges=merges_performed,
+    )
+    
     ctx.add_trace(
         pass_name=PASS_NAME,
         action="segmented_text",
