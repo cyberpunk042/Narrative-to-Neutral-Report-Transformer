@@ -323,12 +323,12 @@ Week 1: Schema Foundation ✅ COMPLETE
 ├── Add fields to TransformResult ✅
 └── Write schema tests ✅ (19 tests passing)
 
-Week 2: p42_coreference
-├── Collect all pronouns from spaCy
-├── Collect all entity mentions
-├── Rule-based pronoun resolution
-├── Build CoreferenceChains
-└── Write coreference tests
+Week 2: p42_coreference ✅ COMPLETE
+├── Collect all pronouns from spaCy ✅
+├── Collect all entity mentions ✅ (exhaustive text search + spaCy NER)
+├── Rule-based pronoun resolution ✅ (recency + gender agreement)
+├── Build CoreferenceChains ✅
+└── Write coreference tests ✅ (11 tests passing)
 
 Week 3: p44_timeline
 ├── Extract temporal markers (from identifiers)

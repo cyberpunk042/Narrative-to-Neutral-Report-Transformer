@@ -30,6 +30,7 @@ from nnrt.passes import (
     segment,
     tag_spans,
 )
+from nnrt.passes.p42_coreference import resolve_coreference
 
 
 def setup_default_pipeline(engine: Engine, profile: str = "law_enforcement") -> None:
@@ -58,6 +59,7 @@ def setup_default_pipeline(engine: Engine, profile: str = "law_enforcement") -> 
             extract_entities,     # Phase 4: Entity Extraction
             extract_events,       # Phase 4: Event Extraction
             build_ir,
+            resolve_coreference,  # v3: Link pronouns to entities
             evaluate_policy,
             augment_ir,
             render,
