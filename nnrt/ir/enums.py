@@ -194,3 +194,82 @@ class TransformStatus(str, Enum):
     PARTIAL = "partial"
     REFUSED = "refused"
     ERROR = "error"
+
+
+# ============================================================================
+# Phase 3: Semantic Understanding (v3)
+# ============================================================================
+
+class MentionType(str, Enum):
+    """
+    How an entity is mentioned in text.
+    
+    Used by coreference resolution to track different forms of reference
+    to the same entity across the narrative.
+    """
+    
+    PROPER_NAME = "proper_name"    # Full name: "Officer Jenkins"
+    PRONOUN = "pronoun"            # Personal pronoun: "he", "she", "they"  
+    DESCRIPTOR = "descriptor"      # Descriptive phrase: "the officer", "the man"
+    TITLE = "title"                # Title/partial name: "Jenkins", "the sergeant"
+    POSSESSIVE = "possessive"      # Possessive reference: "his", "her", "my"
+
+
+class GroupType(str, Enum):
+    """
+    Semantic category of a statement group.
+    
+    Groups cluster related atomic statements for coherent presentation.
+    Each group has a clear semantic purpose.
+    """
+    
+    ENCOUNTER = "encounter"              # Events during the incident
+    WITNESS_ACCOUNT = "witness_account"  # Third party's observations
+    MEDICAL = "medical"                  # Medical treatment, documented injuries
+    OFFICIAL = "official"                # Official records, complaints, investigations
+    EMOTIONAL = "emotional"              # Psychological/emotional impact
+    BACKGROUND = "background"            # Context before the incident
+    AFTERMATH = "aftermath"              # Events after the incident
+    QUOTE = "quote"                      # Direct speech preserved
+    UNKNOWN = "unknown"
+
+
+class TemporalRelation(str, Enum):
+    """
+    How events relate to each other in time.
+    
+    Used to build the timeline DAG and determine event ordering.
+    """
+    
+    BEFORE = "before"           # This happened before another event
+    AFTER = "after"             # This happened after another event
+    DURING = "during"           # Concurrent with another event
+    SIMULTANEOUS = "simultaneous"  # At exactly the same time
+    IMMEDIATELY_BEFORE = "immediately_before"  # Right before
+    IMMEDIATELY_AFTER = "immediately_after"    # Right after
+    UNKNOWN = "unknown"
+
+
+class EvidenceType(str, Enum):
+    """
+    Source and reliability classification of evidence.
+    
+    Enables assessment of how reliable a statement is based on
+    its provenance and corroboration.
+    """
+    
+    # Direct evidence (highest reliability)
+    DIRECT_WITNESS = "direct_witness"  # Reporter directly saw/heard/felt
+    PHYSICAL = "physical"              # Physical evidence (injuries, damage)
+    DOCUMENTARY = "documentary"        # Official documents, medical records
+    
+    # Indirect evidence (medium reliability)
+    REPORTED = "reported"              # Someone told the reporter
+    VIDEO_AUDIO = "video_audio"        # Recorded but not by reporter
+    
+    # Interpretive (lower reliability)
+    INFERENCE = "inference"            # Reporter's conclusion/interpretation
+    OPINION = "opinion"                # Reporter's opinion
+    
+    UNKNOWN = "unknown"
+

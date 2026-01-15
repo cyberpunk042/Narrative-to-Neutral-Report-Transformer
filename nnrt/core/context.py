@@ -10,14 +10,19 @@ from typing import Any, Optional
 from uuid import uuid4
 
 from nnrt.ir.schema_v0_1 import (
+    CoreferenceChain,
     Diagnostic,
     Entity,
+    EvidenceClassification,
     Event,
     Identifier,
+    Mention,
     PolicyDecision,
     Segment,
     SemanticSpan,
     SpeechAct,
+    StatementGroup,
+    TimelineEntry,
     TraceEntry,
     TransformResult,
     TransformStatus,
@@ -62,15 +67,22 @@ class TransformContext:
     uncertainty: list[UncertaintyMarker] = field(default_factory=list)
     policy_decisions: list[PolicyDecision] = field(default_factory=list)
     
-    # NEW: Atomic statements from p25_decompose
+    # Atomic statements from p26_decompose
     # Each segment is decomposed into one or more atomic statements
     atomic_statements: list = field(default_factory=list)  # list[AtomicStatement]
 
-    # NEW: Cross-pass decision communication
+    # v3: Semantic Understanding
+    mentions: list[Mention] = field(default_factory=list)
+    coreference_chains: list[CoreferenceChain] = field(default_factory=list)
+    statement_groups: list[StatementGroup] = field(default_factory=list)
+    timeline: list[TimelineEntry] = field(default_factory=list)
+    evidence_classifications: list[EvidenceClassification] = field(default_factory=list)
+
+    # Cross-pass decision communication
     # Maps span_id -> PolicyDecision that applies to this span
     span_decisions: dict[str, PolicyDecision] = field(default_factory=dict)
     
-    # NEW: Protected character ranges per segment
+    # Protected character ranges per segment
     # Maps segment_id -> list of (start, end) ranges that should not be modified
     protected_ranges: dict[str, list[tuple[int, int]]] = field(default_factory=dict)
 
@@ -196,17 +208,26 @@ class TransformContext:
         return TransformResult(
             request_id=self.request.request_id or str(uuid4()),
             timestamp=self.start_time,
+            # Core IR
             segments=self.segments,
             spans=self.spans,
             identifiers=self.identifiers,
             entities=self.entities,
             events=self.events,
             speech_acts=self.speech_acts,
-            atomic_statements=self.atomic_statements,  # NEW
+            atomic_statements=self.atomic_statements,
+            # v3: Semantic Understanding
+            mentions=self.mentions,
+            coreference_chains=self.coreference_chains,
+            statement_groups=self.statement_groups,
+            timeline=self.timeline,
+            evidence_classifications=self.evidence_classifications,
+            # Metadata
             uncertainty=self.uncertainty,
             policy_decisions=self.policy_decisions,
             trace=self.trace,
             diagnostics=self.diagnostics,
+            # Output
             rendered_text=self.rendered_text,
             status=self.status,
         )

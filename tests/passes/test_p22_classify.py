@@ -172,4 +172,5 @@ class TestTracing:
         classify_statements(ctx)
         
         trace_passes = [t.pass_name for t in ctx.trace]
-        assert "classify_statements" in trace_passes
+        assert "p22_classify_statements" in trace_passes
+

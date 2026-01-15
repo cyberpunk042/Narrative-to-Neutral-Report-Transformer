@@ -119,7 +119,7 @@ class TestEdgeCases:
         annotate_context(ctx)
         
         trace_passes = [t.pass_name for t in ctx.trace]
-        assert "annotate_context" in trace_passes
+        assert "p25_annotate_context" in trace_passes
 
 
 class TestMultipleContexts:
