@@ -114,6 +114,76 @@ PHYSICAL_PATTERNS = [
     r'\bscar[s]?\b',
 ]
 
+# =============================================================================
+# V4: EPISTEMIC CLASSIFICATION PATTERNS
+# =============================================================================
+# These patterns detect DANGEROUS epistemic types that MUST be flagged.
+
+# INTENT_ATTRIBUTION: Assigning mental states to others
+# ⚠️ DANGEROUS - Cannot know someone's intent
+INTENT_ATTRIBUTION_PATTERNS = [
+    r'\bclearly\s+(?:looking\s+for|wanting|trying\s+to|ready\s+to)\b',
+    r'\b(?:wanted|intended|meant)\s+to\s+(?:inflict|hurt|harm|damage|intimidate)\b',
+    r'\b(?:obviously|clearly)\s+(?:didn\'?t\s+care|enjoying|conspiring)\b',
+    r'\bit\s+was\s+(?:obvious|clear)\s+(?:that\s+)?they?\s+were\b',
+    r'\bdeliberately\s+(?:trying|ignoring|hurting|causing)\b',
+    r'\bintentionally\s+(?:trying|ignoring|hurting|causing)\b',
+    r'\bpurposely\s+(?:trying|ignoring|hurting|causing)\b',
+    r'\b(?:he|she|they)\s+wanted\s+to\b',
+    r'\bdesigned\s+to\s+(?:protect|harm|cover|hide|conceal)\b',
+    r'\bknew\s+(?:exactly\s+)?what\s+(?:he|she|they)\s+(?:was|were)\s+doing\b',
+    r'\benjoying\s+(?:my|the|their)\s+(?:pain|suffering|fear)\b',
+]
+
+# LEGAL_CHARACTERIZATION: Legal conclusions by non-attorney
+# ⚠️ DANGEROUS - Reporter cannot make legal determinations
+LEGAL_CHARACTERIZATION_PATTERNS = [
+    r'\bracial\s+profiling\b',
+    r'\bpolice\s+brutality\b',
+    r'\bexcessive\s+force\b',
+    r'\bfalse\s+arrest\b',
+    r'\bunlawful\s+(?:detention|search|stop)\b',
+    r'\bobstruction\s+of\s+justice\b',
+    r'\bviolation\s+of\s+(?:my|his|her|their|civil|constitutional)\s+rights?\b',
+    r'\b(?:first|second|third|fourth|fifth)\s+amendment\b',
+    r'\bcivil\s+rights?\s+violation\b',
+    r'\billegal(?:ly)?\s+(?:detained|searched|arrested|stopped)\b',
+    r'\bwrongful\s+(?:arrest|detention|imprisonment)\b',
+    r'\bconstitutes?\s+(?:assault|battery|misconduct)\b',
+    r'\bcommitted\s+(?:assault|battery|crime|perjury)\b',
+    r'\bis\s+(?:guilty|liable)\s+(?:of|for)\b',
+]
+
+# CONSPIRACY_CLAIM: Unfalsifiable conspiracy allegations
+# ⚠️ DANGEROUS - Speculation presented as fact
+CONSPIRACY_CLAIM_PATTERNS = [
+    r'\bproves?\s+(?:there\'?s?\s+(?:a\s+)?)?(?:cover[-\s]?up|conspiracy)\b',
+    r'\bthey\s+(?:are|were)\s+(?:all\s+)?(?:covering|hiding)\b',
+    r'\bwhitewash\b',
+    r'\bconspiracy\s+(?:to\s+)?\b',
+    r'\bthey\'?re?\s+all\s+in\s+(?:on\s+)?it\b',
+    r'\b(?:protecting|covering\s+for)\s+(?:each\s+)?other\b',
+    r'\bblue\s+wall\s+of\s+silence\b',
+    r'\bcode\s+of\s+silence\b',
+    r'\bhiding\s+(?:the\s+)?evidence\b',
+    r'\bdestroyed?\s+(?:the\s+)?evidence\b',
+]
+
+# NARRATIVE_GLUE: Rhetorical phrases with no factual content
+# These should be stripped, not neutralized
+NARRATIVE_GLUE_PATTERNS = [
+    r'\bit\s+all\s+(?:started|began)\b',
+    r'\bout\s+of\s+nowhere\b',
+    r'\blittle\s+did\s+(?:I|we)\s+know\b',
+    r'\bneedless\s+to\s+say\b',
+    r'\blong\s+story\s+short\b',
+    r'\bthe\s+next\s+thing\s+(?:I\s+)?knew\b',
+    r'\bcan\s+you\s+believe\b',
+    r'\bi\s+(?:swear|promise)\b',
+    r'\bhonestly\b',
+    r'\btruthfully\b',
+]
+
 # Reliability scores by evidence type
 RELIABILITY_SCORES = {
     EvidenceType.DOCUMENTARY: 0.9,
@@ -122,6 +192,18 @@ RELIABILITY_SCORES = {
     EvidenceType.REPORTED: 0.6,
     EvidenceType.INFERENCE: 0.4,
     EvidenceType.UNKNOWN: 0.3,
+}
+
+# V4: Epistemic reliability - lower = more dangerous
+EPISTEMIC_RELIABILITY = {
+    "direct_observation": 0.9,
+    "sensory_experience": 0.85,
+    "emotional_state": 0.7,
+    "physical_symptom": 0.75,
+    "intent_attribution": 0.2,    # ⚠️ VERY LOW - likely biased
+    "legal_characterization": 0.15,  # ⚠️ VERY LOW - not qualified
+    "conspiracy_claim": 0.1,      # ⚠️ LOWEST - unfalsifiable
+    "narrative_glue": 0.0,        # No reliability - filler
 }
 
 
@@ -217,6 +299,9 @@ def classify_evidence(ctx: TransformContext) -> TransformContext:
         after=f"{len(classifications)} statements classified, avg reliability: {avg_reliability:.2f}",
     )
     
+    # V4: Run epistemic classification to detect dangerous patterns
+    ctx = classify_epistemic_v4(ctx)
+    
     return ctx
 
 
@@ -254,6 +339,128 @@ def _matches_any(text: str, patterns: list[str]) -> bool:
         if re.search(pattern, text, re.IGNORECASE):
             return True
     return False
+
+
+def _classify_epistemic_type(text: str) -> tuple[Optional[str], Optional[str]]:
+    """
+    V4: Classify the epistemic type of a statement.
+    
+    Returns (epistemic_type, matched_phrase) or (None, None) if no dangerous patterns found.
+    
+    This is critical for detecting:
+    - Intent attribution (claims about others' mental states)
+    - Legal characterization (legal conclusions by non-attorney)
+    - Conspiracy claims (unfalsifiable allegations)
+    - Narrative glue (filler with no factual content)
+    """
+    text_lower = text.lower()
+    
+    # Check INTENT_ATTRIBUTION first - very dangerous
+    for pattern in INTENT_ATTRIBUTION_PATTERNS:
+        match = re.search(pattern, text_lower, re.IGNORECASE)
+        if match:
+            return ("intent_attribution", match.group())
+    
+    # Check LEGAL_CHARACTERIZATION - reporter making legal conclusions
+    for pattern in LEGAL_CHARACTERIZATION_PATTERNS:
+        match = re.search(pattern, text_lower, re.IGNORECASE)
+        if match:
+            return ("legal_characterization", match.group())
+    
+    # Check CONSPIRACY_CLAIM - unfalsifiable allegations
+    for pattern in CONSPIRACY_CLAIM_PATTERNS:
+        match = re.search(pattern, text_lower, re.IGNORECASE)
+        if match:
+            return ("conspiracy_claim", match.group())
+    
+    # Check NARRATIVE_GLUE - filler phrases
+    for pattern in NARRATIVE_GLUE_PATTERNS:
+        match = re.search(pattern, text_lower, re.IGNORECASE)
+        if match:
+            return ("narrative_glue", match.group())
+    
+    return (None, None)
+
+
+def classify_epistemic_v4(ctx: TransformContext) -> TransformContext:
+    """
+    V4: Classify statements by epistemic type and add diagnostics.
+    
+    This runs after evidence classification to add epistemic markers
+    for dangerous patterns like intent attribution and legal characterization.
+    """
+    if not ctx.atomic_statements:
+        return ctx
+    
+    intent_count = 0
+    legal_count = 0
+    conspiracy_count = 0
+    
+    for stmt in ctx.atomic_statements:
+        epistemic_type, matched_phrase = _classify_epistemic_type(stmt.text)
+        
+        if epistemic_type:
+            # Store on the statement (if schema allows) or add diagnostic
+            reliability = EPISTEMIC_RELIABILITY.get(epistemic_type, 0.5)
+            
+            if epistemic_type == "intent_attribution":
+                intent_count += 1
+                ctx.add_diagnostic(
+                    level="warning",
+                    code="V4_INTENT_ATTRIBUTION",
+                    message=f"Intent attributed to another person: '{matched_phrase}'",
+                    source=PASS_NAME,
+                    affected_ids=[stmt.segment_id] if stmt.segment_id else [],
+                )
+                log.warning(
+                    "intent_attribution_detected",
+                    statement_id=stmt.id,
+                    phrase=matched_phrase,
+                    reliability=reliability,
+                )
+            
+            elif epistemic_type == "legal_characterization":
+                legal_count += 1
+                ctx.add_diagnostic(
+                    level="warning",
+                    code="V4_LEGAL_CHARACTERIZATION",
+                    message=f"Legal conclusion by reporter: '{matched_phrase}'",
+                    source=PASS_NAME,
+                    affected_ids=[stmt.segment_id] if stmt.segment_id else [],
+                )
+                log.warning(
+                    "legal_characterization_detected",
+                    statement_id=stmt.id,
+                    phrase=matched_phrase,
+                    reliability=reliability,
+                )
+            
+            elif epistemic_type == "conspiracy_claim":
+                conspiracy_count += 1
+                ctx.add_diagnostic(
+                    level="warning",
+                    code="V4_CONSPIRACY_CLAIM",
+                    message=f"Unfalsifiable conspiracy claim: '{matched_phrase}'",
+                    source=PASS_NAME,
+                    affected_ids=[stmt.segment_id] if stmt.segment_id else [],
+                )
+                log.warning(
+                    "conspiracy_claim_detected",
+                    statement_id=stmt.id,
+                    phrase=matched_phrase,
+                    reliability=reliability,
+                )
+    
+    # Summary logging
+    if intent_count or legal_count or conspiracy_count:
+        log.info(
+            "v4_epistemic_classification_complete",
+            intent_attributions=intent_count,
+            legal_characterizations=legal_count,
+            conspiracy_claims=conspiracy_count,
+        )
+    
+    return ctx
 
 
 def _find_source_entity(text: str, entities: list[Entity]) -> Optional[str]:

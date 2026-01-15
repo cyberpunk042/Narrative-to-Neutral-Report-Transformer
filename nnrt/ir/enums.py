@@ -101,25 +101,82 @@ class SegmentContext(str, Enum):
 
 
 class EntityRole(str, Enum):
-    """Roles entities can play in a narrative."""
-
-    REPORTER = "reporter"
-    SUBJECT = "subject"
-    WITNESS = "witness"
-    AUTHORITY = "authority"
-    INSTITUTION = "institution"
-    OBJECT = "object"
+    """
+    Roles entities play in a narrative.
+    
+    V4: Expanded taxonomy for proper role classification.
+    Replaces the oversimplified AUTHORITY/WITNESS dichotomy.
+    """
+    
+    # The narrator
+    REPORTER = "reporter"                # The person telling the narrative (I/me/my)
+    
+    # Law enforcement involved in incident
+    SUBJECT_OFFICER = "subject_officer"  # Officer(s) being described/complained about
+    SUPERVISOR = "supervisor"            # Sergeants, commanding officers
+    WITNESS_OFFICIAL = "witness_official"  # Other officers present but not subjects
+    
+    # Civilians
+    WITNESS_CIVILIAN = "witness_civilian"  # Third-party civilian observers
+    BYSTANDER = "bystander"               # Present but minimal involvement
+    
+    # Professional roles
+    MEDICAL_PROVIDER = "medical_provider" # Doctors, nurses, EMTs, therapists
+    LEGAL_COUNSEL = "legal_counsel"       # Attorneys, public defenders
+    INVESTIGATOR = "investigator"         # IA detectives, oversight investigators
+    WORKPLACE_CONTACT = "workplace_contact"  # Managers, coworkers
+    
+    # Entities mentioned but not actors
+    SUBJECT = "subject"                   # Deprecated: use specific role
+    INSTITUTION = "institution"           # Organizations (use EntityType.ORGANIZATION)
+    
+    # Backward compatibility aliases (DEPRECATED - use specific roles)
+    AUTHORITY = "authority"               # DEPRECATED: Use SUBJECT_OFFICER/SUPERVISOR/INVESTIGATOR
+    WITNESS = "witness"                   # DEPRECATED: Use WITNESS_CIVILIAN/WITNESS_OFFICIAL
+    OBJECT = "object"                     # DEPRECATED
+    
+    # Fallback
+    OTHER = "other"
     UNKNOWN = "unknown"
+
 
 class EntityType(str, Enum):
-    """Refined type of an entity."""
+    """
+    What kind of entity this is.
     
-    PERSON = "person"
-    ORGANIZATION = "organization"
-    LOCATION = "location"
-    VEHICLE = "vehicle"
-    OBJECT = "object"
+    V4: Added BADGE_NUMBER as distinct type, and FACILITY separate from LOCATION.
+    """
+    
+    PERSON = "person"               # Named individuals
+    ORGANIZATION = "organization"   # Departments, foundations, divisions
+    FACILITY = "facility"           # Hospitals, police stations, cafes
+    LOCATION = "location"           # Geographic locations (streets, corners)
+    VEHICLE = "vehicle"             # Cars, patrol cars
+    BADGE_NUMBER = "badge_number"   # Identifier attached to an officer
+    OBJECT = "object"               # Physical objects
     UNKNOWN = "unknown"
+
+
+class EntitySubtype(str, Enum):
+    """
+    Subtype classification to detect invalid extractions.
+    
+    V4: Used to REJECT bare titles, roles, and descriptors that
+    should not be treated as entities.
+    """
+    
+    # Valid subtypes
+    NAMED_INDIVIDUAL = "named_individual"     # "Officer Jenkins", "Dr. Foster"
+    ORGANIZATION_PROPER = "organization_proper"  # "Internal Affairs Division"
+    FACILITY_PROPER = "facility_proper"       # "St. Mary's Hospital"
+    
+    # INVALID - should be rejected or attached
+    BARE_TITLE = "bare_title"           # "Officer", "Detective", "sergeant"
+    BARE_ROLE = "bare_role"             # "partner", "passenger", "suspect", "manager"
+    DESCRIPTOR = "descriptor"           # "male", "person", "man", "woman"
+    PARTIAL_NAME = "partial_name"       # "Jenkins" (may need full name resolution)
+    BADGE_ONLY = "badge_only"           # Badge number without officer attachment
+
 
 class IdentifierType(str, Enum):
     """Types of identifiers that can be extracted."""
@@ -134,12 +191,73 @@ class IdentifierType(str, Enum):
     OTHER = "other"
 
 
-class EventType(str, Enum):
-    """Types of events that can be extracted."""
+class TemporalMarkerType(str, Enum):
+    """
+    Classification of temporal markers.
+    
+    V4: Proper typing of time references to prevent artifacts.
+    """
+    
+    # Valid timestamps
+    TIMESTAMP = "timestamp"       # "11:30 PM" - specific clock time
+    DATE = "date"                 # "January 15th, 2026" - specific date
+    DATETIME = "datetime"         # Combined date and time
+    
+    # Durations
+    DURATION = "duration"         # "about 20 minutes", "three hours"
+    
+    # Relative markers
+    RELATIVE = "relative"         # "next day", "three months later"
+    SEQUENCE = "sequence"         # "then", "after that", "afterwards"
+    
+    # Vague (low confidence)
+    VAGUE = "vague"               # "night", "hours", "later" (without specifics)
+    
+    # Invalid (should be rejected)
+    ARTIFACT = "artifact"         # "30 PM" - parsing error
+    NOT_TEMPORAL = "not_temporal" # "40s" as age, not decade
 
-    ACTION = "action"
-    VERBAL = "verbal"
-    MOVEMENT = "movement"
+
+class EventType(str, Enum):
+    """
+    Types of events that can be extracted.
+    
+    V4: Expanded with structured event types for law enforcement contexts.
+    """
+    
+    # Physical actions
+    ACTION = "action"                    # Generic action
+    APPROACH = "approach"                # Officer approached
+    PHYSICAL_RESTRAINT = "physical_restraint"  # Grabbed, pushed, slammed
+    SEARCH = "search"                    # Searched pockets, vehicle
+    HANDCUFF = "handcuff"                # Handcuffing
+    RELEASE = "release"                  # Released from custody
+    
+    # Verbal
+    VERBAL = "verbal"                    # Generic verbal
+    VERBAL_COMMAND = "verbal_command"    # "Stop!", "Get down!"
+    VERBAL_THREAT = "verbal_threat"      # Threatening statement
+    VERBAL_QUESTION = "verbal_question"  # Asked a question
+    
+    # Witness actions
+    WITNESS_RECORDING = "witness_recording"      # Bystander recording
+    WITNESS_INTERVENTION = "witness_intervention"  # Bystander spoke up
+    
+    # Procedural
+    ARREST = "arrest"                    # Formal arrest
+    COMPLAINT_FILED = "complaint_filed"  # Filed complaint
+    INVESTIGATION = "investigation"      # Investigation action
+    DISPOSITION = "disposition"          # Investigation outcome
+    
+    # Medical
+    MEDICAL_TREATMENT = "medical_treatment"  # Hospital/doctor visit
+    INJURY_DOCUMENTATION = "injury_documentation"  # Injuries documented
+    
+    # Movement
+    MOVEMENT = "movement"                # Movement/travel
+    VEHICLE_STOP = "vehicle_stop"        # Traffic stop
+    
+    # Other
     OBSERVATION = "observation"
     STATE_CHANGE = "state_change"
     UNKNOWN = "unknown"
@@ -272,4 +390,134 @@ class EvidenceType(str, Enum):
     OPINION = "opinion"                # Reporter's opinion
     
     UNKNOWN = "unknown"
+
+
+class EpistemicType(str, Enum):
+    """
+    V4: Fine-grained epistemic classification.
+    
+    This is the CRITICAL enum for fixing statement classification.
+    Every atomic statement must be tagged with its epistemic status
+    to enable proper neutralization and flagging.
+    """
+    
+    # =========================================================================
+    # DIRECTLY PERCEIVABLE (High confidence, preserve)
+    # =========================================================================
+    
+    DIRECT_OBSERVATION = "direct_observation"
+    # Observable external events: "He grabbed my arm"
+    # CAN be neutralized but preserved as fact
+    
+    SENSORY_EXPERIENCE = "sensory_experience"
+    # Physical sensation: "I felt pain", "I heard him yell"
+    # Subjective but grounded in perception
+    
+    # =========================================================================
+    # INTERNAL STATES (Medium confidence, flag as self-report)
+    # =========================================================================
+    
+    EMOTIONAL_STATE = "emotional_state"
+    # "I was terrified", "I felt scared"
+    # Valid self-report but not externally verifiable
+    
+    PHYSICAL_SYMPTOM = "physical_symptom"
+    # "My wrists were bleeding", "I couldn't breathe"
+    # Self-reported physical state
+    
+    PSYCHOLOGICAL_CLAIM = "psychological_claim"
+    # "I now suffer from PTSD", "I have panic attacks"
+    # Medical claim requiring documentation
+    
+    # =========================================================================
+    # REPORTER INTERPRETATION (Low confidence, MUST flag)
+    # =========================================================================
+    
+    INFERENCE = "inference"
+    # "She wasn't going to do anything about it"
+    # Conclusion based on observation
+    
+    INTENT_ATTRIBUTION = "intent_attribution"
+    # "He wanted to inflict maximum damage" ⚠️ DANGEROUS
+    # "clearly looking for trouble" ⚠️ DANGEROUS
+    # MUST be flagged - attributes mental state to another
+    
+    LEGAL_CHARACTERIZATION = "legal_characterization"
+    # "This was racial profiling" ⚠️ DANGEROUS
+    # "obstruction of justice" ⚠️ DANGEROUS
+    # Legal conclusion by non-attorney
+    
+    CONSPIRACY_CLAIM = "conspiracy_claim"
+    # "proves there's a cover-up" ⚠️ DANGEROUS
+    # "they were conspiring"
+    # Unfalsifiable allegation
+    
+    # =========================================================================
+    # EXTERNAL SOURCES (Variable confidence)
+    # =========================================================================
+    
+    REPORTED_SPEECH = "reported_speech"
+    # "He said 'You can go'"
+    # Attributed to another speaker
+    
+    DOCUMENT_CLAIM = "document_claim"
+    # "The medical report shows..."
+    # Referenced to a document
+    
+    WITNESS_CLAIM = "witness_claim"
+    # "Marcus said he saw..."
+    # Attributed to a witness
+    
+    # =========================================================================
+    # DISCARDABLE (No semantic value)
+    # =========================================================================
+    
+    NARRATIVE_GLUE = "narrative_glue"
+    # "It all started", "Out of nowhere"
+    # Transition phrases, rhetorical connectors
+    
+    RHETORICAL_EMPHASIS = "rhetorical_emphasis"
+    # "which proves", "obviously", "clearly"
+    # Persuasion markers, not facts
+    
+    UNKNOWN = "unknown"
+
+
+# ============================================================================
+# V4: Forbidden Phrases for Neutral Layer
+# ============================================================================
+
+# These patterns MUST trigger INTENT_ATTRIBUTION classification
+INTENT_ATTRIBUTION_PATTERNS = [
+    r"clearly (looking for|wanting|trying to|ready to)",
+    r"obviously (wanted|didn't care|enjoying)",
+    r"(wanted|intended|meant) to (inflict|hurt|harm|damage|kill)",
+    r"(enjoyed?|enjoying|relished?) (my |the )?(suffering|pain|fear)",
+    r"looking for trouble",
+    r"ready to (shoot|attack|assault|hurt)",
+    r"it was (obvious|clear) they were",
+]
+
+# These patterns trigger LEGAL_CHARACTERIZATION
+LEGAL_CHARACTERIZATION_PATTERNS = [
+    r"racial profiling",
+    r"police brutality",
+    r"civil rights violation",
+    r"excessive force",
+    r"false imprisonment",
+    r"obstruction of justice",
+    r"witness intimidation",
+    r"illegal (arrest|search|seizure|assault)",
+]
+
+# These patterns trigger NARRATIVE_GLUE (can be discarded)
+NARRATIVE_GLUE_PATTERNS = [
+    r"^it all started",
+    r"^out of nowhere",
+    r"^the next thing I knew",
+    r"^suddenly",
+    r"which proves",
+    r"which shows",
+    r"this is (clearly|obviously)",
+]
 

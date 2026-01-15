@@ -63,6 +63,100 @@ IDENTIFIER_PATTERNS = {
     ],
 }
 
+# =============================================================================
+# V4: Identifier Validation
+# =============================================================================
+
+# Invalid time patterns - these are parsing artifacts, not real times
+INVALID_TIME_PATTERNS = [
+    r'^\d{1,2}\s*(PM|AM|pm|am)$',  # "30 PM" - minute without hour
+    r'^:\d{2}',                    # ":30" - orphaned minutes
+]
+
+# Duration patterns - should be classified differently if we add DURATION type
+DURATION_PATTERNS = [
+    r'(?:about|around|approximately)?\s*\d+\s*(?:minutes?|hours?|mins?|hrs?)',
+]
+
+# Vague temporal - low confidence markers
+VAGUE_TEMPORAL_PATTERNS = [
+    r'^(?:night|morning|afternoon|evening|later|earlier)$',
+    r'^(?:hours?|days?|weeks?|months?)$',  # Just "hours" is vague
+]
+
+# Not temporal - age patterns that look like decades
+NOT_TEMPORAL_PATTERNS = [
+    r'^\d{2}s$',          # "40s" as age
+    r'^(?:in )?(?:his|her|their) \d{2}s$',  # "in his 40s"
+]
+
+
+def _is_valid_time(value: str) -> tuple[bool, float]:
+    """
+    V4: Validate a time identifier.
+    
+    Returns (is_valid, confidence).
+    Rejects parsing artifacts like "30 PM".
+    """
+    value = value.strip()
+    
+    # Check for invalid patterns
+    for pattern in INVALID_TIME_PATTERNS:
+        if re.match(pattern, value, re.IGNORECASE):
+            return (False, 0.0)
+    
+    # Proper times: "11:30 PM", "3:45 am", "11 PM"
+    if re.match(r'^\d{1,2}:\d{2}\s*(AM|PM|am|pm)?$', value):
+        return (True, 0.95)  # High confidence
+    
+    if re.match(r'^\d{1,2}\s+(AM|PM|am|pm)$', value):
+        return (True, 0.9)  # Hour only, still valid
+    
+    # If no AM/PM and no colon, it's low confidence
+    if not re.search(r'(AM|PM|am|pm|:|hour)', value):
+        return (True, 0.5)  # Low confidence
+    
+    return (True, 0.8)
+
+
+def _is_valid_date(value: str) -> tuple[bool, float]:
+    """
+    V4: Validate a date identifier.
+    
+    Returns (is_valid, confidence).
+    Rejects non-date patterns like "40s" (age).
+    """
+    value = value.strip()
+    
+    # Check for non-temporal patterns
+    for pattern in NOT_TEMPORAL_PATTERNS:
+        if re.match(pattern, value, re.IGNORECASE):
+            return (False, 0.0)
+    
+    # Check for vague temporal
+    for pattern in VAGUE_TEMPORAL_PATTERNS:
+        if re.match(pattern, value, re.IGNORECASE):
+            return (True, 0.3)  # Valid but very low confidence
+    
+    return (True, 0.9)
+
+
+def _deduplicate_identifiers(identifiers: list[Identifier]) -> list[Identifier]:
+    """
+    V4: Remove duplicate identifiers.
+    
+    Keeps the first occurrence of each (type, value) pair.
+    """
+    seen = set()
+    result = []
+    
+    for ident in identifiers:
+        key = (ident.type, ident.value.lower().strip())
+        if key not in seen:
+            seen.add(key)
+            result.append(ident)
+    
+    return result
 
 def extract_identifiers(ctx: TransformContext) -> TransformContext:
     """
@@ -109,6 +203,17 @@ def extract_identifiers(ctx: TransformContext) -> TransformContext:
                 identifiers.append(ner_id)
                 id_counter += 1
 
+    # V4: Deduplicate identifiers (removes duplicate time/date/etc. values)
+    before_count = len(identifiers)
+    identifiers = _deduplicate_identifiers(identifiers)
+    if len(identifiers) < before_count:
+        log.debug(
+            "deduplicated_identifiers",
+            before=before_count,
+            after=len(identifiers),
+            removed=before_count - len(identifiers),
+        )
+    
     ctx.identifiers = identifiers
     
     # Count by type
@@ -131,7 +236,11 @@ def extract_identifiers(ctx: TransformContext) -> TransformContext:
 
 
 def _extract_regex_identifiers(text: str, segment_id: str) -> list[Identifier]:
-    """Extract identifiers using regex patterns."""
+    """
+    Extract identifiers using regex patterns.
+    
+    V4: Applies validation to reject artifacts and adjust confidence.
+    """
     results: list[Identifier] = []
     
     for id_type, patterns in IDENTIFIER_PATTERNS.items():
@@ -140,6 +249,31 @@ def _extract_regex_identifiers(text: str, segment_id: str) -> list[Identifier]:
                 for match in re.finditer(pattern, text, re.IGNORECASE):
                     # Get the captured group or full match
                     value = match.group(1) if match.groups() else match.group()
+                    confidence = 0.9  # Default confidence
+                    
+                    # V4: Validate time identifiers
+                    if id_type == IdentifierType.TIME:
+                        is_valid, conf = _is_valid_time(value)
+                        if not is_valid:
+                            log.debug(
+                                "rejected_invalid_time",
+                                value=value,
+                                reason="parsing_artifact",
+                            )
+                            continue  # Skip invalid times
+                        confidence = conf
+                    
+                    # V4: Validate date identifiers
+                    elif id_type == IdentifierType.DATE:
+                        is_valid, conf = _is_valid_date(value)
+                        if not is_valid:
+                            log.debug(
+                                "rejected_invalid_date",
+                                value=value,
+                                reason="not_a_date",
+                            )
+                            continue  # Skip invalid dates
+                        confidence = conf
                     
                     results.append(Identifier(
                         id=f"id_{len(results):03d}",
@@ -149,7 +283,7 @@ def _extract_regex_identifiers(text: str, segment_id: str) -> list[Identifier]:
                         start_char=match.start(),
                         end_char=match.end(),
                         source_segment_id=segment_id,
-                        confidence=0.9,
+                        confidence=confidence,
                     ))
             except re.error:
                 continue  # Skip invalid patterns
@@ -227,7 +361,29 @@ def _extract_ner_identifiers(text: str, segment_id: str) -> list[Identifier]:
             # Skip if contains stoplist terms
             if any(stop in ent_text_lower for stop in DATE_STOPLIST):
                 continue
+            # V4: Skip decade patterns like "40s", "30s" (age ranges)
+            if re.match(r'^\d{2}s$', ent_text_lower):
+                log.debug(
+                    "rejected_age_range_as_date",
+                    value=ent.text,
+                    reason="age_decade_pattern",
+                )
+                continue
+            # V4: Apply date validation
+            is_valid, conf = _is_valid_date(ent.text)
+            if not is_valid:
+                continue
         
+        # V4: Apply time validation for NER-extracted times
+        if id_type == IdentifierType.TIME:
+            is_valid, conf = _is_valid_time(ent.text)
+            if not is_valid:
+                log.debug(
+                    "rejected_invalid_ner_time",
+                    value=ent.text,
+                    reason="failed_validation",
+                )
+                continue
         results.append(Identifier(
             id=f"id_ner_{len(results):03d}",
             type=id_type,
