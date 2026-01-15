@@ -131,20 +131,52 @@ def _result_to_event(
     entity_lookup: Dict[str, Entity],
     segment_id: str
 ) -> Optional[Event]:
-    """Convert an EventExtractResult to an Event IR object."""
+    """
+    Convert an EventExtractResult to an Event IR object.
+    
+    V4: Enhanced entity linking with determiner stripping and word matching.
+    """
+    # V4: Helper to find entity from mention
+    def find_entity(mention: str) -> Optional[Entity]:
+        if not mention:
+            return None
+        
+        mention_lower = mention.lower()
+        
+        # Try exact match
+        ent = entity_lookup.get(mention_lower)
+        if ent:
+            return ent
+        
+        # Try stripping determiners (the, a, an)
+        determiners = {"the ", "a ", "an "}
+        for det in determiners:
+            if mention_lower.startswith(det):
+                stripped = mention_lower[len(det):]
+                ent = entity_lookup.get(stripped)
+                if ent:
+                    return ent
+        
+        # Try each word in the mention
+        for word in mention_lower.split():
+            if len(word) > 2:  # Skip tiny words
+                ent = entity_lookup.get(word)
+                if ent:
+                    return ent
+        
+        return None
+    
     # Link actor mention to entity
     actor_id = None
-    if result.actor_mention:
-        actor_ent = entity_lookup.get(result.actor_mention.lower())
-        if actor_ent:
-            actor_id = actor_ent.id
+    actor_ent = find_entity(result.actor_mention)
+    if actor_ent:
+        actor_id = actor_ent.id
     
     # Link target mention to entity
     target_id = None
-    if result.target_mention:
-        target_ent = entity_lookup.get(result.target_mention.lower())
-        if target_ent:
-            target_id = target_ent.id
+    target_ent = find_entity(result.target_mention)
+    if target_ent:
+        target_id = target_ent.id
     
     # Create Event IR object
     # Note: source_spans linked to segment - span-level linking requires 
@@ -159,4 +191,5 @@ def _result_to_event(
         target_id=target_id,
         is_uncertain=False,
     )
+
 
