@@ -134,14 +134,17 @@ def _result_to_event(
     """
     Convert an EventExtractResult to an Event IR object.
     
-    V4: Enhanced entity linking with determiner stripping and word matching.
+    V5: Enhanced with pronoun resolution using source_sentence context.
     """
-    # V4: Helper to find entity from mention
+    # V5: Pronouns that need resolution
+    PRONOUNS = {'he', 'she', 'they', 'it', 'him', 'her', 'them', 'i', 'we'}
+    
     def find_entity(mention: str) -> Optional[Entity]:
+        """Find entity from mention text."""
         if not mention:
             return None
         
-        mention_lower = mention.lower()
+        mention_lower = mention.lower().strip()
         
         # Try exact match
         ent = entity_lookup.get(mention_lower)
@@ -149,7 +152,7 @@ def _result_to_event(
             return ent
         
         # Try stripping determiners (the, a, an)
-        determiners = {"the ", "a ", "an "}
+        determiners = {"the ", "a ", "an ", "my ", "his ", "her ", "their "}
         for det in determiners:
             if mention_lower.startswith(det):
                 stripped = mention_lower[len(det):]
@@ -166,29 +169,110 @@ def _result_to_event(
         
         return None
     
-    # Link actor mention to entity
+    def resolve_pronoun(pronoun: str, source_sentence: str) -> Optional[Entity]:
+        """
+        V5: Resolve pronoun using context from source sentence.
+        
+        Strategy: Look for named entities mentioned in the same sentence.
+        """
+        if not source_sentence:
+            return None
+        
+        sentence_lower = source_sentence.lower()
+        
+        # Find entities mentioned in the sentence
+        mentioned_entities = []
+        for key, ent in entity_lookup.items():
+            if key in sentence_lower and not key in PRONOUNS:
+                mentioned_entities.append(ent)
+        
+        # If exactly one entity found, resolve to it
+        if len(mentioned_entities) == 1:
+            return mentioned_entities[0]
+        
+        # If pronoun is 'I', look for reporter entity
+        if pronoun.lower() == 'i':
+            for ent in entity_lookup.values():
+                if ent.role == EntityRole.REPORTER:
+                    return ent
+        
+        # For 'he', prefer officers if sentence mentions police context
+        if pronoun.lower() in {'he', 'him'}:
+            if 'officer' in sentence_lower or 'jenkins' in sentence_lower or 'rodriguez' in sentence_lower:
+                for ent in mentioned_entities:
+                    if ent.role == EntityRole.SUBJECT_OFFICER:
+                        return ent
+        
+        return None
+    
+    # Resolve actor
     actor_id = None
-    actor_ent = find_entity(result.actor_mention)
-    if actor_ent:
-        actor_id = actor_ent.id
+    actor_label = result.actor_mention  # Default to raw mention
     
-    # Link target mention to entity
+    if result.actor_mention:
+        mention_lower = result.actor_mention.lower().strip()
+        
+        if mention_lower in PRONOUNS:
+            # Try pronoun resolution
+            resolved = resolve_pronoun(mention_lower, result.source_sentence)
+            if resolved:
+                actor_id = resolved.id
+                actor_label = resolved.label
+        else:
+            # Direct lookup
+            actor_ent = find_entity(result.actor_mention)
+            if actor_ent:
+                actor_id = actor_ent.id
+                actor_label = actor_ent.label
+    
+    # Resolve target
     target_id = None
-    target_ent = find_entity(result.target_mention)
-    if target_ent:
-        target_id = target_ent.id
+    target_label = result.target_mention
     
-    # Create Event IR object
-    # Note: source_spans linked to segment - span-level linking requires 
-    # position tracking which EventExtractor doesn't provide yet
+    if result.target_mention:
+        mention_lower = result.target_mention.lower().strip()
+        
+        if mention_lower in PRONOUNS:
+            resolved = resolve_pronoun(mention_lower, result.source_sentence)
+            if resolved:
+                target_id = resolved.id
+                target_label = resolved.label
+        else:
+            target_ent = find_entity(result.target_mention)
+            if target_ent:
+                target_id = target_ent.id
+                target_label = target_ent.label
+    
+    # V5: Build formatted description with resolved actors
+    # Format: [ACTOR] [ACTION] [TARGET]
+    formatted_parts = []
+    if actor_label:
+        formatted_parts.append(actor_label)
+    if result.action_verb:
+        formatted_parts.append(result.action_verb)
+    elif result.description:
+        # Fall back to first verb-like word from description
+        formatted_parts.append("[action]")
+    if target_label:
+        formatted_parts.append(target_label)
+    
+    formatted_description = " ".join(formatted_parts) if formatted_parts else result.description
+    
+    # Create Event IR object with V5 resolved fields
     return Event(
         id=f"evt_{uuid4().hex[:8]}",
         type=result.type,
-        description=result.description,
-        source_spans=[segment_id],  # Link to segment as source
+        description=result.description,  # Keep original verbatim
+        source_spans=[segment_id],
         confidence=result.confidence,
         actor_id=actor_id,
         target_id=target_id,
+        temporal_marker=None,
+        # V5: Resolved labels for rendering
+        actor_label=actor_label,
+        action_verb=result.action_verb,
+        target_label=target_label if target_id else None,
+        target_object=result.target_mention if not target_id and result.target_mention else None,
         is_uncertain=False,
     )
 

@@ -352,12 +352,29 @@ class SpacyEventExtractor(EventExtractor):
             # Determine event type
             event_type = VERB_TYPE_MAP.get(lemma, EventType.ACTION)
             
-            # Get actor (subject) and target (object) for linking
+            # V5: Extract actor with FULL noun phrase (not just head noun)
             nsubj = next((c for c in token.children if c.dep_ in ("nsubj", "nsubjpass")), None)
-            actor_mention = nsubj.text if nsubj else None
+            actor_mention = None
+            if nsubj:
+                # Get full noun phrase by traversing subtree
+                nsubj_tokens = sorted(nsubj.subtree, key=lambda t: t.i)
+                actor_mention = " ".join(t.text for t in nsubj_tokens)
             
+            # V5: Extract action verb (may include particle)
+            action_verb = token.lemma_
+            prt = next((c for c in token.children if c.dep_ == "prt"), None)
+            if prt:
+                action_verb = f"{token.lemma_} {prt.text}"
+            
+            # V5: Extract target with full noun phrase
             dobj = next((c for c in token.children if c.dep_ == "dobj"), None)
-            target_mention = dobj.text if dobj else None
+            target_mention = None
+            if dobj:
+                dobj_tokens = sorted(dobj.subtree, key=lambda t: t.i)
+                target_mention = " ".join(t.text for t in dobj_tokens)
+            
+            # V5: Get source sentence for pronoun resolution
+            source_sentence = token.sent.text.strip()
             
             # Confidence based on completeness
             confidence = 0.7
@@ -373,7 +390,9 @@ class SpacyEventExtractor(EventExtractor):
                 source_start=start_char,
                 source_end=end_char,
                 actor_mention=actor_mention,
+                action_verb=action_verb,
                 target_mention=target_mention,
+                source_sentence=source_sentence,
             ))
         
         return results

@@ -153,16 +153,22 @@ class Event(BaseModel):
 
     id: str = Field(..., description="Unique event identifier")
     type: EventType = Field(..., description="Event type")
-    description: str = Field(..., description="Neutral description")
+    description: str = Field(..., description="Neutral description (verbatim)")
 
     # Evidence
     source_spans: list[str] = Field(default_factory=list, description="Supporting span IDs")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Extraction confidence")
 
-    # Relationships
+    # Relationships (IDs link to Entity objects)
     actor_id: Optional[str] = Field(None, description="Entity performing action")
     target_id: Optional[str] = Field(None, description="Entity receiving action")
     temporal_marker: Optional[str] = Field(None, description="Time reference")
+    
+    # V5: Resolved labels for rendering (Actor/Action/Target schema)
+    actor_label: Optional[str] = Field(None, description="Resolved actor name")
+    action_verb: Optional[str] = Field(None, description="The action verb")
+    target_label: Optional[str] = Field(None, description="Resolved target name")
+    target_object: Optional[str] = Field(None, description="Non-entity target (e.g., 'the door')")
 
     # Flags
     is_uncertain: bool = Field(False, description="Explicitly uncertain")

@@ -334,68 +334,59 @@ def format_structured_output(
         lines.append("")
     
     # === RECORDED EVENTS ===
-    # V4.3: Split events into camera-friendly vs interpretive (like statements)
+    # V5: Use Actor/Action/Target schema for proper event rendering
     if events:
-        # Light quality filter - only remove corrupted text
-        def is_valid_event(desc: str) -> bool:
-            """Light filter: only remove corrupt/fragment events."""
-            if len(desc) < 10:
-                return False
-            
-            desc_lower = desc.lower()
-            desc_words = desc_lower.split()
-            
-            if len(desc_words) < 3:
-                return False
-            
-            # Only filter clear text corruption (NLP parsing issues)
-            corruption_markers = [
-                'when innocently', 'when viciously', 'where work',
-                'thug the', 'say what', 'saying what', 'the brutal when',
-                'longer walk at', 'sergeant arrived after',
-            ]
-            if any(marker in desc_lower for marker in corruption_markers):
-                return False
-            
-            # First word should be a valid start
-            first_word = desc_words[0]
-            valid_starts = {'i', 'he', 'she', 'they', 'we', 'officer', 'sergeant', 
-                           'detective', 'the', 'a', 'my', 'his', 'her', 'their'}
-            if not (first_word[0].isupper() or first_word in valid_starts):
-                return False
-            
-            return True
-        
-        # Separate events: camera-friendly vs interpretive
+        # V5: Events must have resolved actors to be "camera-friendly"
+        # Events with unresolved pronouns or no actor go to interpretive bucket
         camera_friendly_by_type = defaultdict(list)
         interpretive_events = []
+        no_actor_events = []
         seen_events = set()
         
         for event in events:
+            # V5: Use resolved actor_label if available
+            actor = getattr(event, 'actor_label', None)
+            action = getattr(event, 'action_verb', None)
+            target = getattr(event, 'target_label', None) or getattr(event, 'target_object', None)
             desc = getattr(event, 'description', str(event))
-            desc_normalized = ' '.join(desc.split())
             
-            # Dedupe
+            # Dedupe by description
+            desc_normalized = ' '.join(desc.split())
             if desc_normalized in seen_events:
                 continue
             seen_events.add(desc_normalized)
             
-            if not is_valid_event(desc):
-                continue
-            
-            # Get event type
-            etype = getattr(event, 'type', None)
-            if hasattr(etype, 'value'):
-                etype = etype.value
-            etype = str(etype) if etype else 'action'
-            
-            # Split by camera-friendliness (reuse existing function!)
-            if is_camera_friendly(desc):
-                camera_friendly_by_type[etype].append(desc)
+            # V5: Build formatted event line [ACTOR] [ACTION] [TARGET]
+            if actor and action:
+                # Remove pronouns from output
+                if actor.lower() not in {'he', 'she', 'they', 'it', 'him', 'her', 'them'}:
+                    event_line = f"{actor} {action}"
+                    if target:
+                        event_line += f" {target}"
+                    
+                    # Check camera-friendliness of the formatted line
+                    if is_camera_friendly(event_line) and is_camera_friendly(desc):
+                        # Get event type
+                        etype = getattr(event, 'type', None)
+                        if hasattr(etype, 'value'):
+                            etype = etype.value
+                        etype = str(etype) if etype else 'action'
+                        camera_friendly_by_type[etype].append(event_line)
+                    else:
+                        interpretive_events.append(desc)
+                else:
+                    # Unresolved pronoun - move to no-actor bucket
+                    no_actor_events.append(desc)
             else:
-                interpretive_events.append(desc)
+                # No actor or action - keep description but flag as incomplete
+                if desc and len(desc) > 10:
+                    # Check if it's interpretive
+                    if not is_camera_friendly(desc):
+                        interpretive_events.append(desc)
+                    else:
+                        no_actor_events.append(desc)
         
-        # Render camera-friendly events by type
+        # Render camera-friendly events with schema format
         type_labels = {
             'action': ('PHYSICAL ACTIONS', '💪'),
             'movement': ('MOVEMENT/POSITIONING', '🚶'),
@@ -410,24 +401,34 @@ def format_structured_output(
             for etype, (label, icon) in type_labels.items():
                 if camera_friendly_by_type.get(etype):
                     lines.append(f"  {icon} {label}:")
-                    for desc in camera_friendly_by_type[etype]:
-                        lines.append(f"      • {desc}")
+                    for event_line in camera_friendly_by_type[etype]:
+                        lines.append(f"      • {event_line}")
                     lines.append("")
             
-            # Any other types not in our map
-            for etype, descs in camera_friendly_by_type.items():
-                if etype not in type_labels and descs:
+            # Any other types
+            for etype, event_lines in camera_friendly_by_type.items():
+                if etype not in type_labels and event_lines:
                     lines.append(f"  📋 {etype.upper()}:")
-                    for desc in descs:
-                        lines.append(f"      • {desc}")
+                    for event_line in event_lines:
+                        lines.append(f"      • {event_line}")
                     lines.append("")
+        
+        # V5: Events with unresolved actors (need more context)
+        if no_actor_events:
+            lines.append("EVENTS (ACTOR UNRESOLVED)")
+            lines.append("─" * 70)
+            for desc in no_actor_events[:10]:  # Limit to 10
+                lines.append(f"  ⚠️ {desc[:80]}...")
+            if len(no_actor_events) > 10:
+                lines.append(f"  ... and {len(no_actor_events) - 10} more")
+            lines.append("")
         
         # Render interpretive events with attribution
         if interpretive_events:
             lines.append("REPORTER'S CHARACTERIZATIONS (of events)")
             lines.append("─" * 70)
             for desc in interpretive_events:
-                lines.append(f"  • Reporter describes: {desc}")
+                lines.append(f"  • Reporter describes: {desc[:100]}...")
             lines.append("")
     
     # === FULL NARRATIVE ===

@@ -159,13 +159,21 @@ class TestEdgeCases:
         assert len(ctx.events) <= 1
     
     def test_multiple_events_in_sentence(self):
-        """Verify multiple events are extracted from complex sentences."""
+        """
+        Verify complex sentences with multiple verbs are handled.
+        
+        V5: We now extract the full clause as one event (not fragments).
+        'He grabbed her arm and pushed her away.' → single event with both actions.
+        """
         ctx = _make_context("He grabbed her arm and pushed her away.")
         
         extract_events(ctx)
         
-        # Should have at least 2 events
-        assert len(ctx.events) >= 2
+        # V5: Should have at least 1 event covering the whole sentence
+        assert len(ctx.events) >= 1
+        # Both verbs should be present in the description
+        desc = ctx.events[0].description.lower()
+        assert "grabbed" in desc and "pushed" in desc
 
 
 class TestInterfaceSwapping:

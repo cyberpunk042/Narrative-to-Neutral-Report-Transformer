@@ -37,15 +37,25 @@ class EntityExtractResult:
 
 @dataclass
 class EventExtractResult:
-    """Result from event extraction."""
-
+    """
+    Result from event extraction.
+    
+    V5: Enhanced with Actor/Action/Target schema fields.
+    """
+    # Core event description (verbatim from source)
     description: str
     type: EventType
     confidence: float
     source_start: int
     source_end: int
-    actor_mention: Optional[str] = None
-    target_mention: Optional[str] = None
+    
+    # V5: Proper Actor/Action/Target schema
+    actor_mention: Optional[str] = None      # Raw text mention (may be pronoun)
+    action_verb: Optional[str] = None        # The verb/action itself
+    target_mention: Optional[str] = None     # Raw text mention
+    
+    # V5: Source sentence for context-aware pronoun resolution
+    source_sentence: Optional[str] = None
 
 
 class SpanTagger(ABC):
