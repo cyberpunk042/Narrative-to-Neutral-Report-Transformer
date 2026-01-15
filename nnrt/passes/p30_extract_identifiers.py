@@ -144,11 +144,35 @@ def _is_valid_date(value: str) -> tuple[bool, float]:
     V4: Validate a date identifier.
     
     Returns (is_valid, confidence).
-    Rejects non-date patterns like "40s" (age).
+    Rejects:
+    - Non-date patterns like "40s" (age)
+    - Unanchored relative dates like "today", "the next day"
+      (NNRT must not invent temporal anchors)
     """
     value = value.strip()
+    value_lower = value.lower()
     
-    # Check for non-temporal patterns
+    # V4 ALPHA: Reject unanchored relative dates
+    # These are relative and cannot be resolved without external context
+    unanchored_dates = {
+        "today", "yesterday", "tomorrow",
+        "the next day", "next day",
+        "the following day", "following day",
+        "the day after", "the day before",
+        "last week", "next week", "this week",
+        "last month", "next month", "this month",
+        "later that day", "earlier that day",
+        "three months later", "months later", "weeks later", "days later",
+    }
+    
+    if value_lower in unanchored_dates:
+        return (False, 0.0)
+    
+    # Also check for patterns like "X days/weeks/months later"
+    if re.match(r'^\w+\s+(days?|weeks?|months?)\s+(later|earlier|before|after)$', value_lower):
+        return (False, 0.0)
+    
+    # Check for non-temporal patterns (age decades)
     for pattern in NOT_TEMPORAL_PATTERNS:
         if re.match(pattern, value, re.IGNORECASE):
             return (False, 0.0)

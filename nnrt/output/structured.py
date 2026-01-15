@@ -42,10 +42,11 @@ class AtomicStatementOutput(BaseModel):
     """
     An atomic statement from the decomposition pipeline.
     
-    This is the NEW output format aligned with the NNRT v2 schema:
-    - Each statement is a single fact/claim/interpretation
-    - Type is explicitly classified
-    - Provenance (derived_from) links interpretations to sources
+    V4 Alpha: Includes full epistemic tagging:
+    - source: who is speaking
+    - epistemic_type: what kind of content
+    - polarity: asserted/denied/uncertain
+    - evidence_source: what supports this
     """
     
     id: str = Field(..., description="Statement ID (stmt_XXXX)")
@@ -57,6 +58,12 @@ class AtomicStatementOutput(BaseModel):
     
     clause_type: str = Field(..., description="root|conj|advcl|ccomp|quote")
     connector: Optional[str] = Field(None, description="Clause connector (and, because, etc.)")
+    
+    # V4 ALPHA: Epistemic tagging
+    source: str = Field(default="reporter", description="Who is speaking: reporter|witness|medical|investigator|document")
+    epistemic_type: str = Field(default="unknown", description="Content type: direct_event|self_report|interpretation|legal_claim|quote|etc")
+    polarity: str = Field(default="asserted", description="asserted|denied|uncertain|hypothetical")
+    evidence_source: str = Field(default="self_report", description="What supports this: direct_observation|self_report|document|inference")
     
     derived_from: list[str] = Field(default_factory=list, description="IDs of source statements")
     flags: list[str] = Field(default_factory=list, description="Classification flags")
@@ -104,6 +111,7 @@ class EntityOutput(BaseModel):
     attributes: dict = Field(default_factory=dict)
 
 
+
 class EventOutput(BaseModel):
     """An event extracted from the narrative."""
     
@@ -115,6 +123,53 @@ class EventOutput(BaseModel):
     targets: list[str] = Field(default_factory=list, description="Entity IDs")
     source_statement: str = Field(..., description="Statement ID")
     confidence: float = Field(default=0.8)
+
+
+# ============================================================================
+# V4 ALPHA: Reference Data (Typed & Linked)
+# ============================================================================
+
+class ReferenceData(BaseModel):
+    """
+    V4 Alpha: Structured reference data extracted from narrative.
+    
+    All identifiers are typed and linked:
+    - badge_map: links officers to badge numbers
+    - dates: only absolute dates (no "today", "next day")
+    - times: only clock times
+    - locations: verified locations
+    - names: extracted names (canonicalized)
+    """
+    
+    # Badge linkage: {"Officer Jenkins": "4821", "Sergeant Williams": "2103"}
+    badge_map: dict[str, str] = Field(
+        default_factory=dict, 
+        description="Officer name -> badge number mapping"
+    )
+    
+    # Absolute dates only (no relative dates like "today")
+    dates: list[str] = Field(
+        default_factory=list,
+        description="Explicit dates (no relative dates)"
+    )
+    
+    # Clock times only
+    times: list[str] = Field(
+        default_factory=list,
+        description="Explicit times (11:30 PM)"
+    )
+    
+    # Verified locations
+    locations: list[str] = Field(
+        default_factory=list,
+        description="Location names"
+    )
+    
+    # Names (canonicalized - Officer Jenkins, not Officers Jenkins)
+    names: list[str] = Field(
+        default_factory=list,
+        description="Person names (canonicalized)"
+    )
 
 
 # ============================================================================
@@ -279,8 +334,15 @@ class StructuredOutput(BaseModel):
         description="Unfalsifiable conspiracy allegations - NOT neutral"
     )
     
+    # V4 ALPHA: Typed and linked reference data
+    reference_data: Optional[ReferenceData] = Field(
+        None, 
+        description="Structured reference data with badge linkage"
+    )
+    
     # Diagnostics
     diagnostics: list[dict] = Field(default_factory=list)
+
     
     # Diff visualization data (NEW)
     diff_data: Optional[DiffData] = Field(None, description="Detailed diff data for visualization")
@@ -340,8 +402,18 @@ def build_structured_output(result: TransformResult, input_text: str) -> Structu
     for atomic in result.atomic_statements:
         stmt_type = atomic.type_hint.value if hasattr(atomic.type_hint, 'value') else str(atomic.type_hint)
         
-        # V4: Classify epistemic type
-        epistemic_type, matched_phrase = _classify_epistemic_type(atomic.text)
+        # V4: Get epistemic tagging from the statement itself (set by p27_epistemic_tag)
+        epistemic_type = getattr(atomic, 'epistemic_type', 'unknown')
+        polarity = getattr(atomic, 'polarity', 'asserted')
+        source = getattr(atomic, 'source', 'reporter')
+        evidence_source = getattr(atomic, 'evidence_source', 'self_report')
+        
+        # Legacy V4 classification (still used for _classify_epistemic_type patterns)
+        legacy_type, matched_phrase = _classify_epistemic_type(atomic.text)
+        
+        # Use the more specific type if available
+        if epistemic_type == 'unknown' and legacy_type:
+            epistemic_type = legacy_type
         
         atomic_out = AtomicStatementOutput(
             id=atomic.id,
@@ -351,20 +423,26 @@ def build_structured_output(result: TransformResult, input_text: str) -> Structu
             confidence=atomic.confidence,
             clause_type=atomic.clause_type,
             connector=atomic.connector,
+            # V4 ALPHA: Epistemic tagging fields
+            source=source,
+            epistemic_type=epistemic_type,
+            polarity=polarity,
+            evidence_source=evidence_source,
             derived_from=atomic.derived_from,
-            flags=atomic.flags if not epistemic_type else atomic.flags + [f"V4_{epistemic_type.upper()}"],
+            flags=atomic.flags if epistemic_type == 'unknown' else atomic.flags + [f"V4_{epistemic_type.upper()}"],
         )
         
-        # V4: Route based on epistemic type
-        if epistemic_type == "intent_attribution":
+        # V4: Route based on epistemic type (using both new and legacy classification)
+        if epistemic_type in ("interpretation", "intent_attribution"):
             reporter_interpretations.append(atomic_out)
-        elif epistemic_type == "legal_characterization":
+        elif epistemic_type in ("legal_claim", "legal_characterization"):
             reporter_legal_characterizations.append(atomic_out)
         elif epistemic_type == "conspiracy_claim":
             reporter_conspiracy_claims.append(atomic_out)
         else:
-            # No dangerous pattern - safe for general bucket
+            # Not a dangerous pattern - safe for general bucket
             atomic_statements_out.append(atomic_out)
+
     
     # Build uncertainties from Markers (Phase 3)
     uncertainties = []
@@ -572,6 +650,66 @@ def build_structured_output(result: TransformResult, input_text: str) -> Structu
             reliability=ev.reliability,
             corroborated_by=ev.corroborating_ids,
         ))
+    
+    # =========================================================================
+    # V4 ALPHA: Build Reference Data with Badge Linkage
+    # =========================================================================
+    
+    # Build badge map by finding badge numbers near officer names
+    badge_map = {}
+    
+    # Get all officer entities
+    officers = [e for e in result.entities if 
+                getattr(e.role, 'value', str(e.role)) in ('subject_officer', 'supervisor', 'investigator', 'authority')]
+    
+    # Get all badge numbers
+    badges = [i for i in result.identifiers if i.type.value == 'badge_number']
+    
+    # Try to link badges to officers by proximity in text
+    # This is a heuristic - badge near name in same segment
+    for officer in officers:
+        officer_label = officer.label or ''
+        # Normalize label (remove "Officer " prefix for matching)
+        name_parts = officer_label.replace("Officer ", "").replace("Sergeant ", "").replace("Detective ", "").split()
+        
+        for badge in badges:
+            # Check if badge and officer mention are in same segment
+            officer_mentions = officer.mentions
+            for mention in officer_mentions:
+                mention_text = mention[5:] if isinstance(mention, str) and mention.startswith("text:") else str(mention)
+                # Check if any name part is in the mention
+                if any(part.lower() in mention_text.lower() for part in name_parts if len(part) > 2):
+                    badge_map[officer_label] = badge.value
+                    break
+    
+    # Build filtered identifier lists
+    dates = []
+    times = []
+    locations = []
+    names = []
+    
+    for ident in result.identifiers:
+        if ident.type.value == 'date':
+            # Already filtered by _is_valid_date
+            dates.append(ident.value)
+        elif ident.type.value == 'time':
+            times.append(ident.value)
+        elif ident.type.value == 'location':
+            locations.append(ident.value)
+        elif ident.type.value == 'name':
+            # Canonicalize: ensure "Officer Jenkins" not "Officers Jenkins"
+            name = ident.value
+            if name.startswith("Officers "):
+                name = "Officer " + name[9:]
+            names.append(name)
+    
+    reference_data = ReferenceData(
+        badge_map=badge_map,
+        dates=dates,
+        times=times,
+        locations=locations,
+        names=names,
+    )
 
     return StructuredOutput(
         nnrt_version=__version__,
@@ -593,10 +731,13 @@ def build_structured_output(result: TransformResult, input_text: str) -> Structu
         reporter_interpretations=reporter_interpretations,
         reporter_legal_characterizations=reporter_legal_characterizations,
         reporter_conspiracy_claims=reporter_conspiracy_claims,
+        # V4 ALPHA: Reference data
+        reference_data=reference_data,
         diagnostics=[d.model_dump() for d in result.diagnostics],
         diff_data=diff_data,
         rendered_text=result.rendered_text or "",
     )
+
 
 
 def _map_diagnostic_to_uncertainty_type(code: str) -> str:

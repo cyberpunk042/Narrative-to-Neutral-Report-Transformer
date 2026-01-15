@@ -27,6 +27,12 @@ class AtomicStatement:
     An atomic statement extracted from a segment.
     
     Atomic = one predicate, one fact/claim/interpretation.
+    
+    V4 Alpha: Every statement carries full epistemic metadata:
+    - source: who is speaking (reporter, witness, medical, investigator, document)
+    - epistemic_type: what kind of content (event, self_report, interpretation, 
+                      legal_claim, quote, admin_action, medical_finding)
+    - polarity: asserted/denied/uncertain
     """
     id: str
     text: str
@@ -44,12 +50,34 @@ class AtomicStatement:
     clause_type: str = "root"  # root, conj, advcl, ccomp
     connector: Optional[str] = None  # "and", "because", "but", etc.
     
+    # =========================================================================
+    # V4 ALPHA: Epistemic Tagging
+    # =========================================================================
+    
+    # Source: Who is making this statement?
+    # Values: reporter, witness, medical, investigator, document, officer
+    source: str = "reporter"
+    
+    # Epistemic Type: What kind of statement is this?
+    # Values: direct_event, self_report, interpretation, legal_claim,
+    #         quote, admin_action, medical_finding, documented_fact
+    epistemic_type: str = "unknown"
+    
+    # Polarity: Is this asserted, denied, or uncertain?
+    # Values: asserted, denied, uncertain, hypothetical
+    polarity: str = "asserted"
+    
+    # Evidence Source: What type of evidence supports this?
+    # Values: direct_observation, self_report, third_party, document, inference
+    evidence_source: str = "self_report"
+    
     # Flags
     flags: list[str] = field(default_factory=list)
     
     # For interpretations: what observations is this derived from?
     # (populated later in p35_link_provenance)
     derived_from: list[str] = field(default_factory=list)
+
 
 
 def decompose(ctx: TransformContext) -> TransformContext:
