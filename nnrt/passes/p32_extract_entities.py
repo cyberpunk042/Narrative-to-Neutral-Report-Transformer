@@ -193,6 +193,71 @@ def _classify_role(label: str, current_role: EntityRole) -> EntityRole:
     return current_role
 
 
+def _link_badges_to_officers(
+    entities: List[Entity], 
+    identifiers: List,  # List[Identifier]
+    source_text: str
+) -> List[Entity]:
+    """
+    V6: Link badge numbers to their corresponding officer entities.
+    
+    Uses text proximity: "Officer Jenkins, badge number 4821" links 4821 to Jenkins.
+    
+    Invariant: Each badge should link to exactly one officer.
+    """
+    import re
+    
+    # Collect badge identifiers
+    badge_identifiers = []
+    for ident in identifiers:
+        if hasattr(ident, 'type') and hasattr(ident.type, 'value'):
+            if ident.type.value == 'badge_number':
+                badge_identifiers.append(ident)
+        elif hasattr(ident, 'type') and str(ident.type) == 'badge_number':
+            badge_identifiers.append(ident)
+    
+    if not badge_identifiers:
+        return entities
+    
+    # Find officers (entities with officer titles)
+    officer_titles = {'officer', 'sergeant', 'deputy', 'detective', 'lieutenant', 'captain'}
+    officers = [e for e in entities if e.label and 
+                any(t in e.label.lower() for t in officer_titles)]
+    
+    # Try to link badges to officers using text patterns
+    # Pattern: "Officer Jenkins, badge number 4821" or "Officer Jenkins (badge 4821)"
+    for badge in badge_identifiers:
+        badge_value = badge.value
+        
+        # Find nearby officer mention in text
+        # Look for patterns like "Officer X, badge number 4821" or "Officer X badge 4821"
+        patterns = [
+            rf"(Officer\s+\w+)[,\s]+badge\s*(?:number\s*)?\s*{re.escape(badge_value)}",
+            rf"(Sergeant\s+\w+)[,\s]+badge\s*(?:number\s*)?\s*{re.escape(badge_value)}",
+            rf"(Deputy\s+\w+)[,\s]+badge\s*(?:number\s*)?\s*{re.escape(badge_value)}",
+            rf"(Detective\s+\w+)[,\s]+badge\s*(?:number\s*)?\s*{re.escape(badge_value)}",
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, source_text, re.IGNORECASE)
+            if match:
+                officer_name = match.group(1).strip()
+                
+                # Find the corresponding entity
+                for entity in officers:
+                    if entity.label and officer_name.lower() in entity.label.lower():
+                        entity.badge_number = badge_value
+                        log.debug(
+                            "linked_badge_to_officer",
+                            badge=badge_value,
+                            officer=entity.label,
+                        )
+                        break
+                break  # Move to next badge
+    
+    return entities
+
+
 @dataclass
 class MentionLocation:
     """Temporary storage for mention location before span ID resolution."""
@@ -270,6 +335,9 @@ def extract_entities(ctx: TransformContext) -> TransformContext:
     # V4: Refine roles based on context in source text
     source_text = " ".join(seg.text for seg in ctx.segments)
     entities = _refine_entity_roles(entities, source_text)
+    
+    # V6: Link badge numbers to officers
+    entities = _link_badges_to_officers(entities, ctx.identifiers, source_text)
     
     ctx.entities = entities
     

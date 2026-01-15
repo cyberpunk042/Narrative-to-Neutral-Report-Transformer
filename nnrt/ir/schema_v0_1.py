@@ -150,6 +150,9 @@ class Entity(BaseModel):
     
     # V5: When/how the entity participated
     participation: Optional[Participation] = Field(None, description="Incident/post-incident/mentioned")
+    
+    # V6: Direct badge linkage for officers
+    badge_number: Optional[str] = Field(None, description="Badge number if officer")
 
 
 class Event(BaseModel):

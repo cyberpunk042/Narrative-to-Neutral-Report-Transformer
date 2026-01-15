@@ -98,6 +98,38 @@ class TransformContext:
     start_time: datetime = field(default_factory=datetime.now)
     
     # =========================================================================
+    # V6: Quarantine Buckets for Invariant Failures
+    # =========================================================================
+    # Content that fails invariants goes here instead of being rendered
+    # Format: {bucket_name: [(content, failures), ...]}
+    quarantine: dict = field(default_factory=dict)
+    
+    # V6: Invariant check results for reporting
+    invariant_results: list = field(default_factory=list)
+    
+    def quarantine_content(self, bucket: str, content, failures: list) -> None:
+        """
+        Add content to quarantine bucket.
+        
+        Args:
+            bucket: Bucket name (e.g., "EVENTS_UNRESOLVED", "QUOTES_UNRESOLVED")
+            content: The content that failed (Event, SpeechAct, etc.)
+            failures: List of InvariantResult failures
+        """
+        if bucket not in self.quarantine:
+            self.quarantine[bucket] = []
+        self.quarantine[bucket].append((content, failures))
+    
+    def get_quarantine(self, bucket: str) -> list:
+        """Get contents of a quarantine bucket."""
+        return self.quarantine.get(bucket, [])
+    
+    def quarantine_summary(self) -> dict[str, int]:
+        """Get count of items in each quarantine bucket."""
+        return {k: len(v) for k, v in self.quarantine.items()}
+
+    
+    # =========================================================================
     # Cross-Pass Communication Helpers
     # =========================================================================
     

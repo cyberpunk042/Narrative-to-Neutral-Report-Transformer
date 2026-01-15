@@ -33,8 +33,28 @@ OBSERVATIONS
 ...etc
 """
 
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Set
 from collections import defaultdict
+
+
+# V6: Section Registry to prevent duplicate sections
+class SectionRegistry:
+    """Track rendered sections to prevent duplicates."""
+    
+    _rendered: Set[str] = set()
+    
+    @classmethod
+    def can_render(cls, section_name: str) -> bool:
+        """Check if section can be rendered (not already done)."""
+        if section_name in cls._rendered:
+            return False
+        cls._rendered.add(section_name)
+        return True
+    
+    @classmethod
+    def reset(cls) -> None:
+        """Reset for a new render."""
+        cls._rendered.clear()
 
 
 def format_structured_output(
@@ -59,6 +79,9 @@ def format_structured_output(
     Returns:
         Plain text formatted as official report
     """
+    # V6: Reset section registry for this render
+    SectionRegistry.reset()
+    
     lines = []
     
     # Header
@@ -197,20 +220,36 @@ def format_structured_output(
                         lines.append(f"    • {loc}")
                 lines.append("")
             
-            # V5: Officer identification (filter to only officer-related names)
-            badges = ident_by_type.get('badge_number', [])
-            names = ident_by_type.get('name', [])
-            
-            # Filter names to only those that appear to be officers
+            # =====================================================================
+            # V6: Officer identification with linked badges
+            # =====================================================================
+            # Use badge_number field on Entity for proper linkage
+            # =====================================================================
             officer_titles = {'officer', 'sergeant', 'detective', 'lieutenant', 'deputy', 'captain'}
-            officer_names = [n for n in names if any(t in n.lower() for t in officer_titles)]
             
-            if badges or officer_names:
+            # Build officer list from entities (with linked badges)
+            officer_lines = []
+            linked_badges = set()
+            
+            if entities:
+                for entity in entities:
+                    if entity.label and any(t in entity.label.lower() for t in officer_titles):
+                        if entity.badge_number:
+                            officer_lines.append(f"    • {entity.label} (Badge #{entity.badge_number})")
+                            linked_badges.add(entity.badge_number)
+                        else:
+                            officer_lines.append(f"    • {entity.label}")
+            
+            # Add any unlinked badges from identifiers
+            badges = ident_by_type.get('badge_number', [])
+            unlinked_badges = [b for b in badges if b not in linked_badges]
+            
+            if officer_lines or unlinked_badges:
                 lines.append("  OFFICER IDENTIFICATION:")
-                for name in officer_names:
-                    lines.append(f"    • {name}")
-                for badge in badges:
-                    lines.append(f"    • Badge #{badge}")
+                for line in officer_lines:
+                    lines.append(line)
+                for badge in unlinked_badges:
+                    lines.append(f"    • Badge #{badge} (officer unknown)")
                 lines.append("")
             
             # V5: Other identifiers (vehicle, employee ID, etc.)
@@ -374,27 +413,48 @@ def format_structured_output(
                 lines.append(f"  • {text}")
             lines.append("")
         
-        # V5: SOURCE-DERIVED INFORMATION with provenance details
-        # These need provenance verification - not directly observable
+        # =====================================================================
+        # V6: SOURCE-DERIVED INFORMATION with Provenance Validation
+        # =====================================================================
+        # Uses VERIFIED_HAS_EVIDENCE invariant to ensure honest status labels.
+        # =====================================================================
         if source_derived:
+            from nnrt.validation import check_verified_has_evidence
+            
             lines.append("SOURCE-DERIVED INFORMATION")
             lines.append("─" * 70)
-            lines.append("  ⚠️ The following claims require provenance verification:")
+            lines.append("  ⚠️ The following claims require external provenance verification:")
             lines.append("")
-            for idx, text in enumerate(source_derived[:10], 1):  # Limit to 10
+            
+            for idx, text in enumerate(source_derived[:10], 1):
                 lines.append(f"  [{idx}] CLAIM: {text[:100]}{'...' if len(text) > 100 else ''}")
-                # Try to get provenance from atomic_statements if available
+                
+                # Get provenance from atomic_statements
                 source_type = "Reporter"
-                prov_status = "Missing"
+                prov_status = "Needs Provenance"
+                
                 if atomic_statements:
                     for stmt in atomic_statements:
                         if hasattr(stmt, 'text') and stmt.text.strip() == text.strip():
                             source_type = getattr(stmt, 'source_type', 'reporter').title()
-                            prov_status = getattr(stmt, 'provenance_status', 'missing').title()
+                            raw_status = getattr(stmt, 'provenance_status', 'needs_provenance')
+                            
+                            # V6: Map to honest display labels
+                            status_labels = {
+                                'verified': 'Verified ✅',           # Only with external evidence
+                                'cited': 'Cited (unverified)',      # Has attribution but not verified
+                                'self_attested': 'Self-Attested',   # Reporter's word only
+                                'inference': 'Inference',           # Reporter's interpretation
+                                'needs_provenance': 'Needs Provenance ⚠️',
+                                'missing': 'Needs Provenance ⚠️',
+                            }
+                            prov_status = status_labels.get(raw_status, f'{raw_status.title()} ⚠️')
                             break
+                
                 lines.append(f"      Source: {source_type}")
                 lines.append(f"      Status: {prov_status}")
                 lines.append("")
+            
             if len(source_derived) > 10:
                 lines.append(f"  ... and {len(source_derived) - 10} more claims needing provenance")
                 lines.append("")
@@ -409,48 +469,85 @@ def format_structured_output(
             lines.append("")
     
     # =========================================================================
-    # V5: SELF-REPORTED STATE with sub-categories
+    # V6: SELF-REPORTED STATE with Medical Content Filtering
     # =========================================================================
+    # Medical provider content (Dr., Nurse documented/diagnosed) goes to
+    # MEDICAL_FINDINGS, not SELF-REPORTED.
+    # =========================================================================
+    
+    def _is_medical_provider_content(text: str) -> bool:
+        """Check if content is from a medical provider (should go to MEDICAL_FINDINGS)."""
+        text_lower = text.lower()
+        providers = ['dr.', 'dr ', 'doctor', 'nurse', 'emt', 'paramedic', 'physician', 'therapist']
+        medical_verbs = ['documented', 'diagnosed', 'noted', 'observed', 'confirmed', 'stated that my injuries']
+        
+        has_provider = any(p in text_lower for p in providers)
+        has_verb = any(v in text_lower for v in medical_verbs)
+        
+        return has_provider and has_verb
+    
+    # Collect medical content that needs routing
+    medical_content_from_self_report = []
     
     # Acute state (during incident)
     if statements_by_epistemic.get('state_acute'):
-        lines.append("SELF-REPORTED STATE (ACUTE - During Incident)")
-        lines.append("─" * 70)
-        for text in statements_by_epistemic['state_acute']:
-            lines.append(f"  • Reporter reports: {text}")
-        lines.append("")
+        non_medical = [t for t in statements_by_epistemic['state_acute'] if not _is_medical_provider_content(t)]
+        medical_content_from_self_report.extend([t for t in statements_by_epistemic['state_acute'] if _is_medical_provider_content(t)])
+        
+        if non_medical:
+            lines.append("SELF-REPORTED STATE (ACUTE - During Incident)")
+            lines.append("─" * 70)
+            for text in non_medical:
+                lines.append(f"  • Reporter reports: {text}")
+            lines.append("")
     
-    # Physical injuries
+    # Physical injuries - CRITICAL: filter out medical provider content
     if statements_by_epistemic.get('state_injury'):
-        lines.append("SELF-REPORTED INJURY (Physical)")
-        lines.append("─" * 70)
-        for text in statements_by_epistemic['state_injury']:
-            lines.append(f"  • Reporter reports: {text}")
-        lines.append("")
+        non_medical = [t for t in statements_by_epistemic['state_injury'] if not _is_medical_provider_content(t)]
+        medical_content_from_self_report.extend([t for t in statements_by_epistemic['state_injury'] if _is_medical_provider_content(t)])
+        
+        if non_medical:
+            lines.append("SELF-REPORTED INJURY (Physical)")
+            lines.append("─" * 70)
+            for text in non_medical:
+                lines.append(f"  • Reporter reports: {text}")
+            lines.append("")
     
     # Psychological after-effects
     if statements_by_epistemic.get('state_psychological'):
-        lines.append("SELF-REPORTED STATE (Psychological)")
-        lines.append("─" * 70)
-        for text in statements_by_epistemic['state_psychological']:
-            lines.append(f"  • Reporter reports: {text}")
-        lines.append("")
+        non_medical = [t for t in statements_by_epistemic['state_psychological'] if not _is_medical_provider_content(t)]
+        medical_content_from_self_report.extend([t for t in statements_by_epistemic['state_psychological'] if _is_medical_provider_content(t)])
+        
+        if non_medical:
+            lines.append("SELF-REPORTED STATE (Psychological)")
+            lines.append("─" * 70)
+            for text in non_medical:
+                lines.append(f"  • Reporter reports: {text}")
+            lines.append("")
     
     # Socioeconomic impact
     if statements_by_epistemic.get('state_socioeconomic'):
-        lines.append("SELF-REPORTED IMPACT (Socioeconomic)")
-        lines.append("─" * 70)
-        for text in statements_by_epistemic['state_socioeconomic']:
-            lines.append(f"  • Reporter reports: {text}")
-        lines.append("")
+        non_medical = [t for t in statements_by_epistemic['state_socioeconomic'] if not _is_medical_provider_content(t)]
+        medical_content_from_self_report.extend([t for t in statements_by_epistemic['state_socioeconomic'] if _is_medical_provider_content(t)])
+        
+        if non_medical:
+            lines.append("SELF-REPORTED IMPACT (Socioeconomic)")
+            lines.append("─" * 70)
+            for text in non_medical:
+                lines.append(f"  • Reporter reports: {text}")
+            lines.append("")
     
     # General self-report (fallback for non-categorized)
     if statements_by_epistemic.get('self_report'):
-        lines.append("SELF-REPORTED STATE (General)")
-        lines.append("─" * 70)
-        for text in statements_by_epistemic['self_report']:
-            lines.append(f"  • Reporter reports: {text}")
-        lines.append("")
+        non_medical = [t for t in statements_by_epistemic['self_report'] if not _is_medical_provider_content(t)]
+        medical_content_from_self_report.extend([t for t in statements_by_epistemic['self_report'] if _is_medical_provider_content(t)])
+        
+        if non_medical:
+            lines.append("SELF-REPORTED STATE (General)")
+            lines.append("─" * 70)
+            for text in non_medical:
+                lines.append(f"  • Reporter reports: {text}")
+            lines.append("")
     
     # =========================================================================
     # V5: REPORTED CLAIMS (legal allegations only - explicit legal labels)
@@ -504,12 +601,26 @@ def format_structured_output(
         lines.append("")
     
     # =========================================================================
-    # V4: MEDICAL FINDINGS - doctor statements, diagnoses
+    # V6: MEDICAL FINDINGS - doctor statements, diagnoses
     # =========================================================================
-    if statements_by_epistemic.get('medical_finding'):
-        lines.append("MEDICAL FINDINGS")
+    # Includes content from epistemic type + content routed from SELF-REPORTED
+    # =========================================================================
+    all_medical = list(statements_by_epistemic.get('medical_finding', []))
+    all_medical.extend(medical_content_from_self_report)
+    
+    if all_medical:
+        lines.append("MEDICAL FINDINGS (as reported by Reporter)")
         lines.append("─" * 70)
-        for text in statements_by_epistemic['medical_finding']:
+        lines.append("  ℹ️ Medical provider statements cited by Reporter")
+        lines.append("  Status: Cited (no medical record attached)")
+        lines.append("")
+        
+        seen = set()
+        for text in all_medical:
+            # Dedupe
+            if text in seen:
+                continue
+            seen.add(text)
             lines.append(f"  • {text}")
         lines.append("")
     
@@ -523,148 +634,221 @@ def format_structured_output(
             lines.append(f"  • {text}")
         lines.append("")
     
-    # === V5: PRESERVED QUOTES with speaker attribution ===
+    # =========================================================================
+    # V6: PRESERVED QUOTES with Invariant Validation
+    # =========================================================================
+    # Quotes MUST have resolved speakers to render in main section.
+    # Quotes with Unknown/pronoun speakers go to quarantine.
+    # =========================================================================
+    
     if statements_by_type.get('quote') or (hasattr(metadata, 'speech_acts') if metadata else False):
-        lines.append("PRESERVED QUOTES")
-        lines.append("─" * 70)
+        from nnrt.validation import check_quote_has_speaker, InvariantSeverity
         
-        # First, try to use speech_acts from metadata if available
-        speech_acts_used = []
+        validated_quotes = []     # Pass speaker validation
+        quarantined_quotes = []   # Fail speaker validation
+        
+        # Process speech_acts if available
         if metadata and hasattr(metadata, 'speech_acts') and metadata.speech_acts:
             for sa in metadata.speech_acts:
-                speaker = getattr(sa, 'speaker_label', None) or 'Unknown'
-                verb = getattr(sa, 'speech_verb', 'said')
-                content = getattr(sa, 'content', '')
-                is_nested = getattr(sa, 'is_nested', False)
+                # Validate speaker
+                result = check_quote_has_speaker(sa)
                 
-                if content:
-                    if is_nested:
-                        lines.append(f"  ⚠️ {speaker} {verb}: {content}")
-                        lines.append(f"      (nested quote - may have attribution issues)")
-                    else:
-                        lines.append(f"  • {speaker} {verb}: {content}")
-                    speech_acts_used.append(content)
+                if result.passes:
+                    validated_quotes.append(sa)
+                else:
+                    quarantined_quotes.append((sa, [result]))
         
-        # Fall back to statement-based quotes if no speech acts
-        if not speech_acts_used:
-            for text in statements_by_type.get('quote', []):
-                # V5: Remove outer quotes if present
-                clean_text = text
-                if clean_text.startswith('"') and clean_text.endswith('"'):
-                    clean_text = clean_text[1:-1]
-                elif clean_text.startswith("'") and clean_text.endswith("'"):
-                    clean_text = clean_text[1:-1]
-                
-                # Try to extract speaker from context
-                speaker = "Unknown"
-                if " said " in text or " says " in text:
-                    parts = text.split(" said ") if " said " in text else text.split(" says ")
-                    if len(parts) > 1:
-                        speaker = parts[0].strip()[:50]  # Limit speaker name length
-                        clean_text = parts[1] if len(parts[1]) > 10 else clean_text
-                elif " yelled " in text or " shouted " in text:
-                    speaker = "Speaker"  # Generic if we can't extract
-                
-                lines.append(f"  • {speaker}: {clean_text}")
+        # Also process statement-based quotes
+        for text in statements_by_type.get('quote', []):
+            # Create a mock object for validation
+            class MockQuote:
+                speaker_label = None
+                content = text
+            
+            # Try to extract speaker from text
+            if " said " in text:
+                parts = text.split(" said ", 1)
+                MockQuote.speaker_label = parts[0].strip()[:50]
+                MockQuote.content = parts[1] if len(parts) > 1 else text
+            elif " yelled " in text:
+                parts = text.split(" yelled ", 1)
+                MockQuote.speaker_label = parts[0].strip()[:50]
+                MockQuote.content = parts[1] if len(parts) > 1 else text
+            elif " shouted " in text:
+                parts = text.split(" shouted ", 1)
+                MockQuote.speaker_label = parts[0].strip()[:50]
+                MockQuote.content = parts[1] if len(parts) > 1 else text
+            else:
+                MockQuote.speaker_label = None
+                MockQuote.content = text
+            
+            mock = MockQuote()
+            result = check_quote_has_speaker(mock)
+            
+            if result.passes:
+                validated_quotes.append(mock)
+            else:
+                quarantined_quotes.append((mock, [result]))
         
-        lines.append("")
+        # Render validated quotes
+        if validated_quotes:
+            lines.append("PRESERVED QUOTES (SPEAKER RESOLVED)")
+            lines.append("─" * 70)
+            
+            seen = set()
+            for quote in validated_quotes:
+                speaker = getattr(quote, 'speaker_label', 'Unknown')
+                verb = getattr(quote, 'speech_verb', 'said')
+                content = getattr(quote, 'content', '')
+                is_nested = getattr(quote, 'is_nested', False)
+                
+                # Dedupe
+                if content in seen:
+                    continue
+                seen.add(content)
+                
+                # Clean content
+                if content.startswith('"') and content.endswith('"'):
+                    content = content[1:-1]
+                
+                if is_nested:
+                    lines.append(f"  ⚠️ {speaker} {verb}: {content}")
+                    lines.append(f"      (nested quote - attribution may need review)")
+                else:
+                    lines.append(f"  • {speaker} {verb}: {content}")
+            
+            lines.append("")
+        
+        # Render quarantined quotes
+        if quarantined_quotes:
+            lines.append("QUOTES (SPEAKER UNRESOLVED)")
+            lines.append("─" * 70)
+            lines.append("  ⚠️ These quotes could not be attributed to a speaker:")
+            lines.append("")
+            
+            for quote, failures in quarantined_quotes[:10]:  # Limit
+                content = getattr(quote, 'content', str(quote))[:60]
+                issues = "; ".join(f.message for f in failures)
+                
+                lines.append(f'  ❌ "{content}..."')
+                lines.append(f"      Issues: {issues}")
+                lines.append("")
+            
+            if len(quarantined_quotes) > 10:
+                lines.append(f"  ... and {len(quarantined_quotes) - 10} more unattributed quotes")
+                lines.append("")
+        
+        # Validation stats
+        total = len(validated_quotes) + len(quarantined_quotes)
+        if total > 0:
+            passed = len(validated_quotes)
+            lines.append(f"  📊 Quote Validation: {passed}/{total} passed ({100*passed//total}%)")
+            lines.append("")
     
-    # === RECORDED EVENTS ===
-    # V5: Use Actor/Action/Target schema for proper event rendering
+    # =========================================================================
+    # V6: RECORDED EVENTS with Invariant Validation
+    # =========================================================================
+    # Events MUST pass invariants to render in main section.
+    # Failed events go to quarantine bucket with explicit issues.
+    # =========================================================================
+    
     if events:
-        # V5: Events must have resolved actors to be "camera-friendly"
-        # Events with unresolved pronouns or no actor go to interpretive bucket
-        camera_friendly_by_type = defaultdict(list)
-        interpretive_events = []
-        no_actor_events = []
-        seen_events = set()
+        from nnrt.validation import (
+            check_event_has_actor,
+            check_event_not_fragment,
+            check_event_has_verb,
+            InvariantSeverity,
+        )
+        
+        # Validate and categorize events
+        validated_events = []      # Pass all HARD invariants
+        quarantined_events = []    # Fail one or more HARD invariants
         
         for event in events:
-            # V5: Use resolved actor_label if available
-            actor = getattr(event, 'actor_label', None)
-            action = getattr(event, 'action_verb', None)
-            target = getattr(event, 'target_label', None) or getattr(event, 'target_object', None)
-            desc = getattr(event, 'description', str(event))
+            # Check all event invariants
+            results = [
+                check_event_has_actor(event),
+                check_event_not_fragment(event),
+                check_event_has_verb(event),
+            ]
             
-            # Dedupe by description
-            desc_normalized = ' '.join(desc.split())
-            if desc_normalized in seen_events:
-                continue
-            seen_events.add(desc_normalized)
+            # Separate HARD failures from SOFT warnings
+            hard_failures = [r for r in results if not r.passes and r.severity == InvariantSeverity.HARD]
+            soft_warnings = [r for r in results if not r.passes and r.severity == InvariantSeverity.SOFT]
             
-            # V5: Build formatted event line [ACTOR] [ACTION] [TARGET]
-            if actor and action:
-                # Remove pronouns from output
-                if actor.lower() not in {'he', 'she', 'they', 'it', 'him', 'her', 'them'}:
+            if hard_failures:
+                # Quarantine: event fails HARD invariants
+                quarantined_events.append((event, hard_failures))
+            else:
+                # Validated: event passes all HARD invariants
+                validated_events.append((event, soft_warnings))
+        
+        # Render validated events with Actor/Action/Target format
+        if validated_events:
+            lines.append("OBSERVED EVENTS (VALIDATED)")
+            lines.append("─" * 70)
+            lines.append("  ✅ Events with resolved actors (camera-friendly)")
+            lines.append("")
+            
+            seen = set()
+            for event, warnings in validated_events:
+                actor = getattr(event, 'actor_label', None)
+                action = getattr(event, 'action_verb', None)
+                target = getattr(event, 'target_label', None) or getattr(event, 'target_object', None)
+                
+                # Build event line
+                if actor and action:
                     event_line = f"{actor} {action}"
                     if target:
                         event_line += f" {target}"
-                    
-                    # Check camera-friendliness of the formatted line
-                    if is_camera_friendly(event_line) and is_camera_friendly(desc):
-                        # Get event type
-                        etype = getattr(event, 'type', None)
-                        if hasattr(etype, 'value'):
-                            etype = etype.value
-                        etype = str(etype) if etype else 'action'
-                        camera_friendly_by_type[etype].append(event_line)
-                    else:
-                        interpretive_events.append(desc)
                 else:
-                    # Unresolved pronoun - move to no-actor bucket
-                    no_actor_events.append(desc)
-            else:
-                # No actor or action - keep description but flag as incomplete
-                if desc and len(desc) > 10:
-                    # Check if it's interpretive
-                    if not is_camera_friendly(desc):
-                        interpretive_events.append(desc)
-                    else:
-                        no_actor_events.append(desc)
-        
-        # Render camera-friendly events with schema format
-        type_labels = {
-            'action': ('PHYSICAL ACTIONS', '💪'),
-            'movement': ('MOVEMENT/POSITIONING', '🚶'),
-            'verbal': ('VERBAL EXCHANGES', '💬'),
-        }
-        
-        has_camera_friendly = any(camera_friendly_by_type.values())
-        if has_camera_friendly:
-            lines.append("RECORDED EVENTS (Camera-Friendly)")
-            lines.append("─" * 70)
+                    # Fallback to description
+                    event_line = getattr(event, 'description', str(event))[:80]
+                
+                # Dedupe
+                if event_line in seen:
+                    continue
+                seen.add(event_line)
+                
+                # Check if camera-friendly before rendering
+                if is_camera_friendly(event_line):
+                    lines.append(f"  • {event_line}")
+                    
+                    # Add soft warnings inline if any
+                    if warnings:
+                        warn_msgs = ", ".join(w.message for w in warnings)
+                        lines.append(f"      ⚠️ ({warn_msgs})")
+                else:
+                    # Not camera-friendly - add attribution
+                    lines.append(f"  • [Reporter description] {event_line}")
             
-            for etype, (label, icon) in type_labels.items():
-                if camera_friendly_by_type.get(etype):
-                    lines.append(f"  {icon} {label}:")
-                    for event_line in camera_friendly_by_type[etype]:
-                        lines.append(f"      • {event_line}")
-                    lines.append("")
-            
-            # Any other types
-            for etype, event_lines in camera_friendly_by_type.items():
-                if etype not in type_labels and event_lines:
-                    lines.append(f"  📋 {etype.upper()}:")
-                    for event_line in event_lines:
-                        lines.append(f"      • {event_line}")
-                    lines.append("")
-        
-        # V5: Events with unresolved actors (need more context)
-        if no_actor_events:
-            lines.append("EVENTS (ACTOR UNRESOLVED)")
-            lines.append("─" * 70)
-            for desc in no_actor_events[:10]:  # Limit to 10
-                lines.append(f"  ⚠️ {desc[:80]}...")
-            if len(no_actor_events) > 10:
-                lines.append(f"  ... and {len(no_actor_events) - 10} more")
             lines.append("")
         
-        # Render interpretive events with attribution
-        if interpretive_events:
-            lines.append("REPORTER'S CHARACTERIZATIONS (of events)")
+        # Render quarantined events with explicit issues
+        if quarantined_events:
+            lines.append("EVENTS (ACTOR UNRESOLVED)")
             lines.append("─" * 70)
-            for desc in interpretive_events:
-                lines.append(f"  • Reporter describes: {desc[:100]}...")
+            lines.append("  ⚠️ These events could not be validated for neutral rendering:")
+            lines.append("")
+            
+            for event, failures in quarantined_events[:15]:  # Limit display
+                desc = getattr(event, 'description', str(event))[:80]
+                issues = "; ".join(f.message for f in failures)
+                
+                lines.append(f"  ❌ {desc}")
+                lines.append(f"      Issues: {issues}")
+                lines.append("")
+            
+            if len(quarantined_events) > 15:
+                lines.append(f"  ... and {len(quarantined_events) - 15} more events with unresolved actors")
+                lines.append("")
+        
+        # Log validation stats
+        total = len(events)
+        passed = len(validated_events)
+        failed = len(quarantined_events)
+        if total > 0:
+            lines.append(f"  📊 Event Validation: {passed}/{total} passed ({100*passed//total}%)")
             lines.append("")
     
     # === V5: RAW NEUTRALIZED NARRATIVE ===

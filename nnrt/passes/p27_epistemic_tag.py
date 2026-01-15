@@ -390,28 +390,31 @@ def tag_epistemic(ctx: TransformContext) -> TransformContext:
         stmt.polarity = polarity
         
         # =====================================================================
-        # V5: Set provenance status based on epistemic type
+        # V6: Honest Provenance Status (Invariant: verified requires evidence)
         # =====================================================================
-        # Map epistemic types to source types and provenance status
+        # CRITICAL: "verified" can ONLY be used with non-reporter source.
+        # Reporter content is "self_attested" - not externally verified.
+        # =====================================================================
+        
         if epistemic_type == "medical_finding":
             stmt.source_type = "medical"
-            stmt.provenance_status = "cited"
+            stmt.provenance_status = "cited"  # Has provider attribution
         elif epistemic_type == "admin_action":
             stmt.source_type = "document"
-            stmt.provenance_status = "cited"
+            stmt.provenance_status = "cited"  # Document reference
         elif epistemic_type in ("self_report", "state_acute", "state_injury", 
                                  "state_psychological", "state_socioeconomic"):
             stmt.source_type = "reporter"
-            stmt.provenance_status = "verified"  # Self-attested
+            stmt.provenance_status = "self_attested"  # V6: Not verified without evidence
         elif epistemic_type == "direct_event":
             stmt.source_type = "reporter"
-            stmt.provenance_status = "verified"  # First-person observation
+            stmt.provenance_status = "self_attested"  # V6: Reporter's observation, not externally verified
         elif epistemic_type in ("interpretation", "inference", "characterization"):
             stmt.source_type = "reporter"
-            stmt.provenance_status = "inference"  # Reporter's interpretation
+            stmt.provenance_status = "inference"  # Reporter's subjective interpretation
         elif epistemic_type in ("legal_claim", "conspiracy_claim"):
             stmt.source_type = "reporter"
-            stmt.provenance_status = "missing"  # Needs external verification
+            stmt.provenance_status = "needs_provenance"  # V6: Clear label for missing verification
         elif epistemic_type == "third_party_report":
             stmt.source_type = "witness"
             stmt.provenance_status = "cited"  # Attributed to named witness
@@ -420,7 +423,7 @@ def tag_epistemic(ctx: TransformContext) -> TransformContext:
             stmt.provenance_status = "cited"  # Attributed speech
         else:
             stmt.source_type = "reporter"
-            stmt.provenance_status = "missing"  # Unknown - needs provenance
+            stmt.provenance_status = "needs_provenance"  # Unknown - needs provenance
         
         # Update confidence if classification is strong
         if confidence > stmt.confidence:
