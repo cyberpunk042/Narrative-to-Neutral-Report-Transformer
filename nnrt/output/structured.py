@@ -116,6 +116,65 @@ class EventOutput(BaseModel):
     confidence: float = Field(default=0.8)
 
 
+# ============================================================================
+# V3 Semantic Understanding Output Models
+# ============================================================================
+
+class MentionOutput(BaseModel):
+    """A mention of an entity in the narrative (v3)."""
+    
+    id: str = Field(..., description="Mention ID (m_XXXX)")
+    text: str = Field(..., description="The mention text as it appears")
+    type: str = Field(..., description="proper_name|pronoun|title|descriptor")
+    resolved_entity_id: Optional[str] = Field(None, description="Entity this refers to")
+    confidence: float = Field(default=0.5, description="Resolution confidence")
+
+
+class CoreferenceChainOutput(BaseModel):
+    """A chain linking all mentions of an entity (v3)."""
+    
+    entity_id: str = Field(..., description="The entity all mentions refer to")
+    entity_label: str = Field(..., description="Human-readable entity label")
+    mentions: list[str] = Field(default_factory=list, description="Mention texts in order")
+    mention_count: int = Field(default=0)
+    has_proper_name: bool = Field(default=False)
+    confidence: float = Field(default=0.5)
+
+
+class TimelineEntryOutput(BaseModel):
+    """A temporally-positioned event (v3)."""
+    
+    sequence_order: int = Field(..., description="Chronological position (0=first)")
+    event_id: Optional[str] = Field(None)
+    description: str = Field(..., description="What happened")
+    absolute_time: Optional[str] = Field(None, description="Explicit time if known")
+    relative_time: Optional[str] = Field(None, description="Relative time marker")
+    confidence: float = Field(default=0.5)
+
+
+class StatementGroupOutput(BaseModel):
+    """A semantic cluster of related statements (v3)."""
+    
+    id: str = Field(..., description="Group ID")
+    type: str = Field(..., description="encounter|medical|witness_account|official|emotional|quote")
+    title: str = Field(..., description="Human-readable group title")
+    statements: list[str] = Field(default_factory=list, description="Statement texts in this group")
+    statement_count: int = Field(default=0)
+    primary_entity: Optional[str] = Field(None, description="Main entity label")
+    evidence_strength: float = Field(default=0.5)
+
+
+class EvidenceClassificationOutput(BaseModel):
+    """Evidence classification for a statement (v3)."""
+    
+    statement_id: str = Field(..., description="Statement this classifies")
+    statement_text: Optional[str] = Field(None, description="Statement text for context")
+    evidence_type: str = Field(..., description="direct_witness|reported|documentary|physical|inference")
+    source: Optional[str] = Field(None, description="Source entity label for reported evidence")
+    reliability: float = Field(default=0.5, description="0.0=unreliable to 1.0=highly reliable")
+    corroborated_by: list[str] = Field(default_factory=list, description="Corroborating statement IDs")
+
+
 class DiffTransform(BaseModel):
     """A single text transformation for diff visualization."""
     
@@ -178,6 +237,24 @@ class StructuredOutput(BaseModel):
     uncertainties: list[UncertaintyOutput] = Field(default_factory=list)
     entities: list[EntityOutput] = Field(default_factory=list)
     events: list[EventOutput] = Field(default_factory=list)
+    
+    # V3: Semantic Understanding
+    coreference_chains: list[CoreferenceChainOutput] = Field(
+        default_factory=list,
+        description="Coreference chains linking pronouns to entities"
+    )
+    timeline: list[TimelineEntryOutput] = Field(
+        default_factory=list,
+        description="Chronologically ordered events"
+    )
+    statement_groups: list[StatementGroupOutput] = Field(
+        default_factory=list,
+        description="Semantic clusters of related statements"
+    )
+    evidence_classifications: list[EvidenceClassificationOutput] = Field(
+        default_factory=list,
+        description="Evidence type and reliability for statements"
+    )
     
     # Diagnostics
     diagnostics: list[dict] = Field(default_factory=list)
@@ -350,6 +427,106 @@ def build_structured_output(result: TransformResult, input_text: str) -> Structu
         segments_unchanged=segments_unchanged,
     )
 
+    # =========================================================================
+    # V3: Semantic Understanding Data
+    # =========================================================================
+    
+    # Build entity lookup for label resolution
+    entity_lookup = {ent.id: ent for ent in result.entities}
+    
+    # Build coreference chains output
+    coreference_chains_out = []
+    for chain in result.coreference_chains:
+        entity = entity_lookup.get(chain.entity_id)
+        entity_label = entity.label if entity else "Unknown"
+        
+        # Get mention texts
+        mention_texts = []
+        for m_id in chain.mention_ids:
+            mention = next((m for m in result.mentions if m.id == m_id), None)
+            if mention:
+                mention_texts.append(mention.text)
+        
+        coreference_chains_out.append(CoreferenceChainOutput(
+            entity_id=chain.entity_id,
+            entity_label=entity_label,
+            mentions=mention_texts,
+            mention_count=chain.mention_count,
+            has_proper_name=chain.has_proper_name,
+            confidence=chain.confidence,
+        ))
+    
+    # Build timeline output
+    timeline_out = []
+    for entry in sorted(result.timeline, key=lambda x: x.sequence_order):
+        # Get event description if available
+        description = ""
+        if entry.event_id:
+            event = next((e for e in result.events if e.id == entry.event_id), None)
+            if event:
+                description = event.description
+        
+        timeline_out.append(TimelineEntryOutput(
+            sequence_order=entry.sequence_order,
+            event_id=entry.event_id,
+            description=description,
+            absolute_time=entry.absolute_time,
+            relative_time=entry.relative_time,
+            confidence=entry.time_confidence,
+        ))
+    
+    # Build statement groups output
+    statement_groups_out = []
+    for group in result.statement_groups:
+        # Get statement texts
+        statement_texts = []
+        for stmt_id in group.statement_ids:
+            stmt = next((s for s in result.atomic_statements if s.id == stmt_id), None)
+            if stmt:
+                statement_texts.append(stmt.text)
+        
+        # Get primary entity label
+        primary_entity_label = None
+        if group.primary_entity_id:
+            entity = entity_lookup.get(group.primary_entity_id)
+            if entity:
+                primary_entity_label = entity.label
+        
+        statement_groups_out.append(StatementGroupOutput(
+            id=group.id,
+            type=group.group_type.value,
+            title=group.title,
+            statements=statement_texts,
+            statement_count=len(statement_texts),
+            primary_entity=primary_entity_label,
+            evidence_strength=group.evidence_strength,
+        ))
+    
+    # Build evidence classifications output
+    evidence_out = []
+    for ev in result.evidence_classifications:
+        # Get statement text
+        stmt_text = None
+        stmt = next((s for s in result.atomic_statements if s.id == ev.statement_id), None)
+        if stmt:
+            stmt_text = stmt.text
+        
+        # Get source entity label
+        source_label = None
+        if ev.source_entity_id:
+            entity = entity_lookup.get(ev.source_entity_id)
+            if entity:
+                source_label = entity.label
+        
+        evidence_out.append(EvidenceClassificationOutput(
+            statement_id=ev.statement_id,
+            statement_text=stmt_text,
+            evidence_type=ev.evidence_type.value,
+            source=source_label,
+            reliability=ev.reliability,
+            corroborated_by=ev.corroborating_ids,
+        ))
+
     return StructuredOutput(
         nnrt_version=__version__,
         schema_version=SCHEMA_VERSION,
@@ -362,6 +539,10 @@ def build_structured_output(result: TransformResult, input_text: str) -> Structu
         uncertainties=uncertainties,
         entities=entities_out,
         events=events_out,
+        coreference_chains=coreference_chains_out,
+        timeline=timeline_out,
+        statement_groups=statement_groups_out,
+        evidence_classifications=evidence_out,
         diagnostics=[d.model_dump() for d in result.diagnostics],
         diff_data=diff_data,
         rendered_text=result.rendered_text or "",

@@ -350,11 +350,11 @@ Week 5: p48_classify_evidence ✅ COMPLETE
 ├── Detect corroboration/contradiction ✅ (cross-source matching)
 └── Write evidence tests ✅ (13 tests passing)
 
-Week 6: Integration
-├── Update structured output
-├── Update GUI rendering
-├── End-to-end testing
-└── Documentation
+Week 6: Integration ✅ COMPLETE
+├── Update structured output ✅ (added v3 output models and conversion)
+├── End-to-end testing ✅ (full pipeline verified with real narrative)
+├── Output includes coreference_chains, timeline, statement_groups, evidence_classifications ✅
+└── 272 tests passing ✅
 ```
 
 ---
