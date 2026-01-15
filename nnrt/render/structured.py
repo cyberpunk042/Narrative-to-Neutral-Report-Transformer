@@ -221,19 +221,56 @@ def format_structured_output(
             lines.append(f"  • Reporter reports: {text}")
         lines.append("")
     
-    # === CLAIMS ===
-    if statements_by_type.get('claim'):
-        lines.append("CLAIMS")
+    # =========================================================================
+    # V4: REPORTED CLAIMS (legal characterizations) - with proper attribution
+    # These are legal conclusions made by the reporter
+    # =========================================================================
+    if statements_by_epistemic.get('legal_claim'):
+        lines.append("REPORTED CLAIMS (legal characterizations)")
         lines.append("─" * 70)
-        for text in statements_by_type['claim']:
+        for text in statements_by_epistemic['legal_claim']:
+            # Add attribution prefix
+            lines.append(f"  • Reporter characterizes: {text}")
+        lines.append("")
+    
+    # =========================================================================
+    # V4: REPORTER INTERPRETATIONS - intent attributions, inferences
+    # =========================================================================
+    if statements_by_epistemic.get('interpretation'):
+        lines.append("REPORTER INTERPRETATIONS")
+        lines.append("─" * 70)
+        for text in statements_by_epistemic['interpretation']:
+            lines.append(f"  • Reporter perceives: {text}")
+        lines.append("")
+    
+    # =========================================================================
+    # V4: CONTESTED ALLEGATIONS (conspiracy claims) - quarantined
+    # These are unfalsifiable and should be clearly marked
+    # =========================================================================
+    if statements_by_epistemic.get('conspiracy_claim'):
+        lines.append("CONTESTED ALLEGATIONS (unverifiable)")
+        lines.append("─" * 70)
+        for text in statements_by_epistemic['conspiracy_claim']:
+            lines.append(f"  ⚠️ Unverified: {text}")
+        lines.append("")
+    
+    # =========================================================================
+    # V4: MEDICAL FINDINGS - doctor statements, diagnoses
+    # =========================================================================
+    if statements_by_epistemic.get('medical_finding'):
+        lines.append("MEDICAL FINDINGS")
+        lines.append("─" * 70)
+        for text in statements_by_epistemic['medical_finding']:
             lines.append(f"  • {text}")
         lines.append("")
     
-    # === STATEMENTS (Interpretations) ===
-    if statements_by_type.get('interpretation'):
-        lines.append("STATEMENTS")
+    # =========================================================================
+    # V4: ADMINISTRATIVE ACTIONS - filings, complaints, etc.
+    # =========================================================================
+    if statements_by_epistemic.get('admin_action'):
+        lines.append("ADMINISTRATIVE ACTIONS")
         lines.append("─" * 70)
-        for text in statements_by_type['interpretation']:
+        for text in statements_by_epistemic['admin_action']:
             lines.append(f"  • {text}")
         lines.append("")
     

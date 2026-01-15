@@ -1,52 +1,249 @@
 #!/usr/bin/env python3
-"""Full stress test for NNRT policy engine."""
+"""
+V4 Stress Test for NNRT
 
-from nnrt.core.engine import get_engine
+Comprehensive stress test that validates:
+1. All V4 epistemic types are correctly classified
+2. All rendered sections contain appropriate content
+3. Critical invariants are enforced
+4. No known bugs regress
+"""
+
+import sys
+import logging
+from collections import Counter
+from dataclasses import dataclass
+
+# Suppress logging during test
+logging.getLogger("nnrt").setLevel(logging.ERROR)
+
+from nnrt.core.engine import Engine
+from nnrt.cli.main import setup_default_pipeline, setup_structured_only_pipeline
 from nnrt.core.context import TransformRequest
-from nnrt.cli.main import setup_default_pipeline
-from nnrt.policy.loader import clear_cache
+from nnrt.render.structured import format_structured_output
 
-clear_cache()
-engine = get_engine()
-setup_default_pipeline(engine, profile='law_enforcement')
 
-text = """I was absolutely terrified and in complete shock when the brutal, psychotic cops viciously attacked me for absolutely no reason on January 15th, 2026 at around 11:30 PM near the corner of Main Street and Oak Avenue.It all started when I was innocently walking home from my job at the Riverside Cafe where I work as a server. I was exhausted after pulling a double shift and just wanted to get home to my apartment. Out of nowhere, this unmarked police cruiser came screeching up beside me with its lights flashing aggressively. The thug cop behind the wheel was clearly looking for trouble.Officer Jenkins, badge number 4821, jumped out of the car like a maniac and immediately started screaming at me. He yelled "STOP RIGHT THERE! DON'T YOU DARE MOVE!" I was so scared I froze in place. I asked him politely "What's the problem, officer? I haven't done anything wrong." He obviously didn't care about my rights or the law.His partner, Officer Rodriguez, badge number 5539, got out of the passenger side and they both approached me with their hands on their weapons, clearly ready to shoot me for no reason. Officer Jenkins deliberately grabbed my left arm with excessive force and twisted it behind my back. I screamed in pain and said "You're hurting me! Please stop!" but he intentionally ignored my pleas because he wanted to inflict maximum damage.Officer Rodriguez then searched through my pockets without my consent and without any legal justification. He was fishing through my belongings like a criminal. He found my wallet, my phone, and my work apron that still had some cash tips from my shift. He accused me of being a robbery suspect which was a complete and total lie fabricated to justify their illegal assault on me.I tried to explain "I just got off work at the Riverside Cafe! You can call my manager Sarah Mitchell to verify!" but Officer Jenkins just laughed in my face and said "Sure you did, that's what they all say." He was mocking me and clearly enjoying my suffering.They then brutally slammed me against their patrol car, and Officer Rodriguez put handcuffs on me so tightly that they cut into my wrists. I have permanent scars from their torture. While my face was pressed against the cold metal of the car, Officer Jenkins whispered menacingly in my ear "You should have just cooperated, now you're going to pay for wasting our time." This was clearly a threat and witness intimidation.My neighbor, Marcus Johnson, happened to be walking his dog and witnessed the entire horrifying assault. He started recording on his phone and yelled "Hey! What are you doing to him? That's my neighbor, he's not a criminal!" Officer Rodriguez immediately ran over to Marcus and tried to grab his phone, but Marcus stepped back. Rodriguez threatened him saying "You better delete that video or you're next." This is clearly obstruction of justice and intimidation of a witness.Another witness, an elderly woman named Mrs. Patricia Chen who lives across the street, came out onto her porch and also saw everything. She called 911 to report that police officers were assaulting an innocent person. I later found out that her call was mysteriously "lost" in the system, which proves there's a massive cover-up going on.After holding me against the car for what felt like hours but was probably about 20 minutes, a sergeant arrived at the scene. Sergeant Williams, badge number 2103, pulled Officers Jenkins and Rodriguez aside and they had a hushed conversation. I couldn't hear what they were saying, but they kept looking at me and shaking their heads. It was obvious they were conspiring about how to cover up their crimes.Eventually, Sergeant Williams came over to me and said "There's been a misunderstanding. You can go." He uncuffed me but didn't apologize for their criminal behavior. My wrists were bleeding and bruised. I asked "Am I being charged with anything?" and he just said "Not today" which was clearly a threat that they would fabricate charges against me later if I complained.I went to the emergency room at St. Mary's Hospital immediately after and was treated by Dr. Amanda Foster. She documented bruises on both wrists, a sprained left shoulder from when Jenkins twisted my arm, and minor abrasions on my face from being slammed against the car. She said my injuries were consistent with "significant physical force" which proves they used excessive and unnecessary violence against me.The next day, I filed a formal complaint with the Internal Affairs Division. Detective Sarah Monroe took my statement, but I could tell from her dismissive attitude that she wasn't going to do anything about it. She said "We'll investigate" but I know they always protect their own. Three months later, I received a letter stating that my complaint had been investigated and the officers' actions were found to be "within policy." This is an obvious whitewash and cover-up.I was never charged with any crime, which proves I was completely innocent and they had absolutely no legal basis to stop me in the first place. This was clearly racial profiling and harassment. The so-called "robbery suspect" they claimed I matched turned out to be a description of a white male in his 40s - I am a 28-year-old Black man. The racism in this department is systematic and institutionalized.The psychological trauma from this attack has been devastating. I now suffer from PTSD, anxiety, and depression. I can no longer walk outside at night without having panic attacks. My therapist, Dr. Michael Thompson, has diagnosed me with Post-Traumatic Stress Disorder directly caused by this police brutality incident. I've lost my job because I couldn't show up to my night shifts anymore due to my fear of going outside after dark.Officer Jenkins is a known violent offender with a history of brutality complaints against him. I researched his record and found that at least 12 other citizens have filed complaints against him for similar behavior. The police department refuses to release his full disciplinary record, which proves they are hiding even more evidence of his pattern of violence and abuse of power.I am now pursuing legal action against the City Police Department, Officers Jenkins and Rodriguez, Sergeant Williams, and the City itself for civil rights violations, assault and battery, false imprisonment, intentional infliction of emotional distress, and conspiracy to violate my constitutional rights. My attorney, Jennifer Walsh from the Civil Rights Legal Foundation, says this is one of the clearest cases of police misconduct she has ever seen.The whole system is corrupt and designed to protect violent cops while victimizing innocent citizens like myself. Until there is real accountability and reform, these thugs with badges will continue to terrorize our communities with impunity. I refuse to be silenced and I will fight for justice no matter how long it takes."""
+# =============================================================================
+# TEST CONFIGURATION
+# =============================================================================
 
-req = TransformRequest(text=text)
-result = engine.transform(req)
+@dataclass
+class TestResult:
+    name: str
+    passed: bool
+    message: str
 
-print('=' * 80)
-print('FULL STRESS TEST OUTPUT')
-print('=' * 80)
-print(result.rendered_text)
-print()
-print('=' * 80)
-print(f'Status: {result.status}, Diagnostics: {len(result.diagnostics)}')
-print('=' * 80)
 
-# Check for remaining issues
-output = result.rendered_text
-issues = []
+def run_stress_test():
+    """Run comprehensive V4 stress test."""
+    results: list[TestResult] = []
+    
+    # Load test narrative
+    with open("tests/fixtures/stress_test_narrative.txt") as f:
+        text = f.read()
+    
+    # Run pipeline
+    engine = Engine()
+    setup_default_pipeline(engine, profile="law_enforcement")
+    result = engine.transform(TransformRequest(text=text), pipeline_id="default")
+    
+    report = format_structured_output(
+        rendered_text=result.rendered_text,
+        atomic_statements=result.atomic_statements,
+        entities=result.entities,
+        events=result.events,
+        identifiers=result.identifiers,
+    )
+    
+    # =========================================================================
+    # TEST 1: Epistemic Type Coverage
+    # =========================================================================
+    epistemic_counts = Counter()
+    for stmt in result.atomic_statements:
+        epistemic = getattr(stmt, 'epistemic_type', 'unknown')
+        epistemic_counts[epistemic] += 1
+    
+    total_statements = sum(epistemic_counts.values())
+    unknown_count = epistemic_counts.get('unknown', 0)
+    unknown_pct = (unknown_count / total_statements * 100) if total_statements > 0 else 0
+    
+    # Should have < 50% unknown
+    results.append(TestResult(
+        name="Epistemic Coverage",
+        passed=unknown_pct < 50,
+        message=f"unknown: {unknown_count}/{total_statements} ({unknown_pct:.1f}%)"
+    ))
+    
+    # Should have all key types present
+    expected_types = ['direct_event', 'self_report', 'interpretation', 'legal_claim', 'conspiracy_claim']
+    for etype in expected_types:
+        results.append(TestResult(
+            name=f"Has {etype}",
+            passed=epistemic_counts.get(etype, 0) > 0,
+            message=f"count: {epistemic_counts.get(etype, 0)}"
+        ))
+    
+    # =========================================================================
+    # TEST 2: Section Presence
+    # =========================================================================
+    expected_sections = [
+        "OBSERVED EVENTS (INCIDENT SCENE)",
+        "OBSERVED EVENTS (FOLLOW-UP ACTIONS)",
+        "SELF-REPORTED STATE",
+        "REPORTED CLAIMS",
+        "REPORTER INTERPRETATIONS",
+        "CONTESTED ALLEGATIONS",
+        "MEDICAL FINDINGS",
+        "ADMINISTRATIVE ACTIONS",
+    ]
+    
+    for section in expected_sections:
+        results.append(TestResult(
+            name=f"Section: {section[:30]}...",
+            passed=section in report,
+            message="present" if section in report else "MISSING"
+        ))
+    
+    # =========================================================================
+    # TEST 3: Critical Invariants
+    # =========================================================================
+    
+    # INVARIANT: OBSERVED EVENTS (INCIDENT SCENE) should NOT contain interpretive words
+    interpretive_words = [
+        'horrifying', 'brutal', 'brutally', 'viciously', 'psychotic',
+        'innocent', 'criminal', 'clearly', 'obviously', 'deliberately',
+        'cover-up', 'whitewash', 'conspiracy'
+    ]
+    
+    if "OBSERVED EVENTS (INCIDENT SCENE)" in report:
+        incident_section = report.split("OBSERVED EVENTS (INCIDENT SCENE)")[1]
+        # Get just this section (up to next section)
+        for end_marker in ["OBSERVED EVENTS (FOLLOW-UP", "REPORTER DESCRIPTIONS", "SELF-REPORTED", "REPORTED CLAIMS"]:
+            if end_marker in incident_section:
+                incident_section = incident_section.split(end_marker)[0]
+                break
+        
+        found_interpretive = []
+        for word in interpretive_words:
+            if word.lower() in incident_section.lower():
+                found_interpretive.append(word)
+        
+        results.append(TestResult(
+            name="INCIDENT SCENE: No interpretive",
+            passed=len(found_interpretive) == 0,
+            message=f"found: {found_interpretive}" if found_interpretive else "clean"
+        ))
+    
+    # INVARIANT: SELF-REPORTED STATE should have "Reporter reports:" prefix
+    if "SELF-REPORTED STATE" in report:
+        self_section = report.split("SELF-REPORTED STATE")[1].split("\n\n")[0]
+        has_prefix = "Reporter reports:" in self_section
+        results.append(TestResult(
+            name="SELF-REPORTED: Has prefix",
+            passed=has_prefix,
+            message="has 'Reporter reports:'" if has_prefix else "MISSING prefix"
+        ))
+    
+    # INVARIANT: REPORTED CLAIMS should have "Reporter characterizes:" prefix
+    if "REPORTED CLAIMS" in report:
+        claims_section = report.split("REPORTED CLAIMS")[1].split("\n\n")[0]
+        has_prefix = "Reporter characterizes:" in claims_section
+        results.append(TestResult(
+            name="CLAIMS: Has attribution",
+            passed=has_prefix,
+            message="has attribution" if has_prefix else "MISSING attribution"
+        ))
+    
+    # INVARIANT: CONTESTED ALLEGATIONS should have warning marker
+    if "CONTESTED ALLEGATIONS" in report:
+        contested_section = report.split("CONTESTED ALLEGATIONS")[1].split("\n\n")[0]
+        has_warning = "⚠️" in contested_section or "Unverified" in contested_section
+        results.append(TestResult(
+            name="CONTESTED: Has warning",
+            passed=has_warning,
+            message="has warning" if has_warning else "MISSING warning"
+        ))
+    
+    # =========================================================================
+    # TEST 4: Bug Regression Checks
+    # =========================================================================
+    output = result.rendered_text or ""
+    
+    regression_checks = [
+        ("speaking loudly in pain", "verb_tense_loss"),
+        ("against me against", "double_against"),
+        ("against against", "double_against"),
+        ("forcerce", "word_corruption"),
+        (" cers", "truncation"),
+        ("criminalconduct", "no_space"),
+        ("dismissively me", "missing_at"),
+        ("causey", "boundary"),
+        ("a alleged", "article"),
+        ("to affecting", "infinitive"),
+    ]
+    
+    for pattern, bug_name in regression_checks:
+        results.append(TestResult(
+            name=f"No regression: {bug_name}",
+            passed=pattern not in output,
+            message="clean" if pattern not in output else f"FOUND: '{pattern}'"
+        ))
+    
+    # =========================================================================
+    # TEST 5: Entity Extraction
+    # =========================================================================
+    entity_roles = Counter()
+    for e in result.entities:
+        role = getattr(e, 'role', 'unknown')
+        # Handle enum values
+        if hasattr(role, 'value'):
+            role = role.value
+        elif hasattr(role, 'name'):
+            role = role.name
+        entity_roles[str(role).upper()] += 1
+    
+    # Should have officers (SUBJECT_OFFICER)
+    has_officers = entity_roles.get('SUBJECT_OFFICER', 0) > 0
+    results.append(TestResult(
+        name="Has officer entities",
+        passed=has_officers,
+        message=f"officers: {entity_roles.get('SUBJECT_OFFICER', 0)}"
+    ))
+    
+    # Should have witnesses
+    has_witnesses = entity_roles.get('WITNESS', 0) > 0
+    results.append(TestResult(
+        name="Has witness entities",
+        passed=has_witnesses,
+        message=f"witnesses: {entity_roles.get('WITNESS', 0)}"
+    ))
+    
+    # =========================================================================
+    # PRINT RESULTS
+    # =========================================================================
+    print("=" * 70)
+    print("       V4 STRESS TEST RESULTS")
+    print("=" * 70)
+    
+    passed = sum(1 for r in results if r.passed)
+    failed = sum(1 for r in results if not r.passed)
+    
+    for r in results:
+        status = "✅" if r.passed else "❌"
+        print(f"  {status} {r.name.ljust(35)} {r.message}")
+    
+    print("=" * 70)
+    print(f"  TOTAL: {passed} passed, {failed} failed")
+    print("=" * 70)
+    
+    # Epistemic type distribution
+    print("\nEpistemic Type Distribution:")
+    for etype, count in epistemic_counts.most_common():
+        print(f"  {etype.ljust(20)} {count}")
+    
+    return failed == 0
 
-checks = [
-    ("speaking loudly in pain", "verb_tense_loss"),
-    ("against me against", "double_against"),
-    ("against against", "double_against"),
-    ("forcerce", "word_corruption"),
-    (" cers", "truncation"),
-    ("criminalconduct", "no_space"),
-    ("dismissively me", "missing_at"),
-    ("causey", "boundary"),
-    ("a alleged", "article"),
-    ("to affecting", "infinitive"),
-]
 
-for pattern, issue in checks:
-    if pattern in output:
-        issues.append(f"{issue}:{pattern}")
-
-print()
-if issues:
-    print(f"⚠️  Remaining issues: {issues}")
-else:
-    print("✅ No known bugs detected in output!")
+if __name__ == "__main__":
+    success = run_stress_test()
+    sys.exit(0 if success else 1)

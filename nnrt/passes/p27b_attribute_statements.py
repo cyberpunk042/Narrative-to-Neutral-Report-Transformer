@@ -114,7 +114,7 @@ INTERPRETATION_EXTRACTIONS = [
      "reporter perceived hostile intent"),
     (r'\benjoying\s+(?:my|the)\s+(?:pain|suffering|fear)\b', "sadism perception",
      "reporter perceived the officer as enjoying the situation"),
-    (r'\bdeliberately\s+(?:trying|ignoring|hurting)\b', "deliberate action",
+    (r'\bdeliberately\s+(?:trying|ignoring|hurting|ignored|hurt)\b', "deliberate action",
      "reporter believes the action was deliberate"),
     (r'\bwanted\s+to\s+(?:inflict|hurt|harm|punish)\b', "harmful intent",
      "reporter believes there was intent to cause harm"),
@@ -125,6 +125,13 @@ INTERPRETATION_EXTRACTIONS = [
      "reporter draws an inference from events"),
     (r'\bmocking\b', "perceived mockery",
      "reporter perceived mockery"),
+    # NEW: More intent patterns
+    (r'\bclearly\s+(?:tried|attempting|attempted)\s+to\b', "perceived attempt",
+     "reporter perceived an attempt"),
+    (r'\b(?:intentionally|deliberately)\s+(?:ignored|refused|hurt|harmed)\b', "deliberate action",
+     "reporter believes the action was deliberate"),
+    (r'\bhe\s+(?:obviously|clearly)\s+(?:was|wanted)\b', "intent perception",
+     "reporter perceives intent"),
 ]
 
 

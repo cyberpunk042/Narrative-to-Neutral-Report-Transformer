@@ -71,6 +71,7 @@ LEGAL_CLAIM_PATTERNS = [
     r'\bexcessive\s+(force|violence)\b',
     r'\bpolice\s+(brutality|misconduct)\b',
     r'\bcivil\s+rights\s+violation\b',
+    r'\bviolated\s+(my|his|her|their|our)\s+(civil\s+)?rights\b',
     r'\bfalse\s+(imprisonment|arrest)\b',
     r'\bconstitutional\s+rights\b',
     r'\bobstruction\s+of\s+justice\b',
@@ -83,6 +84,9 @@ LEGAL_CLAIM_PATTERNS = [
     r'\bwhitewash\b',
     r'\bcover.?up\b',
     r'\bcorrupt(ion)?\b',
+    r'\bharassment\b',
+    r'\bassault\s+and\s+battery\b',
+    r'\bassaulted\s+(me|him|her|them|us)\b',  # NEW: "assaulted me"
 ]
 
 # Direct quote markers
@@ -234,8 +238,14 @@ def _classify_polarity(text: str) -> str:
     if re.search(r'\b(didn\'t|did not|never|wasn\'t|was not|weren\'t|were not)\b', text_lower):
         return "denied"
     
-    # Uncertainty markers
+    # Uncertainty markers (expanded)
     if re.search(r'\b(might|maybe|perhaps|probably|possibly|could have|may have)\b', text_lower):
+        return "uncertain"
+    if re.search(r'\bi\s+(think|believe|guess|suppose)\b', text_lower):
+        return "uncertain"
+    if re.search(r'\b(it\s+)?seem(s|ed)\s+(like|that|to)\b', text_lower):
+        return "uncertain"
+    if re.search(r'\bapparently\b', text_lower):
         return "uncertain"
     
     # Hypothetical
