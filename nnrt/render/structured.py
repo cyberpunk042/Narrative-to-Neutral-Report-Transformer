@@ -114,6 +114,47 @@ def format_structured_output(
     # V4: Also group by epistemic_type for proper observation split
     statements_by_epistemic = defaultdict(list)
     
+    # V4: Words that disqualify a statement from OBSERVED EVENTS
+    # If a statement contains these, it's not "camera-friendly" and belongs elsewhere
+    INTERPRETIVE_DISQUALIFIERS = [
+        # Characterizations
+        'horrifying', 'horrific', 'brutal', 'brutally', 'viciously', 'vicious',
+        'psychotic', 'maniac', 'thug', 'aggressive', 'aggressively', 
+        'menacing', 'menacingly', 'distressing', 'terrifying', 'shocking',
+        # Legal conclusions
+        'innocent', 'guilty', 'criminal', 'illegal', 'unlawful', 'assault',
+        'assaulting', 'torture', 'terrorize', 'misconduct', 'violation',
+        # Intent attributions
+        'deliberately', 'intentionally', 'clearly', 'obviously', 'wanted to',
+        # Certainty markers
+        'absolutely', 'completely', 'totally', 'definitely', 'certainly',
+        # Cover-up language
+        'cover-up', 'coverup', 'whitewash', 'conspiracy', 'conspiring',
+    ]
+    
+    # V4: Patterns that indicate "later discovered" facts (not incident-scene)
+    FOLLOW_UP_PATTERNS = [
+        'later found', 'later learned', 'turned out', 'found out',
+        'three months later', 'the next day', 'afterward', 'afterwards',
+        'went to the emergency', 'went to the hospital', 'filed a complaint',
+        'filed a formal', 'received a letter', 'therapist', 'diagnosed',
+        'internal affairs', 'detective', 'investigated', 'pursuing legal',
+        'my attorney', 'researched',
+    ]
+    
+    def is_camera_friendly(text: str) -> bool:
+        """Check if statement is purely observational (no interpretive content)."""
+        text_lower = text.lower()
+        for word in INTERPRETIVE_DISQUALIFIERS:
+            if word in text_lower:
+                return False
+        return True
+    
+    def is_follow_up_event(text: str) -> bool:
+        """Check if event is follow-up (not incident-scene)."""
+        text_lower = text.lower()
+        return any(pattern in text_lower for pattern in FOLLOW_UP_PATTERNS)
+    
     for stmt in atomic_statements:
         stmt_type = getattr(stmt, 'type_hint', None)
         if hasattr(stmt_type, 'value'):
@@ -127,15 +168,47 @@ def format_structured_output(
         statements_by_epistemic[epistemic].append(text)
     
     # =========================================================================
-    # V4: OBSERVED EVENTS (physical, third-party observable)
-    # CRITICAL INVARIANT: Must be externally observable by camera/witness
+    # V4: OBSERVED EVENTS - Quality filter: only camera-friendly statements
+    # CRITICAL INVARIANT: If it contains interpretation, it doesn't belong here
     # =========================================================================
     if statements_by_epistemic.get('direct_event'):
-        lines.append("OBSERVED EVENTS")
-        lines.append("─" * 70)
+        incident_events = []
+        follow_up_events = []
+        excluded_events = []  # Statements with interpretive content
+        
         for text in statements_by_epistemic['direct_event']:
-            lines.append(f"  • {text}")
-        lines.append("")
+            if not is_camera_friendly(text):
+                # Contains interpretive words - exclude from OBSERVED EVENTS
+                excluded_events.append(text)
+            elif is_follow_up_event(text):
+                follow_up_events.append(text)
+            else:
+                incident_events.append(text)
+        
+        # INCIDENT SCENE events (purely observational)
+        if incident_events:
+            lines.append("OBSERVED EVENTS (INCIDENT SCENE)")
+            lines.append("─" * 70)
+            for text in incident_events:
+                lines.append(f"  • {text}")
+            lines.append("")
+        
+        # FOLLOW-UP events (post-incident)
+        if follow_up_events:
+            lines.append("OBSERVED EVENTS (FOLLOW-UP ACTIONS)")
+            lines.append("─" * 70)
+            for text in follow_up_events:
+                lines.append(f"  • {text}")
+            lines.append("")
+        
+        # REPORTER DESCRIPTIONS (excluded from OBSERVED EVENTS due to interpretive content)
+        # Data is preserved with proper attribution
+        if excluded_events:
+            lines.append("REPORTER DESCRIPTIONS (contains characterization)")
+            lines.append("─" * 70)
+            for text in excluded_events:
+                lines.append(f"  • Reporter describes: {text}")
+            lines.append("")
     
     # =========================================================================
     # V4: SELF-REPORTED STATE (internal: fear, pain, trauma)

@@ -1021,17 +1021,24 @@ function displayResults(result) {
 // =============================================================================
 
 function renderAtomicStatements(statements) {
+    // V4: Updated with epistemic types
     const filterOptions = [
         { value: 'all', label: 'All' },
-        { value: 'observation', label: 'Observation', color: 'observation' },
-        { value: 'claim', label: 'Claim', color: 'claim' },
-        { value: 'interpretation', label: 'Interpretation', color: 'interpretation' },
-        { value: 'quote', label: 'Quote', color: 'quote' },
+        { value: 'direct_event', label: '📹 Observed', color: 'observation' },
+        { value: 'self_report', label: '💭 Self-Report', color: 'self-report' },
+        { value: 'interpretation', label: '🧠 Interpretation', color: 'interpretation' },
+        { value: 'legal_claim', label: '⚖️ Legal', color: 'legal' },
+        { value: 'conspiracy_claim', label: '🔮 Conspiracy', color: 'conspiracy' },
+        { value: 'quote', label: '💬 Quote', color: 'quote' },
+        { value: 'medical_finding', label: '🏥 Medical', color: 'medical' },
+        { value: 'admin_action', label: '📋 Admin', color: 'admin' },
+        { value: 'unknown', label: '❓ Unknown', color: 'unknown' },
     ];
 
+    // V4: Filter by epistemic_type instead of type
     const filtered = filters.atomicStatements === 'all'
         ? statements
-        : statements.filter(s => s.type === filters.atomicStatements);
+        : statements.filter(s => (s.epistemic_type || 'unknown') === filters.atomicStatements);
 
     if (elements.atomicStatementsBadge) {
         elements.atomicStatementsBadge.textContent = `${filtered.length}/${statements.length}`;
@@ -1044,7 +1051,7 @@ function renderAtomicStatements(statements) {
                 ${filtered.length ? filtered.map(s => `
                     <div class="atomic-statement">
                         <div class="atomic-statement-header">
-                            <span class="stmt-type-badge ${s.type}">${s.type}</span>
+                            <span class="stmt-type-badge ${s.epistemic_type || 'unknown'}">${s.epistemic_type || 'unknown'}</span>
                             <div class="stmt-confidence" title="Confidence: ${(s.confidence * 100).toFixed(0)}%">
                                 <div class="confidence-bar">
                                     <div class="confidence-fill" style="width: ${s.confidence * 100}%"></div>
@@ -1055,6 +1062,7 @@ function renderAtomicStatements(statements) {
                         </div>
                         <div class="atomic-statement-text">${escapeHtml(s.text)}</div>
                         <div class="atomic-statement-meta">
+                            <span class="meta-tag source">${s.source || 'reporter'}</span>
                             <span class="meta-tag clause">${s.clause_type}</span>
                             ${s.connector ? `<span class="meta-tag connector">${s.connector}</span>` : ''}
                             ${(s.flags || []).map(f => `<span class="meta-tag flag">${f}</span>`).join('')}

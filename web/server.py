@@ -134,6 +134,11 @@ def transform():
                 'connector': stmt.connector,
                 'derived_from': stmt.derived_from,
                 'flags': stmt.flags,
+                # V4: Epistemic tagging fields
+                'epistemic_type': getattr(stmt, 'epistemic_type', 'unknown'),
+                'source': getattr(stmt, 'source', 'reporter'),
+                'polarity': getattr(stmt, 'polarity', 'asserted'),
+                'evidence_source': getattr(stmt, 'evidence_source', 'self_report'),
             })
         
         # Generate the appropriate output format based on mode
@@ -444,6 +449,11 @@ def transform_stream():
                     'connector': stmt.connector,
                     'derived_from': stmt.derived_from,
                     'flags': stmt.flags,
+                    # V4: Epistemic tagging fields
+                    'epistemic_type': getattr(stmt, 'epistemic_type', 'unknown'),
+                    'source': getattr(stmt, 'source', 'reporter'),
+                    'polarity': getattr(stmt, 'polarity', 'asserted'),
+                    'evidence_source': getattr(stmt, 'evidence_source', 'self_report'),
                 })
             
             # Generate the appropriate output format based on mode
