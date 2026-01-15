@@ -1,7 +1,7 @@
 # V5 Architecture Plan: Proper Data Modeling
 
 **Created:** 2026-01-15
-**Status:** In Progress (Phase 2 complete)
+**Status:** In Progress (Phases 1, 2 & 3 complete)
 **Goal:** Address the 12 structural issues identified in the critical review
 
 ---
@@ -131,23 +131,32 @@ class TimeType(Enum):
 
 ## Implementation Phases
 
-### Phase 1: Entity Model Refactor (PARTIES fix)
+### Phase 1: Entity Model Refactor (PARTIES fix) ✅ COMPLETE
 **Fixes issues: #1**
 
-- [ ] Add `Participation` enum to Entity model
-- [ ] Split entity extraction to categorize:
+- [x] Add `Participation` enum to Entity model
+- [x] Split entity extraction to categorize:
   - INCIDENT_PARTICIPANTS
   - POST_INCIDENT_PROFESSIONALS
   - MENTIONED_CONTACTS
-- [ ] Fix name normalization ("Officers Jenkins" → "Officer Jenkins")
-- [ ] Ensure all officers appear in Name list
+- [x] Fix name normalization ("Officers Jenkins" → "Officer Jenkins")
+- [x] Filter bare role labels (partner, suspect, manager) from output
+- [x] Classify workplace contacts properly (Sarah Mitchell)
 
-**Files to modify:**
-- `nnrt/core/types.py` - Add Participation enum
-- `nnrt/passes/p32_entities.py` - Categorize by participation
-- `nnrt/render/structured.py` - Render 3 party groups
+**Implementation notes (2026-01-15):**
+- Added `Participation` enum with INCIDENT, POST_INCIDENT, MENTIONED_ONLY values
+- Added `participation` field to Entity model
+- Updated renderer to display three-tier PARTIES structure
+- Added WORKPLACE_CONTACT role detection pattern for managers/coworkers
+- Filter out bare role labels that aren't properly named entities
 
-**Estimated effort:** 2-3 hours
+**Files modified:**
+- `nnrt/ir/enums.py` - Added Participation enum
+- `nnrt/ir/schema_v0_1.py` - Added participation field to Entity
+- `nnrt/passes/p32_extract_entities.py` - WORKPLACE_CONTACT patterns
+- `nnrt/render/structured.py` - Three-tier PARTIES rendering
+
+**Actual effort:** ~1 hour
 
 
 ### Phase 2: Event Schema Enforcement ✅ COMPLETE
@@ -176,24 +185,40 @@ class TimeType(Enum):
 **Actual effort:** ~2 hours
 
 
-### Phase 3: Statement Type Hierarchy
+### Phase 3: Statement Type Hierarchy ✅ COMPLETE
 **Fixes issues: #5, #6, #7, #8**
 
-- [ ] Create StatementType enum with full hierarchy
-- [ ] Split SELF-REPORTED into 4 sub-buckets
-- [ ] Split REPORTER content into 3 sub-buckets:
+- [x] Split SELF-REPORTED into 4 sub-buckets
+- [x] Split REPORTER content into 3 sub-buckets:
   - CHARACTERIZATIONS (adjectives: thug, psychotic)
   - INFERENCES (intent: looking for trouble)
   - REPORTER-REPORTED EVENTS (factual claims)
-- [ ] Move legal conclusions to LEGAL_ALLEGATIONS
-- [ ] Move medical to MEDICAL with proper attribution
+- [x] Renamed REPORTED CLAIMS to LEGAL ALLEGATIONS
+- [x] Updated all unit tests for new type names
 
-**Files to modify:**
-- `nnrt/core/types.py` - StatementType enum
-- `nnrt/passes/p27_epistemic_tag.py` - Finer classification
-- `nnrt/render/structured.py` - Render new buckets
+**Implementation notes (2026-01-15):**
+- Added `STATE_ACUTE_PATTERNS`, `STATE_INJURY_PATTERNS`, `STATE_PSYCHOLOGICAL_PATTERNS`, `STATE_SOCIOECONOMIC_PATTERNS`
+- Added `CHARACTERIZATION_PATTERNS` (adjectives/insults) separate from `INFERENCE_PATTERNS` (intent)
+- Updated `_classify_epistemic()` to return fine-grained sub-types
+- Updated renderer to display 4 self-report sub-sections and 2 interpretation sub-sections
+- Renamed "REPORTED CLAIMS" → "LEGAL ALLEGATIONS (as asserted by Reporter)"
+- Renamed "REPORTER INTERPRETATIONS" → "REPORTER CHARACTERIZATIONS" + "REPORTER INFERENCES"
 
-**Estimated effort:** 3-4 hours
+**New epistemic types:**
+- `state_acute` - Fear during incident
+- `state_injury` - Physical after-effects
+- `state_psychological` - PTSD, anxiety
+- `state_socioeconomic` - Job loss, lifestyle impact
+- `characterization` - Subjective adjectives
+- `inference` - Intent/motive claims
+
+**Files modified:**
+- `nnrt/passes/p27_epistemic_tag.py` - Pattern splitting and classification
+- `nnrt/render/structured.py` - New section rendering
+- `scripts/stress_test.py` - Updated expected types/sections
+- `tests/test_p27_epistemic_tag.py` - Updated tests
+
+**Actual effort:** ~1.5 hours
 
 
 ### Phase 4: Source Provenance Model

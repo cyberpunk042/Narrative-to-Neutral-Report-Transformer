@@ -20,6 +20,7 @@ from nnrt.ir.enums import (
     GroupType,
     IdentifierType,
     MentionType,
+    Participation,
     PolicyAction,
     SpanLabel,
     SpeechActType,
@@ -146,6 +147,9 @@ class Entity(BaseModel):
     extracted_identifiers: Optional[list[ExtractedIdentifier]] = Field(
         None, description="Optional extracted identifiers"
     )
+    
+    # V5: When/how the entity participated
+    participation: Optional[Participation] = Field(None, description="Incident/post-incident/mentioned")
 
 
 class Event(BaseModel):

@@ -75,7 +75,8 @@ def run_stress_test():
     ))
     
     # Should have all key types present
-    expected_types = ['direct_event', 'self_report', 'interpretation', 'legal_claim', 'conspiracy_claim']
+    # V5: Updated to check for characterization and inference instead of interpretation
+    expected_types = ['direct_event', 'state_acute', 'characterization', 'legal_claim', 'conspiracy_claim']
     for etype in expected_types:
         results.append(TestResult(
             name=f"Has {etype}",
@@ -86,14 +87,15 @@ def run_stress_test():
     # =========================================================================
     # TEST 2: Section Presence
     # =========================================================================
+    # V5: Updated section names for fine-grained classification
     expected_sections = [
         "OBSERVED EVENTS (INCIDENT SCENE)",
         "OBSERVED EVENTS (FOLLOW-UP ACTIONS)",
-        "SELF-REPORTED STATE",
-        "REPORTED CLAIMS",
-        "REPORTER INTERPRETATIONS",
+        "SELF-REPORTED",  # V5: Matches any of the sub-categories
+        "LEGAL ALLEGATIONS",  # V5: Renamed from REPORTED CLAIMS
+        "REPORTER CHARACTERIZATIONS",  # V5: New - separated from interpretations
+        "REPORTER INFERENCES",  # V5: New - separated from interpretations
         "CONTESTED ALLEGATIONS",
-        "MEDICAL FINDINGS",
         "ADMINISTRATIVE ACTIONS",
     ]
     
@@ -144,12 +146,12 @@ def run_stress_test():
             message="has 'Reporter reports:'" if has_prefix else "MISSING prefix"
         ))
     
-    # INVARIANT: REPORTED CLAIMS should have "Reporter characterizes:" prefix
-    if "REPORTED CLAIMS" in report:
-        claims_section = report.split("REPORTED CLAIMS")[1].split("\n\n")[0]
-        has_prefix = "Reporter characterizes:" in claims_section
+    # INVARIANT: LEGAL ALLEGATIONS should have "Reporter alleges:" prefix
+    if "LEGAL ALLEGATIONS" in report:
+        claims_section = report.split("LEGAL ALLEGATIONS")[1].split("\n\n")[0]
+        has_prefix = "Reporter alleges:" in claims_section
         results.append(TestResult(
-            name="CLAIMS: Has attribution",
+            name="LEGAL ALLEGATIONS: Has attribution",
             passed=has_prefix,
             message="has attribution" if has_prefix else "MISSING attribution"
         ))

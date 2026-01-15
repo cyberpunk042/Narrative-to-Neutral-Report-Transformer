@@ -67,21 +67,97 @@ def format_structured_output(
     lines.append("═" * 70)
     lines.append("")
     
-    # === PARTIES ===
+    # === V5: PARTIES with three-tier structure ===
     if entities:
-        entity_by_role = defaultdict(list)
+        # V5: Categorize entities by participation
+        incident_participants = []
+        post_incident_pros = []
+        mentioned_contacts = []
+        
+        # Roles that indicate incident participation
+        INCIDENT_ROLES = {
+            'reporter', 'subject_officer', 'supervisor', 
+            'witness_civilian', 'witness_official', 'bystander'
+        }
+        
+        # Roles that indicate post-incident professionals
+        POST_INCIDENT_ROLES = {
+            'medical_provider', 'legal_counsel', 'investigator'
+        }
+        
+        # V5: Bare role labels that should be EXCLUDED from PARTIES
+        # These are not properly named entities
+        BARE_ROLE_LABELS = {
+            'partner', 'passenger', 'suspect', 'manager', 'driver',
+            'victim', 'witness', 'officer', 'the partner', 'his partner',
+            'the suspect', 'a suspect', 'the manager', 'my manager'
+        }
+        
         for e in entities:
-            role = getattr(e, 'role', 'other') or 'other'
-            # Normalize role names
-            if role.lower() == 'authority':
-                role = 'agent'
             label = getattr(e, 'label', 'Unknown')
-            entity_by_role[role.upper()].append(label)
+            role = getattr(e, 'role', 'unknown')
+            participation = getattr(e, 'participation', None)
+            
+            # V5: Skip bare role labels (not properly named)
+            if label.lower().strip() in BARE_ROLE_LABELS:
+                continue
+            
+            # Normalize role to string
+            if hasattr(role, 'value'):
+                role = role.value
+            role_lower = str(role).lower()
+            
+            # Use participation if explicitly set, otherwise infer from role
+            if participation:
+                if hasattr(participation, 'value'):
+                    participation = participation.value
+                
+                if participation == 'incident':
+                    incident_participants.append((role_lower, label))
+                elif participation == 'post_incident':
+                    post_incident_pros.append((role_lower, label))
+                else:
+                    mentioned_contacts.append((role_lower, label))
+            else:
+                # Infer from role
+                if role_lower in INCIDENT_ROLES:
+                    incident_participants.append((role_lower, label))
+                elif role_lower in POST_INCIDENT_ROLES:
+                    post_incident_pros.append((role_lower, label))
+                elif role_lower in {'workplace_contact', 'subject'}:
+                    mentioned_contacts.append((role_lower, label))
+                else:
+                    # Default: if it's a person, assume incident
+                    entity_type = getattr(e, 'type', 'unknown')
+                    if hasattr(entity_type, 'value'):
+                        entity_type = entity_type.value
+                    if str(entity_type).lower() == 'person':
+                        incident_participants.append((role_lower, label))
         
         lines.append("PARTIES")
         lines.append("─" * 70)
-        for role, names in entity_by_role.items():
-            lines.append(f"  {role}:".ljust(14) + ", ".join(names))
+        
+        # INCIDENT PARTICIPANTS
+        if incident_participants:
+            lines.append("  INCIDENT PARTICIPANTS:")
+            for role, name in incident_participants:
+                role_display = role.replace('_', ' ').title()
+                lines.append(f"    • {name} ({role_display})")
+        
+        # POST-INCIDENT PROFESSIONALS
+        if post_incident_pros:
+            lines.append("  POST-INCIDENT PROFESSIONALS:")
+            for role, name in post_incident_pros:
+                role_display = role.replace('_', ' ').title()
+                lines.append(f"    • {name} ({role_display})")
+        
+        # MENTIONED CONTACTS
+        if mentioned_contacts:
+            lines.append("  MENTIONED CONTACTS:")
+            for role, name in mentioned_contacts:
+                role_display = role.replace('_', ' ').title()
+                lines.append(f"    • {name} ({role_display})")
+        
         lines.append("")
     
     # === REFERENCE DATA ===
@@ -262,31 +338,82 @@ def format_structured_output(
             lines.append("")
     
     # =========================================================================
-    # V4: SELF-REPORTED STATE (internal: fear, pain, trauma)
-    # NOT observations - reported internal experience
+    # V5: SELF-REPORTED STATE with sub-categories
     # =========================================================================
+    
+    # Acute state (during incident)
+    if statements_by_epistemic.get('state_acute'):
+        lines.append("SELF-REPORTED STATE (ACUTE - During Incident)")
+        lines.append("─" * 70)
+        for text in statements_by_epistemic['state_acute']:
+            lines.append(f"  • Reporter reports: {text}")
+        lines.append("")
+    
+    # Physical injuries
+    if statements_by_epistemic.get('state_injury'):
+        lines.append("SELF-REPORTED INJURY (Physical)")
+        lines.append("─" * 70)
+        for text in statements_by_epistemic['state_injury']:
+            lines.append(f"  • Reporter reports: {text}")
+        lines.append("")
+    
+    # Psychological after-effects
+    if statements_by_epistemic.get('state_psychological'):
+        lines.append("SELF-REPORTED STATE (Psychological)")
+        lines.append("─" * 70)
+        for text in statements_by_epistemic['state_psychological']:
+            lines.append(f"  • Reporter reports: {text}")
+        lines.append("")
+    
+    # Socioeconomic impact
+    if statements_by_epistemic.get('state_socioeconomic'):
+        lines.append("SELF-REPORTED IMPACT (Socioeconomic)")
+        lines.append("─" * 70)
+        for text in statements_by_epistemic['state_socioeconomic']:
+            lines.append(f"  • Reporter reports: {text}")
+        lines.append("")
+    
+    # General self-report (fallback for non-categorized)
     if statements_by_epistemic.get('self_report'):
-        lines.append("SELF-REPORTED STATE")
+        lines.append("SELF-REPORTED STATE (General)")
         lines.append("─" * 70)
         for text in statements_by_epistemic['self_report']:
             lines.append(f"  • Reporter reports: {text}")
         lines.append("")
     
     # =========================================================================
-    # V4: REPORTED CLAIMS (legal characterizations) - with proper attribution
-    # These are legal conclusions made by the reporter
+    # V5: REPORTED CLAIMS (legal allegations only - explicit legal labels)
     # =========================================================================
     if statements_by_epistemic.get('legal_claim'):
-        lines.append("REPORTED CLAIMS (legal characterizations)")
+        lines.append("LEGAL ALLEGATIONS (as asserted by Reporter)")
         lines.append("─" * 70)
         for text in statements_by_epistemic['legal_claim']:
-            # Add attribution prefix
-            lines.append(f"  • Reporter characterizes: {text}")
+            lines.append(f"  • Reporter alleges: {text}")
         lines.append("")
     
     # =========================================================================
-    # V4: REPORTER INTERPRETATIONS - intent attributions, inferences
+    # V5: REPORTER CHARACTERIZATIONS (subjective language / adjectives)
+    # e.g., "thug", "psychotic", "maniac", "corrupt"
     # =========================================================================
+    if statements_by_epistemic.get('characterization'):
+        lines.append("REPORTER CHARACTERIZATIONS (Subjective Language)")
+        lines.append("─" * 70)
+        for text in statements_by_epistemic['characterization']:
+            lines.append(f"  • Opinion: {text}")
+        lines.append("")
+    
+    # =========================================================================
+    # V5: REPORTER INFERENCES (intent/motive/knowledge claims)
+    # e.g., "looking for trouble", "wanted to inflict maximum damage"
+    # =========================================================================
+    if statements_by_epistemic.get('inference'):
+        lines.append("REPORTER INFERENCES (Intent/Motive Claims)")
+        lines.append("─" * 70)
+        for text in statements_by_epistemic['inference']:
+            lines.append(f"  • Reporter infers: {text}")
+        lines.append("")
+    
+    # Legacy 'interpretation' bucket (for backward compatibility)
     if statements_by_epistemic.get('interpretation'):
         lines.append("REPORTER INTERPRETATIONS")
         lines.append("─" * 70)

@@ -25,35 +25,85 @@ log = get_pass_logger(PASS_NAME)
 # Epistemic Pattern Definitions
 # =============================================================================
 
-# Self-reported experience (emotion, pain, perception - not observable)
-SELF_REPORT_PATTERNS = [
+# V5: Self-reported ACUTE state (during incident - fear, shock)
+STATE_ACUTE_PATTERNS = [
     r'\b(i\s+)?was\s+(so\s+)?(scared|terrified|frightened|afraid|anxious)\b',
     r'\b(i\s+)?was\s+(absolutely\s+)?(terrified|shocked|stunned|horrified)\b',
-    r'\b(i\s+)?was\s+in\s+(complete\s+)?(shock|disbelief|pain)\b',
-    r'\b(i\s+)?was\s+(exhausted|tired|drained|overwhelmed)\b',
-    r'\b(i\s+)?was\s+(completely\s+)?(innocent|confused|lost)\b',
-    r'\b(i\s+)?felt\s+\w+',
-    r'\bmy\s+(fear|pain|anxiety|terror|trauma)\b',
-    r'\bi\s+(now\s+)?suffer\s+from\b',
-    r'\bi\s+can\s+no\s+longer\b',
-    r'\bi\s+have\s+(permanent|chronic)\b',
-    r'\bpanic\s+attacks?\b',
-    r'\bpsychological\s+trauma\b',
-    r'\bi\s+screamed\s+in\s+pain\b',
-    r'\bit\s+felt\s+like\b',
+    r'\b(i\s+)?was\s+in\s+(complete\s+)?(shock|disbelief)\b',
     r'\bi\s+froze\b',
-    r'\bi\s+just\s+wanted\b',
-    r'\bafter\s+pulling\s+a\s+.*shift\b',
-    # V4.1: More self-report patterns
-    r'\bwrists?\s+were\s+(bleeding|bruised)\b',  # "My wrists were bleeding"
-    r'\bbruised\b',  # fragment "bruised"
-    r'\bi\s+could\s?n\'?t\s+hear\b',  # "I couldn't hear"
-    r'\bthey\s+kept\s+looking\b',  # "they kept looking at me"
-    r'\bshaking\s+(their\s+)?heads?\b',  # "shaking their heads"
+    r'\bfelt\s+(scared|terrified|afraid)\b',
+    r'\bmy\s+(fear|terror)\b',
 ]
 
-# Interpretations (mental state attribution, inference, perception of intent)
-INTERPRETATION_PATTERNS = [
+# V5: Self-reported INJURY (physical after-effects)
+STATE_INJURY_PATTERNS = [
+    r'\bwrists?\s+were\s+(bleeding|bruised)\b',
+    r'\bbruised\b',
+    r'\b(bleeding|cuts?|abrasions?|sprained?|broken)\b',
+    r'\bi\s+have\s+(permanent|chronic)\s+(scars?|injuries?)\b',
+    r'\b(injuries?|wounds?)\s+(to|on)\s+my\b',
+    r'\bi\s+was\s+in\s+pain\b',
+    r'\bi\s+screamed\s+in\s+pain\b',
+]
+
+# V5: Self-reported PSYCHOLOGICAL (long-term mental health)
+STATE_PSYCHOLOGICAL_PATTERNS = [
+    r'\bi\s+(now\s+)?suffer\s+from\s+(ptsd|anxiety|depression)\b',
+    r'\bpanic\s+attacks?\b',
+    r'\bpsychological\s+trauma\b',
+    r'\bi\s+can\s+no\s+longer\b',
+    r'\bpost.?traumatic\s+stress\b',
+    r'\b(nightmares?|flashbacks?|insomnia)\b',
+]
+
+# V5: Self-reported SOCIOECONOMIC (job loss, lifestyle impact)
+STATE_SOCIOECONOMIC_PATTERNS = [
+    r'\blost\s+my\s+job\b',
+    r'\bcould\s?n\'?t\s+show\s+up\b',
+    r'\bcan\'?t\s+work\b',
+    r'\bfear\s+of\s+going\s+outside\b',
+    r'\bcan\s+no\s+longer\s+walk\s+outside\b',
+]
+
+# V5: Legacy combined pattern (for backward compatibility)
+SELF_REPORT_PATTERNS = (
+    STATE_ACUTE_PATTERNS + 
+    STATE_INJURY_PATTERNS + 
+    STATE_PSYCHOLOGICAL_PATTERNS + 
+    STATE_SOCIOECONOMIC_PATTERNS +
+    [
+        # General self-report (not in specific sub-category)
+        r'\b(i\s+)?was\s+(exhausted|tired|drained|overwhelmed)\b',
+        r'\b(i\s+)?felt\s+\w+',
+        r'\bit\s+felt\s+like\b',
+        r'\bi\s+just\s+wanted\b',
+        r'\bafter\s+pulling\s+a\s+.*shift\b',
+        r'\bi\s+could\s?n\'?t\s+hear\b',
+        r'\bthey\s+kept\s+looking\b',
+        r'\bshaking\s+(their\s+)?heads?\b',
+    ]
+)
+
+# V5: CHARACTERIZATION (subjective adjectives, insults, name-calling)
+# These are opinion words, not inferences about intent
+CHARACTERIZATION_PATTERNS = [
+    r'\bthug\s*(cop|cops|police|officer)?\b',
+    r'\bpsychotic\b',
+    r'\bmaniac\b',
+    r'\bbrutal\b',
+    r'\bvicious\b',
+    r'\bcorrupt\b',
+    r'\bviolent\s+(?:cop|cops|officer|officers|police)\b',
+    r'\blike\s+a\s+(criminal|maniac|thug|animal)\b',
+    r'\bknown\s+(violent|criminal)\s+offender\b',
+    r'\bhistory\s+of\s+(brutality|violence|abuse)\b',
+    r'\bvictimizing\s+(innocent|people|citizens)\b',
+    r'\bdismissive\s+attitude\b',
+]
+
+# V5: INFERENCE (intent attribution, mental state inference - claims about what someone was thinking)
+# These go beyond description to claim knowledge of intent/motive
+INFERENCE_PATTERNS = [
     r'\b(clearly|obviously|apparently)\s+(was|were|wanted|trying|looking)\b',
     r'\bcould\s+tell\s+(from|that)\b',
     r'\bknew\s+(that|he|she|they)\b',
@@ -65,22 +115,14 @@ INTERPRETATION_PATTERNS = [
     r'\bready\s+to\s+(shoot|attack|assault)\b',
     r'\benjoying\s+(my|his|her|the)\b',
     r'\bmocking\b',
-    r'\bthug\s+cop\b',
-    r'\bpsychotic\b',
-    r'\bmaniac\b',
     r'\b(he|she|they)\s+obviously\b',
     r'\bit\s+was\s+obvious\b',
-    r'\bdismissive\s+attitude\b',
-    # V4: Additional interpretation patterns
     r'\bdesigned\s+to\s+(?:protect|cover|hide|intimidate)\b',
-    r'\bviolent\s+(?:cop|cops|officer|officers|police)\b',
-    # V4.1: More interpretation patterns
-    r'\bfishing\s+through\b',  # "fishing through my belongings"
-    r'\blike\s+a\s+(criminal|maniac|thug)\b',  # "like a criminal"
-    r'\bknown\s+(violent|criminal)\s+offender\b',  # "known violent offender"
-    r'\bhistory\s+of\s+(brutality|violence|abuse)\b',  # "history of brutality"
-    r'\bvictimizing\s+(innocent|people|citizens)\b',  # "victimizing innocent citizens"
+    r'\bfishing\s+through\b',
 ]
+
+# V5: Legacy combined pattern (for backward compatibility)
+INTERPRETATION_PATTERNS = CHARACTERIZATION_PATTERNS + INFERENCE_PATTERNS
 
 # Legal characterizations (legal conclusions, rights claims)
 LEGAL_CLAIM_PATTERNS = [
@@ -165,6 +207,8 @@ def _classify_epistemic(text: str) -> tuple[str, str, float]:
     """
     Classify a statement's epistemic type based on linguistic patterns.
     
+    V5: Returns fine-grained sub-types for self-reports and interpretations.
+    
     Returns (epistemic_type, evidence_source, confidence).
     """
     text_lower = text.lower()
@@ -176,32 +220,55 @@ def _classify_epistemic(text: str) -> tuple[str, str, float]:
         if re.search(pattern, text_lower):
             return ("conspiracy_claim", "inference", 0.9)
     
-    # 2. Legal characterizations
+    # 2. Legal characterizations (explicit legal labels only)
     for pattern in LEGAL_CLAIM_PATTERNS:
         if re.search(pattern, text_lower):
             return ("legal_claim", "inference", 0.85)
     
-    # 3. Interpretations (intent attribution, mental state inference)
-    for pattern in INTERPRETATION_PATTERNS:
+    # 3. V5: CHARACTERIZATION (name-calling, insults - distinct from inference)
+    for pattern in CHARACTERIZATION_PATTERNS:
         if re.search(pattern, text_lower):
-            return ("interpretation", "inference", 0.85)
+            return ("characterization", "opinion", 0.85)
     
-    # 4. Self-reported experience (emotions, pain, trauma)
+    # 4. V5: INFERENCE (intent/motive attribution)
+    for pattern in INFERENCE_PATTERNS:
+        if re.search(pattern, text_lower):
+            return ("inference", "inference", 0.85)
+    
+    # 5. V5: Self-reported with sub-types
+    # Check specific sub-types first
+    for pattern in STATE_PSYCHOLOGICAL_PATTERNS:
+        if re.search(pattern, text_lower):
+            return ("state_psychological", "self_report", 0.9)
+    
+    for pattern in STATE_SOCIOECONOMIC_PATTERNS:
+        if re.search(pattern, text_lower):
+            return ("state_socioeconomic", "self_report", 0.9)
+    
+    for pattern in STATE_INJURY_PATTERNS:
+        if re.search(pattern, text_lower):
+            return ("state_injury", "self_report", 0.9)
+    
+    for pattern in STATE_ACUTE_PATTERNS:
+        if re.search(pattern, text_lower):
+            return ("state_acute", "self_report", 0.9)
+    
+    # General self-report (fallback)
     for pattern in SELF_REPORT_PATTERNS:
         if re.search(pattern, text_lower):
             return ("self_report", "self_report", 0.9)
     
-    # 5. Medical findings (when attributed to provider)
+    # 6. Medical findings (when attributed to provider)
     for pattern in MEDICAL_FINDING_PATTERNS:
         if re.search(pattern, text_lower):
             return ("medical_finding", "document", 0.85)
     
-    # 6. Administrative/document-based
+    # 7. Administrative/document-based
     for pattern in DOCUMENT_PATTERNS:
         if re.search(pattern, text_lower):
             return ("admin_action", "document", 0.8)
     
-    # 7. Direct quotes
+    # 8. Direct quotes
     for pattern in QUOTE_PATTERNS:
         if re.search(pattern, text_lower):
             return ("quote", "direct_observation", 0.9)

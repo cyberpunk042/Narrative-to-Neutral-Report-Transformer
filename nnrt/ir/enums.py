@@ -140,6 +140,29 @@ class EntityRole(str, Enum):
     UNKNOWN = "unknown"
 
 
+class Participation(str, Enum):
+    """
+    V5: When/how an entity participated in the events.
+    
+    This separates incident participants from post-incident professionals
+    and people merely mentioned in the narrative.
+    """
+    
+    # Present at the incident scene
+    INCIDENT = "incident"
+    # Examples: Reporter, Officers Jenkins/Rodriguez/Williams, Marcus Johnson, Patricia Chen
+    
+    # Involved after the incident (professional capacity)
+    POST_INCIDENT = "post_incident"
+    # Examples: Dr. Foster (ER), Detective Monroe (IA), Dr. Thompson (therapist), Attorney Walsh
+    
+    # Mentioned but not present (reference/verification)
+    MENTIONED_ONLY = "mentioned"
+    # Examples: Sarah Mitchell (manager for verification), robbery suspect (description)
+    
+    UNKNOWN = "unknown"
+
+
 class EntityType(str, Enum):
     """
     What kind of entity this is.

@@ -54,12 +54,14 @@ class TestClassifyEpistemic:
         "I felt like hours had passed",
     ])
     def test_self_report_internal_states(self, text):
-        """Internal states should classify as self_report."""
+        """Internal states should classify as self_report or V5 sub-types."""
         epistemic_type, evidence_source, confidence = _classify_epistemic(text)
-        assert epistemic_type == "self_report", f"'{text}' should be self_report, got {epistemic_type}"
+        # V5: self_report split into sub-types
+        valid_types = {'self_report', 'state_acute', 'state_injury', 'state_psychological', 'state_socioeconomic'}
+        assert epistemic_type in valid_types, f"'{text}' should be self_report or sub-type, got {epistemic_type}"
     
     # =========================================================================
-    # interpretation: Intent attribution, inference
+    # V5: inference - Intent attribution, motive claims
     # =========================================================================
     
     @pytest.mark.parametrize("text", [
@@ -70,10 +72,10 @@ class TestClassifyEpistemic:
         "I could tell he was looking for trouble",
         "It was obvious they wanted to cover it up",
     ])
-    def test_interpretation_intent_attribution(self, text):
-        """Intent attributions should classify as interpretation."""
+    def test_inference_intent_attribution(self, text):
+        """Intent attributions should classify as inference (V5)."""
         epistemic_type, evidence_source, confidence = _classify_epistemic(text)
-        assert epistemic_type == "interpretation", f"'{text}' should be interpretation, got {epistemic_type}"
+        assert epistemic_type == "inference", f"'{text}' should be inference, got {epistemic_type}"
     
     # =========================================================================
     # legal_claim: Legal characterizations
@@ -226,9 +228,10 @@ class TestEdgeCases:
         """
         text = "I was so scared during the assault"
         epistemic_type, _, _ = _classify_epistemic(text)
-        # The statement is primarily about the reporter's fear
-        assert epistemic_type in ("self_report", "legal_claim"), \
-            f"'{text}' should be self_report or legal_claim, got {epistemic_type}"
+        # V5: The statement is primarily about the reporter's fear (acute state)
+        valid_types = {"self_report", "state_acute", "legal_claim"}
+        assert epistemic_type in valid_types, \
+            f"'{text}' should be state_acute, self_report, or legal_claim, got {epistemic_type}"
     
     def test_conspiracy_with_legal_claim(self):
         """'The cover-up proves police brutality' - conspiracy + legal.

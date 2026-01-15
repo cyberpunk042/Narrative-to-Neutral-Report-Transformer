@@ -462,6 +462,16 @@ def _refine_entity_roles(entities: List[Entity], source_text: str) -> List[Entit
             r"officer\s+{name}",
             r"deputy\s+{name}",
         ],
+        # V5: Workplace contacts - mentioned for verification, not incident
+        EntityRole.WORKPLACE_CONTACT: [
+            r"my\s+manager\s+{name}",
+            r"manager\s+{name}",
+            r"my\s+boss\s+{name}",
+            r"coworker\s+{name}",
+            r"colleague\s+{name}",
+            r"supervisor\s+{name}",  # Workplace supervisor, not police
+            r"call\s+my\s+\w+\s+{name}\s+to\s+verify",
+        ],
     }
     
     # Title prefixes that indicate roles (for labels that already have them)
