@@ -330,12 +330,12 @@ Week 2: p42_coreference ✅ COMPLETE
 ├── Build CoreferenceChains ✅
 └── Write coreference tests ✅ (11 tests passing)
 
-Week 3: p44_timeline
-├── Extract temporal markers (from identifiers)
-├── Extract relative time phrases ("then", "after that")
-├── Build ordering DAG
-├── Assign sequence numbers
-└── Write timeline tests
+Week 3: p44_timeline ✅ COMPLETE
+├── Extract temporal markers (from identifiers) ✅
+├── Extract relative time phrases ✅ ("then", "later", "the next day", "X minutes later")
+├── Build ordering DAG ✅ (narrative order primary, times as anchors)
+├── Assign sequence numbers ✅
+└── Write timeline tests ✅ (12 tests passing)
 
 Week 4: p46_group_statements
 ├── Group by actor (who is primary subject)

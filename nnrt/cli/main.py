@@ -31,6 +31,7 @@ from nnrt.passes import (
     tag_spans,
 )
 from nnrt.passes.p42_coreference import resolve_coreference
+from nnrt.passes.p44_timeline import build_timeline
 
 
 def setup_default_pipeline(engine: Engine, profile: str = "law_enforcement") -> None:
@@ -60,6 +61,7 @@ def setup_default_pipeline(engine: Engine, profile: str = "law_enforcement") -> 
             extract_events,       # Phase 4: Event Extraction
             build_ir,
             resolve_coreference,  # v3: Link pronouns to entities
+            build_timeline,       # v3: Order events temporally
             evaluate_policy,
             augment_ir,
             render,
