@@ -344,11 +344,11 @@ Week 4: p46_group_statements ✅ COMPLETE
 ├── Calculate evidence strength ✅
 └── Write grouping tests ✅ (12 tests passing)
 
-Week 5: p48_classify_evidence
-├── Classify each statement by evidence type
-├── Compute reliability scores
-├── Detect corroboration/contradiction
-└── Write evidence tests
+Week 5: p48_classify_evidence ✅ COMPLETE
+├── Classify each statement by evidence type ✅ (DIRECT_WITNESS, REPORTED, DOCUMENTARY, PHYSICAL, INFERENCE)
+├── Compute reliability scores ✅ (0.9 DOCUMENTARY → 0.4 INFERENCE)
+├── Detect corroboration/contradiction ✅ (cross-source matching)
+└── Write evidence tests ✅ (13 tests passing)
 
 Week 6: Integration
 ├── Update structured output

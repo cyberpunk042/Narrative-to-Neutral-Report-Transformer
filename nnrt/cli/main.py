@@ -33,6 +33,7 @@ from nnrt.passes import (
 from nnrt.passes.p42_coreference import resolve_coreference
 from nnrt.passes.p44_timeline import build_timeline
 from nnrt.passes.p46_group_statements import group_statements
+from nnrt.passes.p48_classify_evidence import classify_evidence
 
 
 def setup_default_pipeline(engine: Engine, profile: str = "law_enforcement") -> None:
@@ -64,6 +65,7 @@ def setup_default_pipeline(engine: Engine, profile: str = "law_enforcement") -> 
             resolve_coreference,  # v3: Link pronouns to entities
             build_timeline,       # v3: Order events temporally
             group_statements,     # v3: Cluster related statements
+            classify_evidence,    # v3: Classify evidence types
             evaluate_policy,
             augment_ir,
             render,
