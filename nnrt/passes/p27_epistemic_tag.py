@@ -389,6 +389,39 @@ def tag_epistemic(ctx: TransformContext) -> TransformContext:
         stmt.evidence_source = evidence_source
         stmt.polarity = polarity
         
+        # =====================================================================
+        # V5: Set provenance status based on epistemic type
+        # =====================================================================
+        # Map epistemic types to source types and provenance status
+        if epistemic_type == "medical_finding":
+            stmt.source_type = "medical"
+            stmt.provenance_status = "cited"
+        elif epistemic_type == "admin_action":
+            stmt.source_type = "document"
+            stmt.provenance_status = "cited"
+        elif epistemic_type in ("self_report", "state_acute", "state_injury", 
+                                 "state_psychological", "state_socioeconomic"):
+            stmt.source_type = "reporter"
+            stmt.provenance_status = "verified"  # Self-attested
+        elif epistemic_type == "direct_event":
+            stmt.source_type = "reporter"
+            stmt.provenance_status = "verified"  # First-person observation
+        elif epistemic_type in ("interpretation", "inference", "characterization"):
+            stmt.source_type = "reporter"
+            stmt.provenance_status = "inference"  # Reporter's interpretation
+        elif epistemic_type in ("legal_claim", "conspiracy_claim"):
+            stmt.source_type = "reporter"
+            stmt.provenance_status = "missing"  # Needs external verification
+        elif epistemic_type == "third_party_report":
+            stmt.source_type = "witness"
+            stmt.provenance_status = "cited"  # Attributed to named witness
+        elif epistemic_type == "quote":
+            stmt.source_type = "reporter"
+            stmt.provenance_status = "cited"  # Attributed speech
+        else:
+            stmt.source_type = "reporter"
+            stmt.provenance_status = "missing"  # Unknown - needs provenance
+        
         # Update confidence if classification is strong
         if confidence > stmt.confidence:
             stmt.confidence = confidence

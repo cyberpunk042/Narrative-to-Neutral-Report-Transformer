@@ -160,7 +160,7 @@ def format_structured_output(
         
         lines.append("")
     
-    # === REFERENCE DATA ===
+    # === V5: REFERENCE DATA with structured temporal/location display ===
     if identifiers:
         ident_by_type = defaultdict(list)
         for ident in identifiers:
@@ -174,10 +174,56 @@ def format_structured_output(
         if ident_by_type:
             lines.append("REFERENCE DATA")
             lines.append("─" * 70)
-            for ident_type, values in ident_by_type.items():
-                label = ident_type.replace('_', ' ').title()
-                lines.append(f"  {label}:".ljust(14) + ", ".join(values))
-            lines.append("")
+            
+            # V5: Primary incident date/time
+            dates = ident_by_type.get('date', [])
+            times = ident_by_type.get('time', [])
+            if dates or times:
+                lines.append("  INCIDENT DATETIME:")
+                if dates:
+                    lines.append(f"    Date: {dates[0]}")
+                if times:
+                    lines.append(f"    Time: {times[0]}")
+                lines.append("")
+            
+            # V5: Primary incident location
+            locations = ident_by_type.get('location', [])
+            if locations:
+                # First location is likely incident scene
+                lines.append(f"  INCIDENT LOCATION: {locations[0]}")
+                if len(locations) > 1:
+                    lines.append("  SECONDARY LOCATIONS:")
+                    for loc in locations[1:]:
+                        lines.append(f"    • {loc}")
+                lines.append("")
+            
+            # V5: Officer identification (filter to only officer-related names)
+            badges = ident_by_type.get('badge_number', [])
+            names = ident_by_type.get('name', [])
+            
+            # Filter names to only those that appear to be officers
+            officer_titles = {'officer', 'sergeant', 'detective', 'lieutenant', 'deputy', 'captain'}
+            officer_names = [n for n in names if any(t in n.lower() for t in officer_titles)]
+            
+            if badges or officer_names:
+                lines.append("  OFFICER IDENTIFICATION:")
+                for name in officer_names:
+                    lines.append(f"    • {name}")
+                for badge in badges:
+                    lines.append(f"    • Badge #{badge}")
+                lines.append("")
+            
+            # V5: Other identifiers (vehicle, employee ID, etc.)
+            other_types = ['vehicle_plate', 'employee_id', 'other']
+            has_other = any(ident_by_type.get(t) for t in other_types)
+            if has_other:
+                lines.append("  OTHER IDENTIFIERS:")
+                for ident_type in other_types:
+                    values = ident_by_type.get(ident_type, [])
+                    if values:
+                        label = ident_type.replace('_', ' ').title()
+                        lines.append(f"    {label}: {', '.join(values)}")
+                lines.append("")
     
     # === ACCOUNT SUMMARY HEADER ===
     lines.append("═" * 70)
@@ -190,14 +236,23 @@ def format_structured_output(
     # V4: Also group by epistemic_type for proper observation split
     statements_by_epistemic = defaultdict(list)
     
-    # V4: Words that disqualify a statement from OBSERVED EVENTS
-    # If a statement contains these, it's not "camera-friendly" and belongs elsewhere
+    # =========================================================================
+    # V5: Camera-Friendly Filter
+    # =========================================================================
+    # NOTE: This filtering is intentionally in the renderer, not in extraction.
+    # Rationale: All data is preserved in the IR (atomic_statements, events).
+    # The renderer applies a DISPLAY filter to separate:
+    #   - Camera-friendly content (can appear in "OBSERVED EVENTS")
+    #   - Interpretive content (shown with attribution in other sections)
+    # This is a VIEW concern, not a DATA concern. No data is lost.
+    # =========================================================================
+    
     INTERPRETIVE_DISQUALIFIERS = [
         # Characterizations
         'horrifying', 'horrific', 'brutal', 'brutally', 'viciously', 'vicious',
         'psychotic', 'maniac', 'thug', 'aggressive', 'aggressively', 
         'menacing', 'menacingly', 'distressing', 'terrifying', 'shocking',
-        'excessive', 'mocking', 'laughing at', 'fishing',  # V4.3
+        'excessive', 'mocking', 'laughing at', 'fishing',
         # Legal conclusions
         'innocent', 'guilty', 'criminal', 'illegal', 'unlawful', 'assault',
         'assaulting', 'torture', 'terrorize', 'misconduct', 'violation',
@@ -207,7 +262,7 @@ def format_structured_output(
         'absolutely', 'completely', 'totally', 'definitely', 'certainly',
         # Cover-up/conspiracy language
         'cover-up', 'coverup', 'whitewash', 'conspiracy', 'conspiring',
-        'hiding more', 'protect their own', 'always protect',  # V4.3
+        'hiding more', 'protect their own', 'always protect',
     ]
     
     # V4: Patterns that indicate "later discovered" facts (not incident-scene)
@@ -319,14 +374,30 @@ def format_structured_output(
                 lines.append(f"  • {text}")
             lines.append("")
         
-        # V4.3: SOURCE-DERIVED INFORMATION (research, conclusions, comparisons)
+        # V5: SOURCE-DERIVED INFORMATION with provenance details
         # These need provenance verification - not directly observable
         if source_derived:
-            lines.append("SOURCE-DERIVED INFORMATION (PROVENANCE NEEDED)")
+            lines.append("SOURCE-DERIVED INFORMATION")
             lines.append("─" * 70)
-            for text in source_derived:
-                lines.append(f"  ⚠️ {text}")
+            lines.append("  ⚠️ The following claims require provenance verification:")
             lines.append("")
+            for idx, text in enumerate(source_derived[:10], 1):  # Limit to 10
+                lines.append(f"  [{idx}] CLAIM: {text[:100]}{'...' if len(text) > 100 else ''}")
+                # Try to get provenance from atomic_statements if available
+                source_type = "Reporter"
+                prov_status = "Missing"
+                if atomic_statements:
+                    for stmt in atomic_statements:
+                        if hasattr(stmt, 'text') and stmt.text.strip() == text.strip():
+                            source_type = getattr(stmt, 'source_type', 'reporter').title()
+                            prov_status = getattr(stmt, 'provenance_status', 'missing').title()
+                            break
+                lines.append(f"      Source: {source_type}")
+                lines.append(f"      Status: {prov_status}")
+                lines.append("")
+            if len(source_derived) > 10:
+                lines.append(f"  ... and {len(source_derived) - 10} more claims needing provenance")
+                lines.append("")
         
         # REPORTER DESCRIPTIONS (excluded from OBSERVED EVENTS due to interpretive content)
         # Data is preserved with proper attribution
@@ -452,12 +523,50 @@ def format_structured_output(
             lines.append(f"  • {text}")
         lines.append("")
     
-    # === PRESERVED QUOTES ===
-    if statements_by_type.get('quote'):
+    # === V5: PRESERVED QUOTES with speaker attribution ===
+    if statements_by_type.get('quote') or (hasattr(metadata, 'speech_acts') if metadata else False):
         lines.append("PRESERVED QUOTES")
         lines.append("─" * 70)
-        for text in statements_by_type['quote']:
-            lines.append(f'  "{text}"')
+        
+        # First, try to use speech_acts from metadata if available
+        speech_acts_used = []
+        if metadata and hasattr(metadata, 'speech_acts') and metadata.speech_acts:
+            for sa in metadata.speech_acts:
+                speaker = getattr(sa, 'speaker_label', None) or 'Unknown'
+                verb = getattr(sa, 'speech_verb', 'said')
+                content = getattr(sa, 'content', '')
+                is_nested = getattr(sa, 'is_nested', False)
+                
+                if content:
+                    if is_nested:
+                        lines.append(f"  ⚠️ {speaker} {verb}: {content}")
+                        lines.append(f"      (nested quote - may have attribution issues)")
+                    else:
+                        lines.append(f"  • {speaker} {verb}: {content}")
+                    speech_acts_used.append(content)
+        
+        # Fall back to statement-based quotes if no speech acts
+        if not speech_acts_used:
+            for text in statements_by_type.get('quote', []):
+                # V5: Remove outer quotes if present
+                clean_text = text
+                if clean_text.startswith('"') and clean_text.endswith('"'):
+                    clean_text = clean_text[1:-1]
+                elif clean_text.startswith("'") and clean_text.endswith("'"):
+                    clean_text = clean_text[1:-1]
+                
+                # Try to extract speaker from context
+                speaker = "Unknown"
+                if " said " in text or " says " in text:
+                    parts = text.split(" said ") if " said " in text else text.split(" says ")
+                    if len(parts) > 1:
+                        speaker = parts[0].strip()[:50]  # Limit speaker name length
+                        clean_text = parts[1] if len(parts[1]) > 10 else clean_text
+                elif " yelled " in text or " shouted " in text:
+                    speaker = "Speaker"  # Generic if we can't extract
+                
+                lines.append(f"  • {speaker}: {clean_text}")
+        
         lines.append("")
     
     # === RECORDED EVENTS ===
@@ -558,12 +667,14 @@ def format_structured_output(
                 lines.append(f"  • Reporter describes: {desc[:100]}...")
             lines.append("")
     
-    # === FULL NARRATIVE ===
+    # === V5: RAW NEUTRALIZED NARRATIVE ===
     if rendered_text:
         lines.append("─" * 70)
         lines.append("")
-        lines.append("FULL NARRATIVE (Computed)")
+        lines.append("RAW NEUTRALIZED NARRATIVE (AUTO-GENERATED)")
         lines.append("─" * 70)
+        lines.append("⚠️ This is machine-generated neutralization. Review for accuracy.")
+        lines.append("")
         lines.append(rendered_text)
         lines.append("")
     

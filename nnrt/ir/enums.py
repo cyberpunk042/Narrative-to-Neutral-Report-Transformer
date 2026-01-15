@@ -241,6 +241,35 @@ class TemporalMarkerType(str, Enum):
     NOT_TEMPORAL = "not_temporal" # "40s" as age, not decade
 
 
+class TimeContext(str, Enum):
+    """
+    V5: When in the narrative timeline did this time reference occur?
+    
+    Separates incident time from post-incident time for proper rendering.
+    """
+    
+    INCIDENT = "incident"           # During the main incident
+    PRE_INCIDENT = "pre_incident"   # Before the incident (background)
+    POST_INCIDENT = "post_incident" # After the incident (follow-up)
+    ONGOING = "ongoing"             # Continuing effect (PTSD, lost job)
+    UNKNOWN = "unknown"
+
+
+class LocationType(str, Enum):
+    """
+    V5: Relevance of a location in the narrative.
+    
+    Separates incident scene from other mentioned locations.
+    """
+    
+    INCIDENT_SCENE = "incident"     # Where the main incident occurred
+    SECONDARY = "secondary"         # Other relevant locations
+    WORKPLACE = "workplace"         # Reporter's workplace
+    MEDICAL = "medical"             # Hospital, ER, clinic
+    OFFICIAL = "official"           # Police station, IA office
+    UNKNOWN = "unknown"
+
+
 class EventType(str, Enum):
     """
     Types of events that can be extracted.
@@ -413,6 +442,37 @@ class EvidenceType(str, Enum):
     OPINION = "opinion"                # Reporter's opinion
     
     UNKNOWN = "unknown"
+
+
+class SourceType(str, Enum):
+    """
+    V5: Who provided the information.
+    
+    Tracks the original source of each statement for provenance.
+    """
+    
+    REPORTER = "reporter"           # The person filing the narrative
+    WITNESS = "witness"             # Third-party observer
+    DOCUMENT = "document"           # Official document (letter, record)
+    MEDICAL_RECORD = "medical"      # ER records, medical documentation
+    OFFICIAL = "official"           # Police, IA, official findings
+    ATTORNEY = "attorney"           # Legal counsel statement
+    RESEARCH = "research"           # Reporter's own research
+    UNKNOWN = "unknown"
+
+
+class ProvenanceStatus(str, Enum):
+    """
+    V5: Verification status of a claim's provenance.
+    
+    Indicates whether the source has been verified or is missing.
+    """
+    
+    VERIFIED = "verified"           # Source is documented/corroborated
+    CITED = "cited"                 # Source is named but not verified
+    MISSING = "missing"             # No source provided (NEEDS provenance)
+    INFERENCE = "inference"         # Derived by reporter, not external source
+    UNVERIFIABLE = "unverifiable"   # Cannot be independently verified
 
 
 class EpistemicType(str, Enum):

@@ -33,6 +33,8 @@ class AtomicStatement:
     - epistemic_type: what kind of content (event, self_report, interpretation, 
                       legal_claim, quote, admin_action, medical_finding)
     - polarity: asserted/denied/uncertain
+    
+    V5: Added provenance tracking with source_type, source_entity_id, provenance_status
     """
     id: str
     text: str
@@ -78,6 +80,23 @@ class AtomicStatement:
     # (populated later in p35_link_provenance)
     derived_from: list[str] = field(default_factory=list)
     
+    # =========================================================================
+    # V5: Provenance Tracking
+    # =========================================================================
+    
+    # Source Type: Who provided this information?
+    # Values: reporter, witness, document, medical, official, attorney, research
+    source_type: str = "reporter"
+    
+    # Source Entity ID: Link to the Entity who is the source (if applicable)
+    # e.g., "ent_abc123" for a witness
+    source_entity_id: Optional[str] = None
+    
+    # Provenance Status: Has this been verified?
+    # Values: verified, cited, missing, inference, unverifiable
+    provenance_status: str = "missing"
+    
+
     # =========================================================================
     # V4 ALPHA: Attribution & Aberration
     # =========================================================================

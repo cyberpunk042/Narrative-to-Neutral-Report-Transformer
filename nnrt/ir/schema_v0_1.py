@@ -180,15 +180,26 @@ class Event(BaseModel):
 
 
 class SpeechAct(BaseModel):
-    """Direct or reported speech in the narrative."""
+    """
+    Direct or reported speech in the narrative.
+    
+    V5: Enhanced with speaker attribution for proper quote rendering.
+    Format: [Speaker] [verb]: "[content]"
+    """
 
     id: str
     type: SpeechActType
-    speaker_id: Optional[str] = None
-    content: str
+    speaker_id: Optional[str] = None  # Entity ID
+    content: str  # The actual quoted text
     is_direct_quote: bool
     source_span_id: str
     confidence: float = Field(..., ge=0.0, le=1.0)
+    
+    # V5: Enhanced speaker attribution
+    speaker_label: Optional[str] = Field(None, description="Human-readable speaker name")
+    speech_verb: str = Field("said", description="Verb: said, yelled, asked, threatened")
+    is_nested: bool = Field(False, description="Quote within a quote")
+    raw_text: Optional[str] = Field(None, description="Original text including quotes")
 
 
 class UncertaintyMarker(BaseModel):

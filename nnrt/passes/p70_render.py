@@ -205,7 +205,11 @@ def _render_template(ctx: TransformContext) -> TransformContext:
 
 
 def _clean_text(text: str) -> str:
-    """Clean up artifacts from transformations."""
+    """
+    Clean up artifacts from transformations.
+    
+    V5: Enhanced grammar fixes for common neutralization artifacts.
+    """
     result = text
     
     # Remove double spaces
@@ -214,9 +218,25 @@ def _clean_text(text: str) -> str:
     
     # Remove orphaned punctuation
     result = result.replace(" .", ".").replace(" ,", ",")
+    result = result.replace("..", ".").replace(",,", ",")
     
-    # Fix common grammar issues from removals
+    # V5: Fix sentence start artifacts
     result = result.replace("He  ", "He ").replace("She  ", "She ")
+    result = result.replace("They  ", "They ").replace("I  ", "I ")
+    
+    # V5: Fix common pronoun/article issues
+    result = result.replace(" a a ", " a ")
+    result = result.replace(" an an ", " an ")
+    result = result.replace(" the the ", " the ")
+    
+    # V5: Fix dangling connectors
+    result = result.replace(", and,", " and")
+    result = result.replace(", but,", " but")
+    result = result.replace(", or,", " or")
+    
+    # V5: Fix leading punctuation on sentences
+    while result.startswith(", ") or result.startswith(". "):
+        result = result[2:]
     
     # Trim
     result = result.strip()

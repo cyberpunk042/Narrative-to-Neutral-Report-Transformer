@@ -107,17 +107,31 @@ def build_ir(ctx: TransformContext) -> TransformContext:
         for token in doc:
             if token.lemma_.lower() in SPEECH_ACT_VERBS:
                 speech_type = SPEECH_ACT_VERBS.get(token.lemma_.lower(), SpeechActType.STATEMENT)
+                speech_verb = token.text.lower()  # V5: Capture the actual verb form
                 
                 # Find speaker by matching subject to known entities
                 speaker_id = None
+                speaker_label = None
                 for child in token.children:
                     if child.dep_ == "nsubj":
                         # Try to match to existing entity
                         speaker_id = _resolve_speaker(child.text, entities)
+                        if speaker_id:
+                            # Get the label from the resolved entity
+                            for ent in entities:
+                                if ent.id == speaker_id:
+                                    speaker_label = ent.label
+                                    break
+                        if not speaker_label:
+                            # Use the text itself as label if not resolved
+                            speaker_label = child.text
                 
                 # Extract quoted content if present
                 content = _extract_speech_content(segment.text)
                 is_direct = '"' in segment.text or "'" in segment.text
+                
+                # V5: Detect nested quotes
+                is_nested = segment.text.count('"') > 2 or segment.text.count("'") > 2
                 
                 if content:
                     speech_act = SpeechAct(
@@ -128,6 +142,11 @@ def build_ir(ctx: TransformContext) -> TransformContext:
                         is_direct_quote=is_direct,
                         source_span_id=span_ids[0] if span_ids else segment.id,
                         confidence=0.8 if is_direct else 0.6,
+                        # V5: New fields
+                        speaker_label=speaker_label,
+                        speech_verb=speech_verb,
+                        is_nested=is_nested,
+                        raw_text=segment.text[:200],  # Store original for context
                     )
                     speech_acts.append(speech_act)
                     speech_act_counter += 1
