@@ -283,13 +283,76 @@ def format_structured_output(
         lines.append("")
     
     # === RECORDED EVENTS ===
+    # V4.1: Apply comprehensive quality filter to events
     if events:
-        lines.append("RECORDED EVENTS")
-        lines.append("─" * 70)
+        # V4.1: Event quality validation
+        def is_quality_event(desc: str) -> bool:
+            """Check if event description meets quality standards."""
+            # Minimum length
+            if len(desc) < 20:
+                return False
+            
+            desc_lower = desc.lower()
+            desc_words = desc_lower.split()
+            
+            # Minimum word count
+            if len(desc_words) < 4:
+                return False
+            
+            # Interpretive words that disqualify the event
+            interpretive_words = [
+                'brutal', 'brutally', 'viciously', 'psychotic', 'maniac', 'thug',
+                'clearly', 'obviously', 'deliberately', 'innocent', 'criminal',
+                'horrifying', 'terrifying', 'illegal', 'proves', 'cover-up',
+                'intentionally', 'mocking', 'fishing', 'excessive'
+            ]
+            if any(word in desc_lower for word in interpretive_words):
+                return False
+            
+            # Detect text corruption patterns
+            # (words appearing in wrong positions due to NLP parsing issues)
+            corruption_markers = [
+                'when innocently', 'when viciously', 'where work',
+                'obviously care', 'thug the', 'say what', 'hurting me',
+                'the brutal when',
+            ]
+            if any(marker in desc_lower for marker in corruption_markers):
+                return False
+            
+            # First word should be a proper subject (capitalized or pronoun)
+            first_word = desc_words[0]
+            valid_pronouns = {'i', 'he', 'she', 'they', 'we', 'officer', 'sergeant', 'detective'}
+            if not (first_word[0].isupper() or first_word in valid_pronouns):
+                return False
+            
+            # Must contain a verb-like word (not just fragments)
+            verb_indicators = ['ed ', 'ing ', 'ran ', 'put ', 'saw ', 'said ', 'came ', 'went ']
+            if not any(vi in desc_lower + ' ' for vi in verb_indicators):
+                # Allow if it ends with common verb endings
+                if not desc_lower.endswith(('ed', 'ing')):
+                    return False
+            
+            return True
+        
+        quality_events = []
+        seen_events = set()  # Deduplicate
         for event in events:
             desc = getattr(event, 'description', str(event))
-            lines.append(f"  • {desc}")
-        lines.append("")
+            # Normalize and dedupe
+            desc_normalized = ' '.join(desc.split())
+            if desc_normalized in seen_events:
+                continue
+            seen_events.add(desc_normalized)
+            
+            if is_quality_event(desc):
+                quality_events.append(desc)
+        
+        if quality_events:
+            lines.append("RECORDED EVENTS")
+            lines.append("─" * 70)
+            for desc in quality_events:
+                lines.append(f"  • {desc}")
+            lines.append("")
     
     # === FULL NARRATIVE ===
     if rendered_text:

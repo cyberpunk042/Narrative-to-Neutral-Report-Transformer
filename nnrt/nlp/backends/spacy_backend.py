@@ -266,13 +266,35 @@ class SpacyEventExtractor(EventExtractor):
         """
         Extract events from text using spaCy dependency parsing.
         
-        V4: Builds richer descriptions and filters noise.
+        V4.1: Major quality improvements:
+        - Skip verbs inside quoted speech
+        - Require meaningful subject
+        - Filter ALL_CAPS verbs (usually inside quotes)
+        - Require ROOT or main clause verbs
+        - Better overall quality filtering
         """
         nlp = get_nlp()
         doc = nlp(text)
         
         results = []
-        processed_verbs = set()  # Avoid duplicates
+        processed_verbs = set()
+        
+        # V4.1: Find quoted regions to skip
+        quote_regions = []
+        in_quote = False
+        quote_start = 0
+        for i, char in enumerate(text):
+            if char in '"\'':
+                if not in_quote:
+                    in_quote = True
+                    quote_start = i
+                else:
+                    quote_regions.append((quote_start, i))
+                    in_quote = False
+        
+        def is_in_quote(idx: int) -> bool:
+            """Check if character index is inside a quoted region."""
+            return any(start <= idx <= end for start, end in quote_regions)
         
         for token in doc:
             if token.pos_ != "VERB":
@@ -283,42 +305,55 @@ class SpacyEventExtractor(EventExtractor):
                 continue
             processed_verbs.add(token.i)
             
-            lemma = token.lemma_.lower()
-            
-            # V4: Skip auxiliary and helper verbs
-            if lemma in {"be", "have", "do", "will", "would", "could", "should", "can", "may", "might", "must"}:
+            # V4.1: Skip verbs inside quoted speech
+            if is_in_quote(token.idx):
                 continue
             
-            # V4: Skip very common low-info verbs unless they have good context
-            if lemma in {"get", "go", "come", "make", "take", "put", "give", "keep", "let", "seem"}:
-                # Only keep if there's a direct object
+            # V4.1: Skip ALL_CAPS verbs (usually yelled commands in quotes)
+            if token.text.isupper() and len(token.text) > 1:
+                continue
+            
+            lemma = token.lemma_.lower()
+            
+            # Skip auxiliary and helper verbs
+            if lemma in {"be", "have", "do", "will", "would", "could", "should", 
+                         "can", "may", "might", "must", "don't", "dare"}:
+                continue
+            
+            # V4.1: Skip non-ROOT verbs unless they're in important positions
+            # ROOT verbs are main clause verbs, others are often fragments
+            if token.dep_ not in ("ROOT", "relcl", "advcl", "ccomp", "xcomp"):
+                continue
+            
+            # V4.1: Require a subject for meaningful events
+            nsubj = next((c for c in token.children if c.dep_ in ("nsubj", "nsubjpass")), None)
+            if not nsubj:
+                continue
+            
+            # Skip very common low-info verbs unless they have good context
+            if lemma in {"get", "go", "come", "make", "take", "put", "give", "keep", "let", "seem", "start", "want"}:
                 if not any(c.dep_ == "dobj" for c in token.children):
                     continue
             
             # Determine event type
             event_type = VERB_TYPE_MAP.get(lemma, EventType.ACTION)
             
-            # V4: Enhanced actor detection - include compounds
-            actor_mention = None
-            nsubj = next((c for c in token.children if c.dep_ in ("nsubj", "nsubjpass")), None)
-            if nsubj:
-                # Get the full noun phrase, not just the head
-                actor_parts = [nsubj.text]
-                # Include preceding modifiers
-                for child in nsubj.children:
-                    if child.dep_ in ("compound", "amod", "det") and child.i < nsubj.i:
-                        actor_parts.insert(0, child.text)
-                    elif child.dep_ in ("compound", "flat") and child.i > nsubj.i:
-                        actor_parts.append(child.text)
-                actor_mention = " ".join(actor_parts)
+            # V4.1: Build actor mention with full noun phrase
+            actor_parts = [nsubj.text]
+            for child in nsubj.children:
+                if child.dep_ in ("compound", "amod", "det") and child.i < nsubj.i:
+                    actor_parts.insert(0, child.text)
+                elif child.dep_ in ("compound", "flat") and child.i > nsubj.i:
+                    actor_parts.append(child.text)
+            actor_mention = " ".join(actor_parts)
             
-            # V4: Enhanced target detection - follow prep phrases too
+            # V4.1: Build target mention
             target_mention = None
             dobj = next((c for c in token.children if c.dep_ == "dobj"), None)
             if dobj:
                 target_parts = [dobj.text]
                 for child in dobj.children:
-                    if child.dep_ in ("compound", "amod"):
+                    if child.dep_ in ("compound", "amod", "poss"):
                         target_parts.insert(0, child.text)
                 target_mention = " ".join(target_parts)
             else:
@@ -329,20 +364,16 @@ class SpacyEventExtractor(EventExtractor):
                     if pobj:
                         target_mention = f"{prep.text} {pobj.text}"
             
-            # V4: Build fuller description from subtree
-            # Get relevant parts of the verb phrase
-            desc_parts = []
+            # V4.1: Build comprehensive description using sentence structure
+            # Start with subject
+            desc_parts = [actor_mention]
             
-            # Add subject
-            if actor_mention:
-                desc_parts.append(actor_mention)
-            
-            # Add any adverbs before the verb
+            # Add adverbs before verb
             for child in token.children:
                 if child.dep_ == "advmod" and child.i < token.i:
                     desc_parts.append(child.text)
             
-            # Add the verb (possibly with particle)
+            # Add verb (with particle if present)
             verb_phrase = token.text
             prt = next((c for c in token.children if c.dep_ == "prt"), None)
             if prt:
@@ -353,30 +384,33 @@ class SpacyEventExtractor(EventExtractor):
             if dobj:
                 desc_parts.append(target_mention or dobj.text)
             
-            # Add key prepositional phrases
+            # Add first prepositional phrase for context
             for child in token.children:
                 if child.dep_ == "prep":
-                    prep_text = child.text
+                    prep_parts = [child.text]
                     pobj = next((c for c in child.children if c.dep_ == "pobj"), None)
                     if pobj:
-                        prep_text += f" {pobj.text}"
-                    if len(prep_text) > 3:  # Skip tiny preps
-                        desc_parts.append(prep_text)
-                        break  # Only add first prep phrase
+                        # Include pobj's modifiers
+                        for pobj_child in pobj.children:
+                            if pobj_child.dep_ in ("det", "poss", "amod"):
+                                prep_parts.append(pobj_child.text)
+                        prep_parts.append(pobj.text)
+                    desc_parts.append(" ".join(prep_parts))
+                    break  # Only first prep phrase
             
             description = " ".join(desc_parts)
             
-            # V4: Quality filter - skip very short or low-value events
-            if len(description) < 5:
+            # V4.1: Final quality filter
+            if len(description) < 10:
                 continue
-            if description.lower() in {"it is", "is", "was", "were", "be"}:
+            if len(description.split()) < 3:
                 continue
             
-            # V4: Higher confidence for events with both actor and target
+            # Confidence based on completeness
             confidence = 0.7
             if actor_mention and target_mention:
                 confidence = 0.9
-            elif actor_mention or target_mention:
+            elif actor_mention:
                 confidence = 0.8
             
             results.append(EventExtractResult(
