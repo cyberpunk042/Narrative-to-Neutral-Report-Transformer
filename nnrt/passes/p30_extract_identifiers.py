@@ -96,7 +96,7 @@ def _is_valid_time(value: str) -> tuple[bool, float]:
     V4: Validate a time identifier.
     
     Returns (is_valid, confidence).
-    Rejects parsing artifacts like "30 PM".
+    Rejects parsing artifacts like "30 PM" and vague words like "night", "hours".
     """
     value = value.strip()
     
@@ -105,12 +105,32 @@ def _is_valid_time(value: str) -> tuple[bool, float]:
         if re.match(pattern, value, re.IGNORECASE):
             return (False, 0.0)
     
+    # V4: Reject vague temporal words as TIME - they're not clock times
+    for pattern in VAGUE_TEMPORAL_PATTERNS:
+        if re.match(pattern, value, re.IGNORECASE):
+            log.debug(
+                "rejected_vague_time",
+                value=value,
+                reason="not_a_clock_time",
+            )
+            return (False, 0.0)  # Reject entirely - "night" is not a time
+    
     # Proper times: "11:30 PM", "3:45 am", "11 PM"
     if re.match(r'^\d{1,2}:\d{2}\s*(AM|PM|am|pm)?$', value):
         return (True, 0.95)  # High confidence
     
     if re.match(r'^\d{1,2}\s+(AM|PM|am|pm)$', value):
         return (True, 0.9)  # Hour only, still valid
+    
+    # "about 20 minutes" is a DURATION, not a TIME
+    for pattern in DURATION_PATTERNS:
+        if re.match(pattern, value, re.IGNORECASE):
+            log.debug(
+                "rejected_duration_as_time",
+                value=value,
+                reason="duration_not_time",
+            )
+            return (False, 0.0)  # Reject - should be DURATION type
     
     # If no AM/PM and no colon, it's low confidence
     if not re.search(r'(AM|PM|am|pm|:|hour)', value):
@@ -139,6 +159,48 @@ def _is_valid_date(value: str) -> tuple[bool, float]:
             return (True, 0.3)  # Valid but very low confidence
     
     return (True, 0.9)
+
+
+def _looks_like_person_name(text: str, doc) -> bool:
+    """
+    V4: Check if a string looks like a person name.
+    
+    Used to filter person names from location identifiers.
+    Checks:
+    1. If it starts with a title (Officer, Dr., etc.)
+    2. If it's a single capitalized word that appears as PERSON elsewhere
+    3. If all tokens are PROPN (proper nouns)
+    """
+    text_lower = text.lower().strip()
+    
+    # Title prefixes that indicate a person
+    person_titles = {
+        "officer", "officers", "deputy", "sergeant", "sgt", "sgt.",
+        "detective", "lieutenant", "captain", "chief",
+        "dr", "dr.", "doctor", "nurse", "mr", "mr.", "mrs", "mrs.",
+        "ms", "ms.", "miss",
+    }
+    
+    first_word = text_lower.split()[0] if text_lower.split() else ""
+    if first_word in person_titles:
+        return True
+    
+    # Check if all words are capitalized (typical of person names)
+    words = text.split()
+    if all(w[0].isupper() and len(w) > 1 for w in words if w):
+        # Now check if this exact span or text is tagged as PERSON elsewhere
+        for ent in doc.ents:
+            if ent.label_ == "PERSON" and ent.text.lower() == text_lower:
+                return True
+        
+        # Single capitalized word - likely a name (surname)
+        if len(words) == 1 and not any(kw in text_lower for kw in ["street", "avenue", "hospital", "cafe", "store", "building"]):
+            # Could be a standalone surname like "Marcus", "Jenkins"
+            for ent in doc.ents:
+                if ent.label_ == "PERSON" and text_lower in ent.text.lower():
+                    return True
+    
+    return False
 
 
 def _deduplicate_identifiers(identifiers: list[Identifier]) -> list[Identifier]:
@@ -179,6 +241,11 @@ def extract_identifiers(ctx: TransformContext) -> TransformContext:
 
     identifiers: list[Identifier] = []
     id_counter = 0
+    
+    # V4: Create full-document spaCy doc for cross-segment person detection
+    nlp = get_nlp()
+    full_text = " ".join(seg.text for seg in ctx.segments)
+    full_doc = nlp(full_text)
 
     for segment in ctx.segments:
         # Extract via regex patterns
@@ -186,8 +253,9 @@ def extract_identifiers(ctx: TransformContext) -> TransformContext:
         identifiers.extend(regex_ids)
         id_counter += len(regex_ids)
         
-        # Extract via NER
-        ner_ids = _extract_ner_identifiers(segment.text, segment.id)
+        # Extract via NER (with full_doc for cross-segment person detection)
+        ner_ids = _extract_ner_identifiers(segment.text, segment.id, full_doc)
+
         
         # Deduplicate against regex matches
         for ner_id in ner_ids:
@@ -291,12 +359,20 @@ def _extract_regex_identifiers(text: str, segment_id: str) -> list[Identifier]:
     return results
 
 
-def _extract_ner_identifiers(text: str, segment_id: str) -> list[Identifier]:
-    """Extract identifiers using spaCy NER."""
+def _extract_ner_identifiers(text: str, segment_id: str, full_doc=None) -> list[Identifier]:
+    """
+    Extract identifiers using spaCy NER.
+    
+    Args:
+        text: Segment text to analyze
+        segment_id: ID of the source segment
+        full_doc: Optional full-document spaCy doc for cross-segment person detection
+    """
     results: list[Identifier] = []
     
     nlp = get_nlp()
     doc = nlp(text)
+
     
     # Map spaCy entity types to our identifier types
     type_map = {
@@ -342,12 +418,25 @@ def _extract_ner_identifiers(text: str, segment_id: str) -> list[Identifier]:
         if len(ent.text.strip()) < 2:
             continue
             
-        # Filter 2: Location stoplist
+        # Filter 2: Location stoplist and validation
         if id_type == IdentifierType.LOCATION:
             if ent_text_lower in LOCATION_STOPLIST:
                 continue
             # Check if it's just a pronoun based on POS
             if len(list(ent)) == 1 and list(ent)[0].pos_ in ("PRON", "DET"):
+                continue
+            
+            # V4: Check if this looks like a person name (title + name pattern)
+            # e.g., "Marcus", "Officer Jenkins" should not be locations
+            # Use full_doc for cross-segment person detection
+            check_doc = full_doc if full_doc is not None else doc
+            if _looks_like_person_name(ent.text, check_doc):
+
+                log.debug(
+                    "rejected_person_as_location",
+                    value=ent.text,
+                    reason="looks_like_person_name",
+                )
                 continue
                 
         # Filter 3: Date validation

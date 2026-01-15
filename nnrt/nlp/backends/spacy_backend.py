@@ -93,13 +93,67 @@ class SpacyEntityExtractor(EntityExtractor):
         return "spacy_entity"
 
     def extract(self, text: str, existing_entities: list = None) -> list[EntityExtractResult]:
-        """Extract entities from text using spaCy."""
+        """
+        Extract entities from text using spaCy.
+        
+        V4: Uses doc.ents for proper multi-token entity extraction.
+        """
         nlp = get_nlp()
         doc = nlp(text)
         
         results = []
+        processed_spans = set()  # Track processed character spans
         
+        # =======================================================================
+        # FIRST: Process spaCy NER entities (multi-token aware)
+        # =======================================================================
+        for ent in doc.ents:
+            if ent.label_ != "PERSON":
+                continue
+            
+            # Track this span
+            span_key = (ent.start_char, ent.end_char)
+            processed_spans.add(span_key)
+            
+            ent_text = ent.text.strip()
+            ent_lower = ent_text.lower()
+            mention = (ent.start_char, ent.end_char, ent_text)
+            
+            # Classify role based on context around the entity
+            role = EntityRole.UNKNOWN
+            context_start = max(0, ent.start_char - 50)
+            context = text[context_start:ent.start_char].lower()
+            
+            # Check for role indicators in preceding context
+            if "dr." in context or "doctor" in context or "nurse" in context:
+                role = EntityRole.WITNESS  # Will be upgraded to MEDICAL_PROVIDER in pass
+            elif "attorney" in context or "lawyer" in context:
+                role = EntityRole.WITNESS  # Will be upgraded to LEGAL_COUNSEL in pass
+            elif "sergeant" in ent_lower or "sgt" in ent_lower:
+                role = EntityRole.AUTHORITY
+            elif "officer" in ent_lower or "deputy" in ent_lower:
+                role = EntityRole.AUTHORITY
+            elif "detective" in ent_lower:
+                role = EntityRole.AUTHORITY
+            
+            results.append(EntityExtractResult(
+                label=ent_text,
+                type=EntityType.PERSON,
+                role=role,
+                confidence=0.80,
+                mentions=[mention],
+                is_new=True,
+            ))
+        
+        # =======================================================================
+        # SECOND: Process pronouns and special tokens (not covered by NER)
+        # =======================================================================
         for token in doc:
+            # Skip if already processed as part of an entity span
+            token_span = (token.idx, token.idx + len(token.text))
+            if any(s[0] <= token.idx < s[1] for s in processed_spans):
+                continue
+            
             if token.pos_ not in ("PRON", "PROPN", "NOUN"):
                 continue
             
@@ -147,17 +201,6 @@ class SpacyEntityExtractor(EntityExtractor):
                     type=EntityType.PERSON,
                     role=EntityRole.SUBJECT,
                     confidence=0.80,
-                    mentions=[mention],
-                    is_new=True,
-                ))
-            
-            # Check spaCy NER
-            elif token.ent_type_ == "PERSON":
-                results.append(EntityExtractResult(
-                    label=token.text,
-                    type=EntityType.PERSON,
-                    role=EntityRole.UNKNOWN,
-                    confidence=0.75,
                     mentions=[mention],
                     is_new=True,
                 ))

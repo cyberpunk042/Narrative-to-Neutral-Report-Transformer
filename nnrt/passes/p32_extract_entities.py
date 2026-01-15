@@ -264,6 +264,13 @@ def extract_entities(ctx: TransformContext) -> TransformContext:
     # Resolve mention locations to span IDs
     _resolve_mentions_to_spans(entities, pending_mentions, ctx.spans)
     
+    # V4: Deduplicate entities - remove token fragments and duplicates
+    entities = _deduplicate_entities(entities)
+    
+    # V4: Refine roles based on context in source text
+    source_text = " ".join(seg.text for seg in ctx.segments)
+    entities = _refine_entity_roles(entities, source_text)
+    
     ctx.entities = entities
     
     # Count by role
@@ -284,6 +291,254 @@ def extract_entities(ctx: TransformContext) -> TransformContext:
     )
     
     return ctx
+
+
+def _normalize_entity_label(label: str) -> str:
+    """
+    V4: Normalize entity labels to fix common spaCy extraction issues.
+    
+    Fixes:
+    - "Officers Jenkins" -> "Officer Jenkins" (plural to singular)
+    - "Sergeants Williams" -> "Sergeant Williams"
+    """
+    if not label:
+        return label
+    
+    # Plural title corrections
+    plural_corrections = {
+        "Officers ": "Officer ",
+        "Sergeants ": "Sergeant ",
+        "Deputies ": "Deputy ",
+        "Detectives ": "Detective ",
+        "Lieutenants ": "Lieutenant ",
+    }
+    
+    for plural, singular in plural_corrections.items():
+        if label.startswith(plural):
+            corrected = singular + label[len(plural):]
+            log.debug(
+                "normalized_entity_label",
+                original=label,
+                corrected=corrected,
+            )
+            return corrected
+    
+    return label
+
+
+def _deduplicate_entities(entities: List[Entity]) -> List[Entity]:
+    """
+    V4: Remove duplicate and fragment entities.
+    
+    This function:
+    1. Normalizes labels (e.g., "Officers Jenkins" -> "Officer Jenkins")
+    2. Removes single-token entities that are substrings of multi-token entities
+       (e.g., removes "Sarah" and "Mitchell" when "Sarah Mitchell" exists)
+    3. Removes exact label duplicates (keeps first occurrence)
+    4. Keeps Reporter entity regardless
+    """
+    if not entities:
+        return entities
+    
+    # V4: Normalize labels first
+    for ent in entities:
+        if ent.label:
+            ent.label = _normalize_entity_label(ent.label)
+    
+    # Build set of multi-word labels (normalized)
+    multi_word_labels = set()
+    for ent in entities:
+        if ent.label and len(ent.label.split()) > 1:
+            multi_word_labels.add(ent.label.lower())
+    
+    # Check if a single word is a substring of any multi-word label
+    def is_fragment(label: str) -> bool:
+        if not label:
+            return False
+        label_lower = label.lower().strip()
+        words = label_lower.split()
+        if len(words) > 1:
+            return False  # Multi-word labels are not fragments
+        
+        # Check if this single word appears in any multi-word label
+        for multi in multi_word_labels:
+            multi_words = multi.split()
+            if label_lower in multi_words:
+                return True
+        return False
+    
+    # Track seen labels for exact duplicate removal
+    seen_labels = set()
+    result = []
+    fragment_count = 0
+    duplicate_count = 0
+    
+    for ent in entities:
+        # Always keep Reporter
+        if ent.role == EntityRole.REPORTER:
+            result.append(ent)
+            seen_labels.add(ent.label.lower() if ent.label else "reporter")
+            continue
+        
+        # Check for fragment
+        if is_fragment(ent.label):
+            fragment_count += 1
+            log.debug(
+                "removed_fragment_entity",
+                label=ent.label,
+                reason="single_token_in_multiword_entity",
+            )
+            continue
+        
+        # Check for exact duplicate
+        label_key = ent.label.lower() if ent.label else ""
+        if label_key in seen_labels:
+            duplicate_count += 1
+            log.debug(
+                "removed_duplicate_entity",
+                label=ent.label,
+            )
+            continue
+        
+        seen_labels.add(label_key)
+        result.append(ent)
+    
+    if fragment_count or duplicate_count:
+        log.info(
+            "v4_entity_dedup",
+            fragments_removed=fragment_count,
+            duplicates_removed=duplicate_count,
+            before=len(entities),
+            after=len(result),
+        )
+    
+    return result
+
+
+def _refine_entity_roles(entities: List[Entity], source_text: str) -> List[Entity]:
+    """
+    V4: Refine entity roles based on context in source text.
+    
+    Scans the source text for professional role indicators near entity names:
+    - "Dr. Amanda Foster" → MEDICAL_PROVIDER
+    - "attorney Jennifer Walsh" → LEGAL_COUNSEL
+    - "my therapist, Michael Thompson" → MEDICAL_PROVIDER
+    - "Detective Sarah Monroe" → INVESTIGATOR
+    """
+    source_lower = source_text.lower()
+    
+    # Role patterns to search for near entity names
+    role_patterns = {
+        EntityRole.MEDICAL_PROVIDER: [
+            r"dr\.?\s+{name}",
+            r"doctor\s+{name}",
+            r"nurse\s+{name}",
+            r"therapist[,\s]+(?:\w+\s+)?{name}",
+            r"therapist[,\s]+{name}",
+            r"physician\s+{name}",
+            r"emt\s+{name}",
+            r"paramedic\s+{name}",
+            r"my\s+therapist[,\s]+{name}",
+            r"treated\s+by\s+(?:dr\.?\s+)?{name}",
+        ],
+        EntityRole.LEGAL_COUNSEL: [
+            r"attorney[,\s]+{name}",
+            r"lawyer[,\s]+{name}",
+            r"my\s+attorney[,\s]+{name}",
+            r"counselor\s+{name}",
+        ],
+        EntityRole.INVESTIGATOR: [
+            r"detective\s+{name}",
+            r"internal\s+affairs[,\s]+{name}",
+            r"investigator\s+{name}",
+        ],
+        EntityRole.SUPERVISOR: [
+            r"sergeant\s+{name}",
+            r"sgt\.?\s+{name}",
+            r"lieutenant\s+{name}",
+            r"captain\s+{name}",
+        ],
+        EntityRole.SUBJECT_OFFICER: [
+            r"officer\s+{name}",
+            r"deputy\s+{name}",
+        ],
+    }
+    
+    # Title prefixes that indicate roles (for labels that already have them)
+    title_role_map = {
+        "officer ": EntityRole.SUBJECT_OFFICER,
+        "deputy ": EntityRole.SUBJECT_OFFICER,
+        "sergeant ": EntityRole.SUPERVISOR,
+        "sgt. ": EntityRole.SUPERVISOR,
+        "detective ": EntityRole.INVESTIGATOR,
+        "dr. ": EntityRole.MEDICAL_PROVIDER,
+        "dr ": EntityRole.MEDICAL_PROVIDER,
+    }
+    
+    refined_count = 0
+    
+    for ent in entities:
+        if not ent.label:
+            continue
+        
+        # Skip Reporter
+        if ent.role == EntityRole.REPORTER:
+            continue
+        
+        label_lower = ent.label.lower()
+        
+        # First check: Does the label itself start with a title?
+        for title, role in title_role_map.items():
+            if label_lower.startswith(title):
+                if ent.role != role:
+                    old_role = ent.role
+                    ent.role = role
+                    refined_count += 1
+                    log.debug(
+                        "refined_role_from_label",
+                        label=ent.label,
+                        old_role=old_role.value,
+                        new_role=role.value,
+                    )
+                break
+        else:
+            # Second check: Search for role patterns in source text
+            import re
+            name_escaped = re.escape(label_lower)
+            
+            # Check each role pattern
+            for role, patterns in role_patterns.items():
+                if ent.role == role:
+                    continue  # Already has this role
+                
+                found = False
+                for pattern_template in patterns:
+                    pattern = pattern_template.format(name=name_escaped)
+                    if re.search(pattern, source_lower):
+                        old_role = ent.role
+                        ent.role = role
+                        refined_count += 1
+                        log.debug(
+                            "refined_entity_role",
+                            label=ent.label,
+                            old_role=old_role.value,
+                            new_role=role.value,
+                            pattern=pattern_template,
+                        )
+                        found = True
+                        break
+                
+                if found:
+                    break
+
+    
+    if refined_count:
+        log.info(
+            "v4_role_refinement",
+            entities_refined=refined_count,
+        )
+    
+    return entities
 
 
 def _seed_from_identifiers(

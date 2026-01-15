@@ -167,7 +167,13 @@ CONSPIRACY_CLAIM_PATTERNS = [
     r'\bcode\s+of\s+silence\b',
     r'\bhiding\s+(?:the\s+)?evidence\b',
     r'\bdestroyed?\s+(?:the\s+)?evidence\b',
+    # Additional patterns
+    r'\bmysteriously\s+(?:")?(?:lost|disappeared|deleted|missing)\b',
+    r'\b(?:massive|huge|blatant)\s+cover[-\s]?up\b',
+    r'\bhow\s+to\s+cover\s+up\b',
+    r'\bconspir(?:ing|ed)\s+(?:to|about)\b',
 ]
+
 
 # NARRATIVE_GLUE: Rhetorical phrases with no factual content
 # These should be stripped, not neutralized

@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 
 from nnrt import __version__
 from nnrt.ir.schema_v0_1 import TransformResult
+from nnrt.passes.p48_classify_evidence import _classify_epistemic_type
 
 
 SCHEMA_VERSION = "1.0"
@@ -256,6 +257,28 @@ class StructuredOutput(BaseModel):
         description="Evidence type and reliability for statements"
     )
     
+    # =========================================================================
+    # V4: Epistemic Classification Buckets
+    # =========================================================================
+    # These are NOT neutral - they are the reporter's interpretations and
+    # must be explicitly labeled as such. Content here CANNOT be in
+    # "statements" or "observations" or any neutral-claiming bucket.
+    
+    reporter_interpretations: list[AtomicStatementOutput] = Field(
+        default_factory=list,
+        description="Intent attribution and inferences BY THE REPORTER - NOT neutral"
+    )
+    
+    reporter_legal_characterizations: list[AtomicStatementOutput] = Field(
+        default_factory=list,
+        description="Legal conclusions made by reporter (not qualified) - NOT neutral"
+    )
+    
+    reporter_conspiracy_claims: list[AtomicStatementOutput] = Field(
+        default_factory=list,
+        description="Unfalsifiable conspiracy allegations - NOT neutral"
+    )
+    
     # Diagnostics
     diagnostics: list[dict] = Field(default_factory=list)
     
@@ -303,10 +326,23 @@ def build_structured_output(result: TransformResult, input_text: str) -> Structu
         )
         statements.append(stmt)
     
-    # Build atomic statements from decomposition pipeline (NEW)
+    # =========================================================================
+    # V4: Build atomic statements WITH EPISTEMIC ROUTING
+    # =========================================================================
+    # Statements with dangerous patterns are routed to explicit buckets,
+    # NOT mixed into the general atomic_statements list.
+    
     atomic_statements_out = []
+    reporter_interpretations = []
+    reporter_legal_characterizations = []
+    reporter_conspiracy_claims = []
+    
     for atomic in result.atomic_statements:
         stmt_type = atomic.type_hint.value if hasattr(atomic.type_hint, 'value') else str(atomic.type_hint)
+        
+        # V4: Classify epistemic type
+        epistemic_type, matched_phrase = _classify_epistemic_type(atomic.text)
+        
         atomic_out = AtomicStatementOutput(
             id=atomic.id,
             type=stmt_type,
@@ -316,9 +352,19 @@ def build_structured_output(result: TransformResult, input_text: str) -> Structu
             clause_type=atomic.clause_type,
             connector=atomic.connector,
             derived_from=atomic.derived_from,
-            flags=atomic.flags,
+            flags=atomic.flags if not epistemic_type else atomic.flags + [f"V4_{epistemic_type.upper()}"],
         )
-        atomic_statements_out.append(atomic_out)
+        
+        # V4: Route based on epistemic type
+        if epistemic_type == "intent_attribution":
+            reporter_interpretations.append(atomic_out)
+        elif epistemic_type == "legal_characterization":
+            reporter_legal_characterizations.append(atomic_out)
+        elif epistemic_type == "conspiracy_claim":
+            reporter_conspiracy_claims.append(atomic_out)
+        else:
+            # No dangerous pattern - safe for general bucket
+            atomic_statements_out.append(atomic_out)
     
     # Build uncertainties from Markers (Phase 3)
     uncertainties = []
@@ -543,6 +589,10 @@ def build_structured_output(result: TransformResult, input_text: str) -> Structu
         timeline=timeline_out,
         statement_groups=statement_groups_out,
         evidence_classifications=evidence_out,
+        # V4: Epistemic classification buckets
+        reporter_interpretations=reporter_interpretations,
+        reporter_legal_characterizations=reporter_legal_characterizations,
+        reporter_conspiracy_claims=reporter_conspiracy_claims,
         diagnostics=[d.model_dump() for d in result.diagnostics],
         diff_data=diff_data,
         rendered_text=result.rendered_text or "",
