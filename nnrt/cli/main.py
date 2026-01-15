@@ -36,6 +36,7 @@ from nnrt.passes.p46_group_statements import group_statements
 from nnrt.passes.p48_classify_evidence import classify_evidence
 from nnrt.passes.p27_epistemic_tag import tag_epistemic
 from nnrt.passes.p27b_attribute_statements import attribute_statements
+from nnrt.passes.p72_safety_scrub import safety_scrub
 
 
 def setup_default_pipeline(engine: Engine, profile: str = "law_enforcement") -> None:
@@ -73,6 +74,7 @@ def setup_default_pipeline(engine: Engine, profile: str = "law_enforcement") -> 
             evaluate_policy,
             augment_ir,
             render,
+            safety_scrub,         # V4 ALPHA: Final safety scrub of rendered text
             cleanup_punctuation,  # Fix punctuation artifacts
             package,
         ],

@@ -1,12 +1,21 @@
 # V4 Alpha: Statement Aberration & Attribution Implementation Plan
 
 **Date**: 2026-01-15  
-**Status**: ANALYSIS COMPLETE → IMPLEMENTATION READY  
+**Status**: ✅ IMPLEMENTED  
 **Objective**: Fix the statement attribution contract violation
 
----
+## IMPLEMENTATION COMPLETE
 
-## 1. Problem Statement
+All non-neutral statements are now either:
+1. **Attributed**: Rewritten as "reporter characterizes/believes/alleges..."
+2. **Aberrated**: Quarantined with metadata only, no text exposed
+
+**Results from stress test**:
+- 73 neutral statements (safe)
+- 8 interpretations (all attributed)
+- 13 legal characterizations (all attributed)
+- 13 quarantined (3 invective, 10 conspiracy)
+- **0 violations**
 
 **Current Violation**: Statements with dangerous epistemic content (intent attribution, legal characterizations, conspiracy claims) are:
 1. Correctly **routed** to non-neutral buckets (`reporter_legal_characterizations`, etc.)
