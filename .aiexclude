@@ -1,0 +1,26 @@
+# dependencies / builds
+node_modules/
+dist/
+build/
+target/
+.gradle/
+out/
+.cache/
+__pycache__/
+*.log
+
+# VCS internals
+.git/objects/
+.git/subtree-cache/
+
+# large binaries
+*.zip
+*.tar
+*.gz
+*.7z
+*.jar
+*.iso
+*.png
+*.jpg
+*.mp4
+*.bin

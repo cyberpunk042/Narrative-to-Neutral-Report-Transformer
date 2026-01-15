@@ -4,6 +4,8 @@ IR Schema v0.1 — Pydantic models for the Intermediate Representation.
 The IR captures semantic structure without judgment.
 """
 
+from __future__ import annotations
+
 from datetime import datetime
 from typing import Optional
 

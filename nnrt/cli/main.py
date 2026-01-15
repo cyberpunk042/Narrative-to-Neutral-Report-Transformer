@@ -35,6 +35,7 @@ from nnrt.passes.p44_timeline import build_timeline
 from nnrt.passes.p46_group_statements import group_statements
 from nnrt.passes.p48_classify_evidence import classify_evidence
 from nnrt.passes.p27_epistemic_tag import tag_epistemic
+from nnrt.passes.p27b_attribute_statements import attribute_statements
 
 
 def setup_default_pipeline(engine: Engine, profile: str = "law_enforcement") -> None:
@@ -58,6 +59,7 @@ def setup_default_pipeline(engine: Engine, profile: str = "law_enforcement") -> 
             classify_statements,  # Uses context for classification
             decompose,            # NEW: Decompose into atomic statements
             tag_epistemic,        # V4 ALPHA: Tag epistemic metadata
+            attribute_statements, # V4 ALPHA: Transform/aberrate dangerous content
             classify_atomic,      # NEW: Classify atomic statements
             link_provenance,      # NEW: Link interpretations to sources
             extract_identifiers,

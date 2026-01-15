@@ -58,6 +58,9 @@ INTERPRETATION_PATTERNS = [
     r'\b(he|she|they)\s+obviously\b',
     r'\bit\s+was\s+obvious\b',
     r'\bdismissive\s+attitude\b',
+    # V4: Additional interpretation patterns
+    r'\bdesigned\s+to\s+(?:protect|cover|hide|intimidate)\b',
+    r'\bviolent\s+(?:cop|cops|officer|officers|police)\b',
 ]
 
 # Legal characterizations (legal conclusions, rights claims)
@@ -117,6 +120,10 @@ CONSPIRACY_PATTERNS = [
     r'\bthey\s+always\s+protect\s+their\s+own\b',
     r'\bconspiring\b',
     r'\bwhich\s+proves\b',
+    # V4: Additional conspiracy patterns
+    r'\bhiding\s+(?:evidence|the\s+truth|information)\b',
+    r'\bcover(?:ing)?\s+(?:up|for)\b',
+    r'\bpattern\s+of\s+(?:violence|abuse|misconduct)\b',
 ]
 
 

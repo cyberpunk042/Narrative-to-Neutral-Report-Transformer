@@ -47,11 +47,20 @@ class AtomicStatementOutput(BaseModel):
     - epistemic_type: what kind of content
     - polarity: asserted/denied/uncertain
     - evidence_source: what supports this
+    
+    V4 Attribution: For non-neutral content, attributed_text contains
+    the rewritten form (e.g., "reporter characterizes X as Y").
     """
     
     id: str = Field(..., description="Statement ID (stmt_XXXX)")
     type: str = Field(..., description="observation|claim|interpretation|quote|unknown")
-    text: str = Field(..., description="Statement text")
+    text: str = Field(..., description="Original statement text (for audit trail)")
+    
+    # V4: Attributed form - USE THIS for non-neutral buckets, not 'text'
+    attributed_text: Optional[str] = Field(
+        None, 
+        description="Rewritten attributed form (e.g., 'reporter characterizes X as Y')"
+    )
     
     segment_id: str = Field(..., description="Source segment ID")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Classification confidence")
@@ -97,6 +106,21 @@ class UncertaintyOutput(BaseModel):
     candidates: Optional[list[dict]] = Field(None, description="Possible interpretations")
     resolution: Optional[str] = Field(None, description="User-provided resolution (null = unresolved)")
     requires_human_review: bool = Field(default=True)
+
+
+class QuarantinedStatement(BaseModel):
+    """
+    V4 Alpha: Metadata for an aberrated statement.
+    
+    Contains ONLY metadata about the aberrated content.
+    The raw text is NEVER exposed - this is by design.
+    """
+    
+    id: str = Field(..., description="Statement ID (stmt_XXXX)")
+    segment_id: str = Field(..., description="Source segment ID")
+    category: str = Field(..., description="invective|conspiracy|toxic_combination|unattributable")
+    reason: str = Field(..., description="Human-readable reason for aberration")
+    epistemic_type: str = Field(..., description="Original epistemic classification")
 
 
 class EntityOutput(BaseModel):
@@ -334,6 +358,13 @@ class StructuredOutput(BaseModel):
         description="Unfalsifiable conspiracy allegations - NOT neutral"
     )
     
+    # V4 ALPHA: Quarantine bucket for aberrated content
+    # Contains ONLY metadata, NEVER raw text
+    quarantined_statements: list["QuarantinedStatement"] = Field(
+        default_factory=list,
+        description="Aberrated statements - contains metadata only, never raw text"
+    )
+    
     # V4 ALPHA: Typed and linked reference data
     reference_data: Optional[ReferenceData] = Field(
         None, 
@@ -398,15 +429,34 @@ def build_structured_output(result: TransformResult, input_text: str) -> Structu
     reporter_interpretations = []
     reporter_legal_characterizations = []
     reporter_conspiracy_claims = []
+    quarantined_statements = []  # V4: Aberrated statements
     
     for atomic in result.atomic_statements:
         stmt_type = atomic.type_hint.value if hasattr(atomic.type_hint, 'value') else str(atomic.type_hint)
+        
+        # V4: Check if statement is aberrated (quarantined)
+        is_aberrated = getattr(atomic, 'is_aberrated', False)
+        aberration_reason = getattr(atomic, 'aberration_reason', None)
+        
+        if is_aberrated:
+            # Add to quarantine bucket - NO TEXT, only metadata
+            quarantined_statements.append(QuarantinedStatement(
+                id=atomic.id,
+                segment_id=atomic.segment_id,
+                category=_categorize_aberration(aberration_reason),
+                reason=aberration_reason or "unspecified",
+                epistemic_type=getattr(atomic, 'epistemic_type', 'unknown'),
+            ))
+            continue  # DO NOT add to any other bucket
         
         # V4: Get epistemic tagging from the statement itself (set by p27_epistemic_tag)
         epistemic_type = getattr(atomic, 'epistemic_type', 'unknown')
         polarity = getattr(atomic, 'polarity', 'asserted')
         source = getattr(atomic, 'source', 'reporter')
         evidence_source = getattr(atomic, 'evidence_source', 'self_report')
+        
+        # V4: Get attributed text if available
+        attributed_text = getattr(atomic, 'attributed_text', None)
         
         # Legacy V4 classification (still used for _classify_epistemic_type patterns)
         legacy_type, matched_phrase = _classify_epistemic_type(atomic.text)
@@ -418,7 +468,8 @@ def build_structured_output(result: TransformResult, input_text: str) -> Structu
         atomic_out = AtomicStatementOutput(
             id=atomic.id,
             type=stmt_type,
-            text=atomic.text,
+            text=atomic.text,  # Keep original for audit trail
+            attributed_text=attributed_text,  # V4: Use this for display in non-neutral buckets
             segment_id=atomic.segment_id,
             confidence=atomic.confidence,
             clause_type=atomic.clause_type,
@@ -731,6 +782,8 @@ def build_structured_output(result: TransformResult, input_text: str) -> Structu
         reporter_interpretations=reporter_interpretations,
         reporter_legal_characterizations=reporter_legal_characterizations,
         reporter_conspiracy_claims=reporter_conspiracy_claims,
+        # V4 ALPHA: Quarantine bucket
+        quarantined_statements=quarantined_statements,
         # V4 ALPHA: Reference data
         reference_data=reference_data,
         diagnostics=[d.model_dump() for d in result.diagnostics],
@@ -750,3 +803,28 @@ def _map_diagnostic_to_uncertainty_type(code: str) -> str:
         "SARCASM_DETECTED": "sarcasm",
     }
     return mapping.get(code, "other")
+
+
+def _categorize_aberration(reason: Optional[str]) -> str:
+    """
+    Categorize aberration reason into a category.
+    
+    Categories:
+    - invective: Pure insults (thug, maniac, psychotic)
+    - conspiracy: Unfalsifiable conspiracy claims
+    - toxic_combination: Invective + action
+    - unattributable: Cannot safely extract claim
+    """
+    if not reason:
+        return "unattributable"
+    
+    reason_lower = reason.lower()
+    
+    if "invective" in reason_lower:
+        return "invective"
+    elif "unfalsifiable" in reason_lower or "conspiracy" in reason_lower:
+        return "conspiracy"
+    elif "toxic" in reason_lower:
+        return "toxic_combination"
+    else:
+        return "unattributable"

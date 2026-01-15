@@ -77,6 +77,23 @@ class AtomicStatement:
     # For interpretations: what observations is this derived from?
     # (populated later in p35_link_provenance)
     derived_from: list[str] = field(default_factory=list)
+    
+    # =========================================================================
+    # V4 ALPHA: Attribution & Aberration
+    # =========================================================================
+    
+    # Attributed text: The rewritten form in attributed voice
+    # Example: "This was racial profiling" → "reporter characterizes the stop as racial profiling"
+    attributed_text: Optional[str] = None
+    
+    # Aberration: Statement is quarantined (invective, conspiracy, etc.)
+    # Aberrated statements are NEVER exposed as text, only metadata
+    is_aberrated: bool = False
+    aberration_reason: Optional[str] = None
+    
+    # Extracted claim: The core factual claim extracted for attribution
+    # Example: "racial profiling" extracted from "This was clearly racial profiling"
+    extracted_claim: Optional[str] = None
 
 
 
