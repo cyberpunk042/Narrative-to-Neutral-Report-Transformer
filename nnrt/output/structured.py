@@ -365,6 +365,22 @@ class StructuredOutput(BaseModel):
         description="Aberrated statements - contains metadata only, never raw text"
     )
     
+    # =========================================================================
+    # V4: Observable vs Self-Reported Split
+    # =========================================================================
+    # CRITICAL INVARIANT: An observation must be externally observable by a 
+    # third party at the time it occurred. Internal states are NOT observations.
+    
+    observed_events: list[AtomicStatementOutput] = Field(
+        default_factory=list,
+        description="Physical actions observable by third party (camera could see)"
+    )
+    
+    self_reported_states: list[AtomicStatementOutput] = Field(
+        default_factory=list,
+        description="Internal states reported by narrator (fear, pain, trauma)"
+    )
+    
     # V4 ALPHA: Typed and linked reference data
     reference_data: Optional[ReferenceData] = Field(
         None, 
@@ -430,6 +446,8 @@ def build_structured_output(result: TransformResult, input_text: str) -> Structu
     reporter_legal_characterizations = []
     reporter_conspiracy_claims = []
     quarantined_statements = []  # V4: Aberrated statements
+    observed_events = []         # V4: Physical actions observable by third party  
+    self_reported_states = []    # V4: Internal states (fear, pain, trauma)
     
     for atomic in result.atomic_statements:
         stmt_type = atomic.type_hint.value if hasattr(atomic.type_hint, 'value') else str(atomic.type_hint)
@@ -484,14 +502,25 @@ def build_structured_output(result: TransformResult, input_text: str) -> Structu
         )
         
         # V4: Route based on epistemic type (using both new and legacy classification)
+        # 
+        # CRITICAL INVARIANT: Observations must be externally observable by third party.
+        # Internal states (self_report) are NOT observations.
+        #
         if epistemic_type in ("interpretation", "intent_attribution"):
             reporter_interpretations.append(atomic_out)
         elif epistemic_type in ("legal_claim", "legal_characterization"):
             reporter_legal_characterizations.append(atomic_out)
         elif epistemic_type == "conspiracy_claim":
             reporter_conspiracy_claims.append(atomic_out)
+        elif epistemic_type == "direct_event":
+            # Physical actions observable by third party (camera could see)
+            observed_events.append(atomic_out)
+        elif epistemic_type == "self_report":
+            # Internal states: fear, pain, trauma, emotional states
+            self_reported_states.append(atomic_out)
         else:
-            # Not a dangerous pattern - safe for general bucket
+            # Other types: quote, medical_finding, admin_action, narrative_glue, unknown
+            # These go to general bucket for further classification
             atomic_statements_out.append(atomic_out)
 
     
@@ -784,6 +813,9 @@ def build_structured_output(result: TransformResult, input_text: str) -> Structu
         reporter_conspiracy_claims=reporter_conspiracy_claims,
         # V4 ALPHA: Quarantine bucket
         quarantined_statements=quarantined_statements,
+        # V4 ALPHA: Observable vs Self-Reported split
+        observed_events=observed_events,
+        self_reported_states=self_reported_states,
         # V4 ALPHA: Reference data
         reference_data=reference_data,
         diagnostics=[d.model_dump() for d in result.diagnostics],

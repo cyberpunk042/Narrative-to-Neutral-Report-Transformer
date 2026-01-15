@@ -111,6 +111,9 @@ def format_structured_output(
     
     # Group atomic statements by type
     statements_by_type = defaultdict(list)
+    # V4: Also group by epistemic_type for proper observation split
+    statements_by_epistemic = defaultdict(list)
+    
     for stmt in atomic_statements:
         stmt_type = getattr(stmt, 'type_hint', None)
         if hasattr(stmt_type, 'value'):
@@ -118,13 +121,31 @@ def format_structured_output(
         stmt_type = str(stmt_type) if stmt_type else 'unknown'
         text = getattr(stmt, 'text', str(stmt))
         statements_by_type[stmt_type].append(text)
+        
+        # V4: Group by epistemic type for observation split
+        epistemic = getattr(stmt, 'epistemic_type', 'unknown')
+        statements_by_epistemic[epistemic].append(text)
     
-    # === OBSERVATIONS ===
-    if statements_by_type.get('observation'):
-        lines.append("OBSERVATIONS")
+    # =========================================================================
+    # V4: OBSERVED EVENTS (physical, third-party observable)
+    # CRITICAL INVARIANT: Must be externally observable by camera/witness
+    # =========================================================================
+    if statements_by_epistemic.get('direct_event'):
+        lines.append("OBSERVED EVENTS")
         lines.append("─" * 70)
-        for text in statements_by_type['observation']:
+        for text in statements_by_epistemic['direct_event']:
             lines.append(f"  • {text}")
+        lines.append("")
+    
+    # =========================================================================
+    # V4: SELF-REPORTED STATE (internal: fear, pain, trauma)
+    # NOT observations - reported internal experience
+    # =========================================================================
+    if statements_by_epistemic.get('self_report'):
+        lines.append("SELF-REPORTED STATE")
+        lines.append("─" * 70)
+        for text in statements_by_epistemic['self_report']:
+            lines.append(f"  • Reporter reports: {text}")
         lines.append("")
     
     # === CLAIMS ===

@@ -164,6 +164,7 @@ def setup_structured_only_pipeline(engine: Engine, profile: str = "law_enforceme
             annotate_context,
             classify_statements,
             decompose,
+            tag_epistemic,         # V4: Set epistemic_type for observation split
             classify_atomic,
             link_provenance,
             extract_identifiers,
