@@ -337,12 +337,12 @@ Week 3: p44_timeline ✅ COMPLETE
 ├── Assign sequence numbers ✅
 └── Write timeline tests ✅ (12 tests passing)
 
-Week 4: p46_group_statements
-├── Group by actor (who is primary subject)
-├── Group by topic (semantic clustering)
-├── Group by evidence type
-├── Assign group titles
-└── Write grouping tests
+Week 4: p46_group_statements ✅ COMPLETE
+├── Group by actor (who is primary subject) ✅
+├── Detect group type from content ✅ (ENCOUNTER, MEDICAL, WITNESS_ACCOUNT, OFFICIAL, EMOTIONAL, QUOTE)
+├── Generate group titles ✅ (personalized with entity names)
+├── Calculate evidence strength ✅
+└── Write grouping tests ✅ (12 tests passing)
 
 Week 5: p48_classify_evidence
 ├── Classify each statement by evidence type
