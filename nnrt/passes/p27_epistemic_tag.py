@@ -28,6 +28,10 @@ log = get_pass_logger(PASS_NAME)
 # Self-reported experience (emotion, pain, perception - not observable)
 SELF_REPORT_PATTERNS = [
     r'\b(i\s+)?was\s+(so\s+)?(scared|terrified|frightened|afraid|anxious)\b',
+    r'\b(i\s+)?was\s+(absolutely\s+)?(terrified|shocked|stunned|horrified)\b',
+    r'\b(i\s+)?was\s+in\s+(complete\s+)?(shock|disbelief|pain)\b',
+    r'\b(i\s+)?was\s+(exhausted|tired|drained|overwhelmed)\b',
+    r'\b(i\s+)?was\s+(completely\s+)?(innocent|confused|lost)\b',
     r'\b(i\s+)?felt\s+\w+',
     r'\bmy\s+(fear|pain|anxiety|terror|trauma)\b',
     r'\bi\s+(now\s+)?suffer\s+from\b',
@@ -37,6 +41,15 @@ SELF_REPORT_PATTERNS = [
     r'\bpsychological\s+trauma\b',
     r'\bi\s+screamed\s+in\s+pain\b',
     r'\bit\s+felt\s+like\b',
+    r'\bi\s+froze\b',
+    r'\bi\s+just\s+wanted\b',
+    r'\bafter\s+pulling\s+a\s+.*shift\b',
+    # V4.1: More self-report patterns
+    r'\bwrists?\s+were\s+(bleeding|bruised)\b',  # "My wrists were bleeding"
+    r'\bbruised\b',  # fragment "bruised"
+    r'\bi\s+could\s?n\'?t\s+hear\b',  # "I couldn't hear"
+    r'\bthey\s+kept\s+looking\b',  # "they kept looking at me"
+    r'\bshaking\s+(their\s+)?heads?\b',  # "shaking their heads"
 ]
 
 # Interpretations (mental state attribution, inference, perception of intent)
@@ -61,6 +74,12 @@ INTERPRETATION_PATTERNS = [
     # V4: Additional interpretation patterns
     r'\bdesigned\s+to\s+(?:protect|cover|hide|intimidate)\b',
     r'\bviolent\s+(?:cop|cops|officer|officers|police)\b',
+    # V4.1: More interpretation patterns
+    r'\bfishing\s+through\b',  # "fishing through my belongings"
+    r'\blike\s+a\s+(criminal|maniac|thug)\b',  # "like a criminal"
+    r'\bknown\s+(violent|criminal)\s+offender\b',  # "known violent offender"
+    r'\bhistory\s+of\s+(brutality|violence|abuse)\b',  # "history of brutality"
+    r'\bvictimizing\s+(innocent|people|citizens)\b',  # "victimizing innocent citizens"
 ]
 
 # Legal characterizations (legal conclusions, rights claims)
@@ -86,7 +105,10 @@ LEGAL_CLAIM_PATTERNS = [
     r'\bcorrupt(ion)?\b',
     r'\bharassment\b',
     r'\bassault\s+and\s+battery\b',
-    r'\bassaulted\s+(me|him|her|them|us)\b',  # NEW: "assaulted me"
+    r'\bassaulted\s+(me|him|her|them|us)\b',
+    # V4.1: More legal patterns
+    r'\bno\s+legal\s+basis\b',  # "no legal basis to stop me"
+    r'\bthe\s+racism\b',  # "the racism in this department"
 ]
 
 # Direct quote markers
@@ -128,6 +150,14 @@ CONSPIRACY_PATTERNS = [
     r'\bhiding\s+(?:evidence|the\s+truth|information)\b',
     r'\bcover(?:ing)?\s+(?:up|for)\b',
     r'\bpattern\s+of\s+(?:violence|abuse|misconduct)\b',
+    # V4.1: More conspiracy patterns
+    r'\bthugs\s+with\s+badges\b',  # "thugs with badges"
+    r'\bsystematic\s+and\s+institutionalized\b',  # "systematic and institutionalized"
+    r'\bterrorize\s+(?:our|the)\s+communit\b',  # "terrorize our communities"
+    r'\bsilenced\b',  # "I refuse to be silenced"
+    r'\bfight\s+for\s+justice\b',  # "fight for justice"
+    r'\breal\s+accountability\b',  # "real accountability"
+    r'\bthe\s+whole\s+system\s+is\s+corrupt\b',  # "whole system is corrupt"
 ]
 
 
@@ -197,18 +227,25 @@ def _classify_epistemic(text: str) -> tuple[str, str, float]:
         r'\b(grabbed|pushed|punched|slammed|twisted|searched|put|took|pulled)\b',
         r'\b(kicked|struck|hit|shoved|threw|dragged|arrested|handcuffed)\b',
         r'\b(picked up|put down|placed|held|released)\b',
+        r'\b(found|cut|uncuffed|cuffed|pressed)\b',  # V4.1: more actions
+        r'\b(tried|attempted)\s+to\b',  # V4.1: "tried to explain"
         # Movement
         r'\b(arrived|approached|walked|ran|drove|came|went|left|entered|exited)\b',
         r'\b(walking|running|driving|approaching|leaving)\b',
+        r'\b(got\s+out|jumped\s+out|got\s+in|stepped)\b',  # V4.1: "got out of the car"
+        r'\b(screeching|screeched|sped|accelerated)\b',  # V4.1: vehicle actions
         # Verbal
         r'\b(said|yelled|asked|told|whispered|screamed|shouted)\b',
         r'\b(responded|replied|answered|stated|claimed)\b',
+        r'\b(started\s+screaming|started\s+yelling)\b',  # V4.1: "started screaming"
         # Observation verbs (reporter sees something happen)
         r'\b(saw|watched|witnessed|noticed|observed|heard)\b',
         # Recording/documenting
         r'\b(recorded|filmed|photographed|took\s+a\s+picture)\b',
         # Communication
         r'\b(called|phoned|texted|contacted|reported)\b',
+        # Research/discovery
+        r'\b(researched|looked\s+up|found\s+that|discovered)\b',  # V4.1
     ]
     
     for pattern in action_patterns:
