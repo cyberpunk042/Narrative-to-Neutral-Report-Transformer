@@ -121,6 +121,7 @@ def format_structured_output(
         'horrifying', 'horrific', 'brutal', 'brutally', 'viciously', 'vicious',
         'psychotic', 'maniac', 'thug', 'aggressive', 'aggressively', 
         'menacing', 'menacingly', 'distressing', 'terrifying', 'shocking',
+        'excessive', 'mocking', 'laughing at', 'fishing',  # V4.3
         # Legal conclusions
         'innocent', 'guilty', 'criminal', 'illegal', 'unlawful', 'assault',
         'assaulting', 'torture', 'terrorize', 'misconduct', 'violation',
@@ -128,32 +129,69 @@ def format_structured_output(
         'deliberately', 'intentionally', 'clearly', 'obviously', 'wanted to',
         # Certainty markers
         'absolutely', 'completely', 'totally', 'definitely', 'certainly',
-        # Cover-up language
+        # Cover-up/conspiracy language
         'cover-up', 'coverup', 'whitewash', 'conspiracy', 'conspiring',
+        'hiding more', 'protect their own', 'always protect',  # V4.3
     ]
     
     # V4: Patterns that indicate "later discovered" facts (not incident-scene)
+    # These are actual follow-up ACTIONS (reporter did something)
     FOLLOW_UP_PATTERNS = [
-        'later found', 'later learned', 'turned out', 'found out',
-        'three months later', 'the next day', 'afterward', 'afterwards',
         'went to the emergency', 'went to the hospital', 'filed a complaint',
-        'filed a formal', 'received a letter', 'therapist', 'diagnosed',
-        'internal affairs', 'detective', 'investigated', 'pursuing legal',
-        'my attorney', 'researched',
+        'filed a formal', 'the next day', 'afterward', 'afterwards',
+        'detective', 'took my statement',
+    ]
+    
+    # V4.3: Patterns for source-derived information (needs provenance)
+    # These are research results, comparisons, or conclusions - NOT observable
+    SOURCE_DERIVED_PATTERNS = [
+        'later found', 'later learned', 'found out', 'turned out',
+        'found that', 'researched', 'so-called',
+        'at least', 'other citizens', 'complaints against',
+        'received a letter', 'three months later',
+        'investigated', 'pursuing legal', 'my attorney',
     ]
     
     def is_camera_friendly(text: str) -> bool:
-        """Check if statement is purely observational (no interpretive content)."""
+        """
+        Check if statement is purely observational (no interpretive content).
+        
+        V4.3: Also requires proper subject (actor) for true camera-friendliness.
+        "twisted it behind my back" is not camera-friendly - WHO twisted?
+        """
         text_lower = text.lower()
+        
+        # Check for interpretive words
         for word in INTERPRETIVE_DISQUALIFIERS:
             if word in text_lower:
                 return False
+        
+        # V4.3: Require proper subject - not a verb-first fragment
+        words = text_lower.strip().split()
+        if not words:
+            return False
+        
+        first_word = words[0]
+        # Fragments starting with verbs are not camera-friendly
+        # (they lack the "who" - the actor)
+        verb_starts = [
+            'twisted', 'grabbed', 'pushed', 'slammed', 'found', 'tried',
+            'stepped', 'saw', 'also', 'that', 'put', 'cut', 'filed',
+        ]
+        if first_word in verb_starts:
+            return False
+        
         return True
     
     def is_follow_up_event(text: str) -> bool:
-        """Check if event is follow-up (not incident-scene)."""
+        """Check if event is a true follow-up ACTION (reporter did something post-incident)."""
         text_lower = text.lower()
         return any(pattern in text_lower for pattern in FOLLOW_UP_PATTERNS)
+    
+    def is_source_derived(text: str) -> bool:
+        """Check if statement is source-derived (research, comparison, conclusion)."""
+        text_lower = text.lower()
+        return any(pattern in text_lower for pattern in SOURCE_DERIVED_PATTERNS)
     
     for stmt in atomic_statements:
         stmt_type = getattr(stmt, 'type_hint', None)
@@ -174,12 +212,16 @@ def format_structured_output(
     if statements_by_epistemic.get('direct_event'):
         incident_events = []
         follow_up_events = []
+        source_derived = []  # V4.3: Research results, conclusions - need provenance
         excluded_events = []  # Statements with interpretive content
         
         for text in statements_by_epistemic['direct_event']:
             if not is_camera_friendly(text):
                 # Contains interpretive words - exclude from OBSERVED EVENTS
                 excluded_events.append(text)
+            elif is_source_derived(text):
+                # V4.3: Research/conclusion - needs provenance
+                source_derived.append(text)
             elif is_follow_up_event(text):
                 follow_up_events.append(text)
             else:
@@ -193,12 +235,21 @@ def format_structured_output(
                 lines.append(f"  • {text}")
             lines.append("")
         
-        # FOLLOW-UP events (post-incident)
+        # FOLLOW-UP events (post-incident observable actions)
         if follow_up_events:
             lines.append("OBSERVED EVENTS (FOLLOW-UP ACTIONS)")
             lines.append("─" * 70)
             for text in follow_up_events:
                 lines.append(f"  • {text}")
+            lines.append("")
+        
+        # V4.3: SOURCE-DERIVED INFORMATION (research, conclusions, comparisons)
+        # These need provenance verification - not directly observable
+        if source_derived:
+            lines.append("SOURCE-DERIVED INFORMATION (PROVENANCE NEEDED)")
+            lines.append("─" * 70)
+            for text in source_derived:
+                lines.append(f"  ⚠️ {text}")
             lines.append("")
         
         # REPORTER DESCRIPTIONS (excluded from OBSERVED EVENTS due to interpretive content)
@@ -283,75 +334,100 @@ def format_structured_output(
         lines.append("")
     
     # === RECORDED EVENTS ===
-    # V4.1: Apply comprehensive quality filter to events
+    # V4.3: Split events into camera-friendly vs interpretive (like statements)
     if events:
-        # V4.1: Event quality validation
-        def is_quality_event(desc: str) -> bool:
-            """Check if event description meets quality standards."""
-            # Minimum length
-            if len(desc) < 20:
+        # Light quality filter - only remove corrupted text
+        def is_valid_event(desc: str) -> bool:
+            """Light filter: only remove corrupt/fragment events."""
+            if len(desc) < 10:
                 return False
             
             desc_lower = desc.lower()
             desc_words = desc_lower.split()
             
-            # Minimum word count
-            if len(desc_words) < 4:
+            if len(desc_words) < 3:
                 return False
             
-            # Interpretive words that disqualify the event
-            interpretive_words = [
-                'brutal', 'brutally', 'viciously', 'psychotic', 'maniac', 'thug',
-                'clearly', 'obviously', 'deliberately', 'innocent', 'criminal',
-                'horrifying', 'terrifying', 'illegal', 'proves', 'cover-up',
-                'intentionally', 'mocking', 'fishing', 'excessive'
-            ]
-            if any(word in desc_lower for word in interpretive_words):
-                return False
-            
-            # Detect text corruption patterns
-            # (words appearing in wrong positions due to NLP parsing issues)
+            # Only filter clear text corruption (NLP parsing issues)
             corruption_markers = [
                 'when innocently', 'when viciously', 'where work',
-                'obviously care', 'thug the', 'say what', 'hurting me',
-                'the brutal when',
+                'thug the', 'say what', 'saying what', 'the brutal when',
+                'longer walk at', 'sergeant arrived after',
             ]
             if any(marker in desc_lower for marker in corruption_markers):
                 return False
             
-            # First word should be a proper subject (capitalized or pronoun)
+            # First word should be a valid start
             first_word = desc_words[0]
-            valid_pronouns = {'i', 'he', 'she', 'they', 'we', 'officer', 'sergeant', 'detective'}
-            if not (first_word[0].isupper() or first_word in valid_pronouns):
+            valid_starts = {'i', 'he', 'she', 'they', 'we', 'officer', 'sergeant', 
+                           'detective', 'the', 'a', 'my', 'his', 'her', 'their'}
+            if not (first_word[0].isupper() or first_word in valid_starts):
                 return False
-            
-            # Must contain a verb-like word (not just fragments)
-            verb_indicators = ['ed ', 'ing ', 'ran ', 'put ', 'saw ', 'said ', 'came ', 'went ']
-            if not any(vi in desc_lower + ' ' for vi in verb_indicators):
-                # Allow if it ends with common verb endings
-                if not desc_lower.endswith(('ed', 'ing')):
-                    return False
             
             return True
         
-        quality_events = []
-        seen_events = set()  # Deduplicate
+        # Separate events: camera-friendly vs interpretive
+        camera_friendly_by_type = defaultdict(list)
+        interpretive_events = []
+        seen_events = set()
+        
         for event in events:
             desc = getattr(event, 'description', str(event))
-            # Normalize and dedupe
             desc_normalized = ' '.join(desc.split())
+            
+            # Dedupe
             if desc_normalized in seen_events:
                 continue
             seen_events.add(desc_normalized)
             
-            if is_quality_event(desc):
-                quality_events.append(desc)
+            if not is_valid_event(desc):
+                continue
+            
+            # Get event type
+            etype = getattr(event, 'type', None)
+            if hasattr(etype, 'value'):
+                etype = etype.value
+            etype = str(etype) if etype else 'action'
+            
+            # Split by camera-friendliness (reuse existing function!)
+            if is_camera_friendly(desc):
+                camera_friendly_by_type[etype].append(desc)
+            else:
+                interpretive_events.append(desc)
         
-        if quality_events:
-            lines.append("RECORDED EVENTS")
+        # Render camera-friendly events by type
+        type_labels = {
+            'action': ('PHYSICAL ACTIONS', '💪'),
+            'movement': ('MOVEMENT/POSITIONING', '🚶'),
+            'verbal': ('VERBAL EXCHANGES', '💬'),
+        }
+        
+        has_camera_friendly = any(camera_friendly_by_type.values())
+        if has_camera_friendly:
+            lines.append("RECORDED EVENTS (Camera-Friendly)")
             lines.append("─" * 70)
-            for desc in quality_events:
-                lines.append(f"  • {desc}")
+            
+            for etype, (label, icon) in type_labels.items():
+                if camera_friendly_by_type.get(etype):
+                    lines.append(f"  {icon} {label}:")
+                    for desc in camera_friendly_by_type[etype]:
+                        lines.append(f"      • {desc}")
+                    lines.append("")
+            
+            # Any other types not in our map
+            for etype, descs in camera_friendly_by_type.items():
+                if etype not in type_labels and descs:
+                    lines.append(f"  📋 {etype.upper()}:")
+                    for desc in descs:
+                        lines.append(f"      • {desc}")
+                    lines.append("")
+        
+        # Render interpretive events with attribution
+        if interpretive_events:
+            lines.append("REPORTER'S CHARACTERIZATIONS (of events)")
+            lines.append("─" * 70)
+            for desc in interpretive_events:
+                lines.append(f"  • Reporter describes: {desc}")
             lines.append("")
     
     # === FULL NARRATIVE ===
