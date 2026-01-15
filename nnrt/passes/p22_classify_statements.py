@@ -22,8 +22,9 @@ log = get_pass_logger(PASS_NAME)
 # Classification Patterns
 # ============================================================================
 
-# OBSERVATION: Narrator explicitly witnessed
+# OBSERVATION: Narrator explicitly witnessed or experienced
 OBSERVATION_PATTERNS = [
+    # Sensory verbs (original)
     r"\bI\s+saw\b",
     r"\bI\s+heard\b",
     r"\bI\s+felt\b",
@@ -35,6 +36,52 @@ OBSERVATION_PATTERNS = [
     r"\bI\s+witnessed\b",
     r"\bI\s+smelled\b",
     r"\bI\s+tasted\b",
+    
+    # Experiential states (NEW)
+    r"\bI\s+was\s+(?:so\s+)?(?:terrified|scared|frightened|afraid|shocked|stunned|confused|exhausted|tired|hurt|injured|bleeding|crying|shaking)\b",
+    r"\bI\s+felt\s+(?:scared|afraid|terrified|pain|hurt|confused|shocked)\b",
+    
+    # Physical reactions (NEW)
+    r"\bI\s+froze\b",
+    r"\bI\s+jumped\b",
+    r"\bI\s+fell\b",
+    r"\bI\s+ran\b",
+    r"\bI\s+moved\b",
+    r"\bI\s+stepped\b",
+    r"\bI\s+backed\b",
+    r"\bI\s+ducked\b",
+    r"\bI\s+flinched\b",
+    
+    # Speech acts (NEW) - reporter's own speech is observation
+    r"\bI\s+said\b",
+    r"\bI\s+asked\b",
+    r"\bI\s+told\b",
+    r"\bI\s+yelled\b",
+    r"\bI\s+screamed\b",
+    r"\bI\s+called\b",
+    r"\bI\s+shouted\b",
+    r"\bI\s+cried\b",
+    r"\bI\s+begged\b",
+    r"\bI\s+pleaded\b",
+    r"\bI\s+explained\b",
+    r"\bI\s+replied\b",
+    r"\bI\s+answered\b",
+    
+    # Actions taken (NEW)
+    r"\bI\s+tried\s+to\s+(?:explain|cooperate|comply|help)\b",
+    r"\bI\s+went\b",
+    r"\bI\s+walked\b",
+    r"\bI\s+arrived\b",
+    r"\bI\s+left\b",
+    r"\bI\s+stayed\b",
+    r"\bI\s+waited\b",
+    r"\bI\s+filed\b",  # filed a complaint
+    r"\bI\s+received\b",
+    
+    # Bodily experience (NEW)
+    r"\bmy\s+(?:wrists?|arms?|legs?|face|head|body)\s+(?:was|were)\s+(?:hurt|injured|bleeding|bruised|cut|swollen)\b",
+    r"\bI\s+have\s+(?:scars?|bruises?|injuries?)\b",
+    r"\bI\s+(?:couldn't|could\s+not|can't|cannot)\s+(?:hear|see|move|breathe)\b",
 ]
 
 # INTERPRETATION: Inference, opinion, intent attribution

@@ -492,6 +492,13 @@ body {
     color: white;
 }
 
+/* Fix output panel collapse - hide view toggle, output text and diff view when collapsed */
+.panel-output.collapsed .output-view-toggle,
+.panel-output.collapsed .output-text,
+.panel-output.collapsed .diff-view {
+    display: none;
+}
+
 .panel-statements .panel-title svg {
     color: var(--claim);
 }

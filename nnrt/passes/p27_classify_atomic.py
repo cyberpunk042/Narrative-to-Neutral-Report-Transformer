@@ -29,6 +29,7 @@ log = get_pass_logger(PASS_NAME)
 
 # Sensory/factive verbs - indicate direct witnessing
 SENSORY_VERBS = {
+    # Original sensory
     "see", "saw", "seen",
     "hear", "heard", 
     "feel", "felt",
@@ -38,6 +39,47 @@ SENSORY_VERBS = {
     "witness", "witnessed",
     "smell", "smelled",
     "taste", "tasted",
+}
+
+# Experiential verbs - first-person experience (NEW)
+EXPERIENTIAL_VERBS = {
+    # Physical reactions
+    "freeze", "froze", "frozen",
+    "jump", "jumped",
+    "fall", "fell", "fallen",
+    "run", "ran",
+    "move", "moved",
+    "step", "stepped",
+    "back", "backed",
+    "duck", "ducked",
+    "flinch", "flinched",
+    "shake", "shook", "shaking",
+    "cry", "cried", "crying",
+    "bleed", "bled", "bleeding",
+    
+    # Speech acts
+    "say", "said",
+    "ask", "asked",
+    "tell", "told",
+    "yell", "yelled",
+    "scream", "screamed",
+    "call", "called",
+    "shout", "shouted",
+    "beg", "begged",
+    "plead", "pleaded",
+    "explain", "explained",
+    "reply", "replied",
+    "answer", "answered",
+    
+    # Actions
+    "go", "went", "gone",
+    "walk", "walked",
+    "arrive", "arrived",
+    "leave", "left",
+    "stay", "stayed",
+    "wait", "waited",
+    "file", "filed",
+    "receive", "received",
 }
 
 # Intent verbs - indicate interpretation of others' mental states
@@ -189,7 +231,7 @@ def _classify_statement(text: str, doc) -> tuple[StatementType, float, list[str]
         return StatementType.INTERPRETATION, 0.6, flags
     
     # =========================================================================
-    # Priority 3: OBSERVATION - direct witnessing
+    # Priority 3: OBSERVATION - direct witnessing or experience
     # =========================================================================
     
     # Check for first person subject
@@ -204,9 +246,26 @@ def _classify_statement(text: str, doc) -> tuple[StatementType, float, list[str]
         for t in doc if t.pos_ == "VERB"
     )
     
+    # Check for experiential verb (NEW)
+    has_experiential_verb = any(
+        t.lemma_.lower() in EXPERIENTIAL_VERBS or t.text.lower() in EXPERIENTIAL_VERBS
+        for t in doc if t.pos_ == "VERB"
+    )
+    
+    # First person + sensory = strong observation
     if has_first_person and has_sensory_verb:
         flags.append("first_person_witness")
         return StatementType.OBSERVATION, 0.85, flags
+    
+    # First person + experiential = observation (NEW)
+    if has_first_person and has_experiential_verb:
+        flags.append("first_person_experience")
+        return StatementType.OBSERVATION, 0.80, flags
+    
+    # Check for experiential states pattern "I was [emotional state]"
+    if re.search(r'\bI\s+was\s+(?:so\s+)?(?:terrified|scared|frightened|afraid|shocked|stunned|confused|exhausted|tired|hurt|injured)\b', text_lower):
+        flags.append("experiential_state")
+        return StatementType.OBSERVATION, 0.80, flags
     
     # =========================================================================
     # Default: CLAIM - assertion without explicit epistemics

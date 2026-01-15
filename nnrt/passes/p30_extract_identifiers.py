@@ -37,9 +37,12 @@ IDENTIFIER_PATTERNS = {
         r'\b([A-Z]{2,3}[-\s]?\d{3,4}[-\s]?[A-Z]{0,3})\b',
     ],
     IdentifierType.TIME: [
+        # Full time with minutes required: "11:30 PM"
         r'\b(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?)\b',
-        r'\b(\d{1,2}\s*(?:AM|PM|am|pm))\b',
-        r'\b(around|approximately|about)\s+(\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)?)\b',
+        # Hour only with AM/PM: "11 PM" but not just digits
+        r'\b(\d{1,2}\s+(?:AM|PM|am|pm))\b',
+        # "around 11:30 PM" - capture the time part only
+        r'\b(?:around|approximately|about)\s+(\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm))\b',
     ],
     IdentifierType.DATE: [
         r'\b(\d{1,2}/\d{1,2}/\d{2,4})\b',
@@ -48,8 +51,14 @@ IDENTIFIER_PATTERNS = {
         r'\b(\d{1,2}(?:st|nd|rd|th)?\s+(?:of\s+)?(?:January|February|March|April|May|June|July|August|September|October|November|December)(?:,?\s+\d{4})?)\b',
     ],
     IdentifierType.LOCATION: [
-        r'\b(?:at|on|near)\s+(?:the\s+)?([A-Z][a-z]+(?:\s+(?:and|&)\s+[A-Z][a-z]+)?(?:\s+(?:Street|St\.?|Avenue|Ave\.?|Boulevard|Blvd\.?|Road|Rd\.?|Drive|Dr\.?|Lane|Ln\.?))?)\b',
-        r'\b(?:corner\s+of|intersection\s+of)\s+([A-Z][a-z]+\s+(?:and|&)\s+[A-Z][a-z]+)\b',
+        # Street addresses MUST have a street suffix to match
+        # "near Main Street", "at Oak Avenue" - requires Street/Ave/etc.
+        r'\b(?:at|on|near)\s+(?:the\s+)?([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\s+(?:Street|St\.?|Avenue|Ave\.?|Boulevard|Blvd\.?|Road|Rd\.?|Drive|Dr\.?|Lane|Ln\.?|Highway|Hwy\.?))\b',
+        
+        # "corner of Main and Oak" - intersection without suffix
+        r'\b(?:corner\s+of|intersection\s+of)\s+([A-Z][a-z]+(?:\s+(?:Street|St\.?))?\s+(?:and|&)\s+[A-Z][a-z]+(?:\s+(?:Avenue|Ave\.?))?)\b',
+        
+        # Numbered addresses: "123 Main Street"
         r'\b(\d+\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\s+(?:Street|St\.?|Avenue|Ave\.?|Boulevard|Blvd\.?|Road|Rd\.?|Drive|Dr\.?|Lane|Ln\.?))\b',
     ],
 }
@@ -165,18 +174,70 @@ def _extract_ner_identifiers(text: str, segment_id: str) -> list[Identifier]:
         "DATE": IdentifierType.DATE,
     }
     
+    # Stopwords - common false positives
+    LOCATION_STOPLIST = {
+        # Pronouns (spaCy sometimes mis-classifies)
+        "me", "him", "her", "them", "us", "it",
+        "my", "his", "her", "their", "our", "its",
+        "myself", "himself", "herself", "themselves",
+        "he", "she", "they", "we", "i", "you",
+        # Common false positives
+        "there", "here", "where", "somewhere", "anywhere",
+        "scene", "place", "area", "spot",
+    }
+    
+    DATE_STOPLIST = {
+        # Age patterns are not dates
+        "year-old", "years-old", "month-old", "months-old",
+        # Ordinal indicators alone
+        "1st", "2nd", "3rd", "4th", "5th",
+    }
+    
+    # Patterns to reject
+    AGE_PATTERN = re.compile(r'^\d{1,3}[-\s]?year[-\s]?old', re.IGNORECASE)
+    MEDICAL_TERMS = {"ptsd", "adhd", "ocd", "gad", "mdd"}
+    
     for ent in doc.ents:
-        if ent.label_ in type_map:
-            results.append(Identifier(
-                id=f"id_ner_{len(results):03d}",
-                type=type_map[ent.label_],
-                value=ent.text,
-                original_text=ent.text,
-                start_char=ent.start_char,
-                end_char=ent.end_char,
-                source_segment_id=segment_id,
-                confidence=0.7,  # Lower confidence for NER
-            ))
+        if ent.label_ not in type_map:
+            continue
+            
+        ent_text_lower = ent.text.lower().strip()
+        id_type = type_map[ent.label_]
+        
+        # Filter 1: Skip very short entities (likely noise)
+        if len(ent.text.strip()) < 2:
+            continue
+            
+        # Filter 2: Location stoplist
+        if id_type == IdentifierType.LOCATION:
+            if ent_text_lower in LOCATION_STOPLIST:
+                continue
+            # Check if it's just a pronoun based on POS
+            if len(list(ent)) == 1 and list(ent)[0].pos_ in ("PRON", "DET"):
+                continue
+                
+        # Filter 3: Date validation
+        if id_type == IdentifierType.DATE:
+            # Skip age patterns
+            if AGE_PATTERN.match(ent_text_lower):
+                continue
+            # Skip medical abbreviations
+            if ent_text_lower in MEDICAL_TERMS:
+                continue
+            # Skip if contains stoplist terms
+            if any(stop in ent_text_lower for stop in DATE_STOPLIST):
+                continue
+        
+        results.append(Identifier(
+            id=f"id_ner_{len(results):03d}",
+            type=id_type,
+            value=ent.text,
+            original_text=ent.text,
+            start_char=ent.start_char,
+            end_char=ent.end_char,
+            source_segment_id=segment_id,
+            confidence=0.7,  # Lower confidence for NER
+        ))
     
     return results
 
