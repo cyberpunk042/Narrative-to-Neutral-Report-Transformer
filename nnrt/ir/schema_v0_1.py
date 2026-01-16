@@ -508,4 +508,7 @@ class TransformResult(BaseModel):
     # Output
     rendered_text: Optional[str] = Field(None, description="Final rendered output")
     status: TransformStatus = Field(..., description="Transformation status")
+    processing_duration_ms: float = Field(
+        0.0, description="Total wall-clock time for transformation"
+    )
 
