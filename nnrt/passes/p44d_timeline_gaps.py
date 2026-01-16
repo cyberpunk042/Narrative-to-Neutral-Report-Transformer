@@ -126,9 +126,41 @@ def detect_timeline_gaps(ctx: TransformContext) -> TransformContext:
     # Analyze each pair of adjacent entries
     # =========================================================================
     
+    # Build lookup for events to check segment relationships
+    event_lookup = {e.id: e for e in ctx.events}
+    
     for i in range(len(timeline) - 1):
         entry_a = timeline[i]
         entry_b = timeline[i + 1]
+        
+        # =================================================================
+        # Smart gap filtering: Skip gaps between clause fragments
+        # =================================================================
+        # If both events are from the same source segment or are very close
+        # in the text, they're likely fragments of the same sentence.
+        same_segment = False
+        if entry_a.event_id and entry_b.event_id:
+            event_a = event_lookup.get(entry_a.event_id)
+            event_b = event_lookup.get(entry_b.event_id)
+            if event_a and event_b:
+                # Check if same source segment (same sentence likely)
+                seg_a = getattr(event_a, 'source_segment_id', None)
+                seg_b = getattr(event_b, 'source_segment_id', None)
+                if seg_a and seg_b and seg_a == seg_b:
+                    same_segment = True
+                
+                # Check if descriptions overlap significantly (clause fragments)
+                desc_a = (event_a.description or '').lower()
+                desc_b = (event_b.description or '').lower()
+                if desc_a and desc_b:
+                    # If one description contains the other, they're fragments
+                    if desc_a in desc_b or desc_b in desc_a:
+                        same_segment = True
+                    # If the shorter description is a substring of the longer
+                    shorter = min(desc_a, desc_b, key=len)
+                    longer = max(desc_a, desc_b, key=len)
+                    if len(shorter) > 10 and shorter in longer:
+                        same_segment = True
         
         # Check if gap is explained by a marker
         is_explained, explanation, duration = _is_explained_gap(entry_b)
@@ -138,10 +170,34 @@ def detect_timeline_gaps(ctx: TransformContext) -> TransformContext:
         if gap_minutes is None and duration:
             gap_minutes = duration
         
+        # Check for memory gap markers in either event
+        memory_gap_markers = [
+            'woke up', 'came to', 'found myself', 'don\'t remember',
+            'can\'t remember', 'don\'t recall', 'next thing i knew',
+            'regained consciousness', 'blacked out', 'passed out',
+            'no memory', 'have no memory', 'lost consciousness',
+        ]
+        
+        def has_memory_gap(entry):
+            if not entry.event_id:
+                return False
+            event = event_lookup.get(entry.event_id)
+            if not event:
+                return False
+            desc = (event.description or '').lower()
+            return any(marker in desc for marker in memory_gap_markers)
+        
+        has_memory_marker = has_memory_gap(entry_b) or has_memory_gap(entry_a)
+        
         # Classify the gap
         if entry_a.day_offset != entry_b.day_offset:
             gap_type = TimeGapType.DAY_BOUNDARY
-            requires_investigation = not is_explained
+            # Day boundaries with memory gaps should be flagged even if explained
+            requires_investigation = has_memory_marker or not is_explained
+        elif same_segment:
+            # Same segment = fragments of same sentence, not a real gap
+            gap_type = TimeGapType.NONE
+            requires_investigation = False
         elif is_explained:
             gap_type = TimeGapType.EXPLAINED
             requires_investigation = False
@@ -149,23 +205,31 @@ def detect_timeline_gaps(ctx: TransformContext) -> TransformContext:
             gap_type = TimeGapType.UNEXPLAINED
             requires_investigation = True
         elif gap_minutes == 0 and not is_explained:
-            # Both events have the same estimated time but no marker
-            # This suggests a narrative discontinuity (memory gap, unclear sequence)
-            # Only flag if neither has an explicit time source
-            both_inferred = (
-                entry_a.time_source.value in ('inferred', 'relative') or
-                entry_b.time_source.value in ('inferred', 'relative')
+            # Both events have same estimated time but no marker
+            # Only flag if BOTH have explicit time sources (indicates contradiction)
+            # or if there's a large segment gap (different parts of narrative)
+            both_explicit = (
+                entry_a.time_source.value == 'explicit' and 
+                entry_b.time_source.value == 'explicit'
             )
-            if both_inferred:
+            if both_explicit:
+                # Same explicit time for different events - worth checking
                 gap_type = TimeGapType.UNCERTAIN
-                requires_investigation = True  # Flag for investigation
+                requires_investigation = True
             else:
+                # Sequential inferred events - normal narrative flow
                 gap_type = TimeGapType.NONE
                 requires_investigation = False
         elif gap_minutes is None and not is_explained:
-            # No time marker AND can't calculate gap = narrative discontinuity
-            gap_type = TimeGapType.UNCERTAIN
-            requires_investigation = True
+            # No time marker AND can't calculate gap
+            # Flag if there's a memory gap marker (already computed above)
+            if has_memory_marker:
+                gap_type = TimeGapType.UNCERTAIN
+                requires_investigation = True
+            else:
+                # Normal sequential events without explicit times
+                gap_type = TimeGapType.NONE
+                requires_investigation = False
         else:
             gap_type = TimeGapType.NONE
             requires_investigation = False

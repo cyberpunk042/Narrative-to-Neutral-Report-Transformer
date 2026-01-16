@@ -202,6 +202,52 @@ def extract_temporal_expressions(ctx: TransformContext) -> TransformContext:
             span_key = (ent.start_char, ent.end_char)
             if span_key in seen_spans:
                 continue
+            
+            # =================================================================
+            # Filter out false positives (badge numbers, ID numbers, etc.)
+            # =================================================================
+            ent_text = ent.text.strip()
+            
+            # Skip pure numeric values that are likely badge/ID numbers
+            if ent_text.isdigit():
+                # Check context around the entity for badge-related words
+                context_start = max(0, ent.start_char - 50)
+                context_end = min(len(text), ent.end_char + 20)
+                context = text[context_start:context_end].lower()
+                
+                # Skip if near badge/ID indicators
+                if any(indicator in context for indicator in [
+                    'badge', 'badge number', 'badge #', 'badge#',
+                    'id', 'id number', 'case number', 'case #',
+                    'unit', 'unit number', 'officer #',
+                ]):
+                    log.debug("skipping_badge_number", 
+                              text=ent_text, 
+                              reason="near badge/ID indicator",
+                              channel="TEMPORAL")
+                    continue
+                
+                # Skip 3-5 digit numbers that aren't valid years (1900-2100)
+                if len(ent_text) in (3, 4, 5):
+                    try:
+                        num = int(ent_text)
+                        if not (1900 <= num <= 2100):
+                            log.debug("skipping_numeric_entity", 
+                                      text=ent_text, 
+                                      reason="not a valid year",
+                                      channel="TEMPORAL")
+                            continue
+                    except ValueError:
+                        pass
+            
+            # Skip medical/diagnostic terms misclassified as dates
+            if ent_text.upper() in ('PTSD', 'CPR', 'EMS', 'ICU', 'ER'):
+                log.debug("skipping_medical_term", 
+                          text=ent_text, 
+                          reason="medical abbreviation",
+                          channel="TEMPORAL")
+                continue
+            
             seen_spans.add(span_key)
             
             # Determine type and normalize

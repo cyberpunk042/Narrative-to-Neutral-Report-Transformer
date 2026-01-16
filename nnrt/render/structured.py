@@ -878,10 +878,44 @@ def format_structured_output(
             lines.append(f"  ┌─── {day_label} ───")
             lines.append("  │")
             
+            # Track shown entries to avoid duplicates/fragments
+            shown_descriptions = set()
+            
             for entry in day_entries:
                 # Get event description
                 event = event_map.get(entry.event_id) if entry.event_id else None
-                desc = getattr(event, 'description', entry.event_id or 'Unknown event')[:50] if event else entry.event_id or 'Unknown'
+                full_desc = getattr(event, 'description', entry.event_id or 'Unknown event') if event else entry.event_id or 'Unknown'
+                
+                # =============================================================
+                # Filter out fragment events that aren't meaningful timeline entries
+                # =============================================================
+                desc_lower = full_desc.lower().strip()
+                
+                # Skip very short descriptions (likely fragments)
+                if len(desc_lower) < 15:
+                    continue
+                
+                # Skip descriptions that start with prepositions (clause fragments)
+                fragment_starters = [
+                    'to ', 'for ', 'with ', 'from ', 'at ', 'in ', 'on ', 'by ',
+                    'where ', 'which ', 'who ', 'that ', 'when ', 'because ',
+                    'while ', 'after ', 'before ', 'until ', 'unless ',
+                    'what ', 'how ', 'why ', 'if ',
+                ]
+                if any(desc_lower.startswith(starter) for starter in fragment_starters):
+                    continue
+                
+                # Skip if this is a substring of another shown description
+                is_duplicate = False
+                for shown in shown_descriptions:
+                    if desc_lower in shown or shown in desc_lower:
+                        is_duplicate = True
+                        break
+                if is_duplicate:
+                    continue
+                
+                shown_descriptions.add(desc_lower)
+                desc = full_desc[:50]
                 
                 # Time info
                 time_info = ""
