@@ -222,7 +222,7 @@ class CoreferenceChainOutput(BaseModel):
 
 
 class TimelineEntryOutput(BaseModel):
-    """A temporally-positioned event (v3)."""
+    """A temporally-positioned event (v3/v6 enhanced)."""
     
     sequence_order: int = Field(..., description="Chronological position (0=first)")
     event_id: Optional[str] = Field(None)
@@ -230,6 +230,26 @@ class TimelineEntryOutput(BaseModel):
     absolute_time: Optional[str] = Field(None, description="Explicit time if known")
     relative_time: Optional[str] = Field(None, description="Relative time marker")
     confidence: float = Field(default=0.5)
+    
+    # V6 Enhanced Fields
+    day_offset: int = Field(default=0, description="Day relative to incident (0=incident day, 1=next day)")
+    normalized_time: Optional[str] = Field(None, description="ISO normalized time (T23:30:00)")
+    time_source: str = Field(default="inferred", description="explicit|relative|inferred")
+
+
+class TimeGapOutput(BaseModel):
+    """A detected gap in the timeline (V6)."""
+    
+    id: str = Field(..., description="Gap ID")
+    gap_type: str = Field(..., description="explained|unexplained|uncertain|day_boundary|none")
+    after_entry_id: Optional[str] = Field(None, description="Timeline entry before this gap")
+    before_entry_id: Optional[str] = Field(None, description="Timeline entry after this gap")
+    
+    estimated_duration_minutes: Optional[int] = Field(None, description="Estimated gap duration")
+    explanation_text: Optional[str] = Field(None, description="Text explaining the gap")
+    
+    requires_investigation: bool = Field(default=False, description="Whether this gap needs follow-up")
+    suggested_question: Optional[str] = Field(None, description="Suggested investigation question")
 
 
 class StatementGroupOutput(BaseModel):
@@ -334,6 +354,12 @@ class StructuredOutput(BaseModel):
     evidence_classifications: list[EvidenceClassificationOutput] = Field(
         default_factory=list,
         description="Evidence type and reliability for statements"
+    )
+    
+    # V6: Enhanced Timeline
+    time_gaps: list[TimeGapOutput] = Field(
+        default_factory=list,
+        description="Detected gaps in the timeline (V6)"
     )
     
     # =========================================================================
@@ -670,6 +696,12 @@ def build_structured_output(result: TransformResult, input_text: str) -> Structu
             if event:
                 description = event.description
         
+        # V6: Get enhanced timeline fields
+        day_offset = getattr(entry, 'day_offset', 0)
+        normalized_time = getattr(entry, 'normalized_time', None)
+        time_source = getattr(entry, 'time_source', None)
+        time_source_str = time_source.value if hasattr(time_source, 'value') else str(time_source or 'inferred')
+        
         timeline_out.append(TimelineEntryOutput(
             sequence_order=entry.sequence_order,
             event_id=entry.event_id,
@@ -677,6 +709,27 @@ def build_structured_output(result: TransformResult, input_text: str) -> Structu
             absolute_time=entry.absolute_time,
             relative_time=entry.relative_time,
             confidence=entry.time_confidence,
+            # V6 enhanced fields
+            day_offset=day_offset,
+            normalized_time=normalized_time,
+            time_source=time_source_str,
+        ))
+    
+    # V6: Build time gaps output
+    time_gaps_out = []
+    for gap in getattr(result, 'time_gaps', []):
+        gap_type = getattr(gap, 'gap_type', None)
+        gap_type_str = gap_type.value if hasattr(gap_type, 'value') else str(gap_type or 'unknown')
+        
+        time_gaps_out.append(TimeGapOutput(
+            id=gap.id,
+            gap_type=gap_type_str,
+            after_entry_id=getattr(gap, 'after_entry_id', None),
+            before_entry_id=getattr(gap, 'before_entry_id', None),
+            estimated_duration_minutes=getattr(gap, 'estimated_duration_minutes', None),
+            explanation_text=getattr(gap, 'explanation_text', None),
+            requires_investigation=getattr(gap, 'requires_investigation', False),
+            suggested_question=getattr(gap, 'suggested_question', None),
         ))
     
     # Build statement groups output
@@ -807,6 +860,8 @@ def build_structured_output(result: TransformResult, input_text: str) -> Structu
         timeline=timeline_out,
         statement_groups=statement_groups_out,
         evidence_classifications=evidence_out,
+        # V6: Enhanced timeline
+        time_gaps=time_gaps_out,
         # V4: Epistemic classification buckets
         reporter_interpretations=reporter_interpretations,
         reporter_legal_characterizations=reporter_legal_characterizations,

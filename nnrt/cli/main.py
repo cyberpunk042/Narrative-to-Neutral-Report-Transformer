@@ -175,6 +175,9 @@ def setup_structured_only_pipeline(engine: Engine, profile: str = "law_enforceme
             build_ir,
             resolve_coreference,   # V5: Link pronouns to entities
             resolve_actors,        # V5: Replace pronouns with entity names
+            build_timeline,        # V6: Enhanced timeline with gap detection
+            group_statements,      # V5: Semantic grouping
+            classify_evidence,     # V5: Evidence classification
             evaluate_policy,
             augment_ir,
             render,                # YES - render neutral output
