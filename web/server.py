@@ -98,10 +98,7 @@ def transform():
         
         request_obj = TransformRequest(text=text)
         
-        import time
-        start_time = time.time()
         result = engine.transform(request_obj, pipeline_id)
-        processing_time_ms = round((time.time() - start_time) * 1000)
         
         # Build structured output
         structured = build_structured_output(result, text)
@@ -214,7 +211,7 @@ def transform():
             # Metadata header (request info)
             'metadata': {
                 'request_id': request_obj.request_id,
-                'processing_time_ms': processing_time_ms,
+                'processing_time_ms': result.processing_duration_ms,
                 'input_length': len(text),
                 'output_length': len(result.rendered_text or ''),
                 'pipeline': pipeline_id,
@@ -518,7 +515,7 @@ def transform_stream():
                 },
                 'metadata': {
                     'request_id': str(uuid4()),
-                    'processing_time_ms': 0,  # TODO: track actual time
+                    'processing_time_ms': result.processing_duration_ms,
                     'input_length': len(text),
                     'output_length': len(result.rendered_text or ''),
                     'pipeline': mode,

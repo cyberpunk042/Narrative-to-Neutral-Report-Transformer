@@ -7,7 +7,7 @@ name = "nnrt"
 version = "0.3.0"
 description = "Narrative-to-Neutral Report Transformer"
 readme = "README.md"
-license = "Apache"
+license = "Apache-2.0"
 requires-python = ">=3.11"
 authors = [
     { name = "NNRT Contributors" }
@@ -16,7 +16,7 @@ keywords = ["nlp", "text-transformation", "narrative", "neutral"]
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
