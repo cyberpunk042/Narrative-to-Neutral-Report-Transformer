@@ -12,6 +12,7 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 from nnrt.ir.enums import (
+    AllenRelation,
     DiagnosticLevel,
     EntityRole,
     EntityType,
@@ -22,10 +23,14 @@ from nnrt.ir.enums import (
     MentionType,
     Participation,
     PolicyAction,
+    RelationEvidence,
     SpanLabel,
     SpeechActType,
     StatementType,
+    TemporalExpressionType,
     TemporalRelation,
+    TimeGapType,
+    TimeSource,
     TransformStatus,
     UncertaintyType,
 )
@@ -342,50 +347,215 @@ class StatementGroup(BaseModel):
     )
 
 
+# ============================================================================
+# V6: Timeline Reconstruction Models
+# ============================================================================
+
+class TemporalExpression(BaseModel):
+    """
+    V6: A normalized temporal expression extracted from text.
+    
+    Follows TIMEX3-inspired normalization for consistent time handling.
+    All times/dates are normalized to ISO format for comparison.
+    """
+    
+    id: str = Field(..., description="Unique expression identifier")
+    
+    # Original text
+    original_text: str = Field(..., description="Text as it appears: '11:30 PM'")
+    type: TemporalExpressionType = Field(..., description="DATE, TIME, DURATION, etc.")
+    
+    # Normalized values (ISO format)
+    normalized_value: Optional[str] = Field(
+        None,
+        description="ISO normalized: 'T23:30:00' for time, '2026-01-10' for date"
+    )
+    
+    # For relative expressions
+    anchor_type: Optional[str] = Field(
+        None,
+        description="What this is relative to: 'previous_event', 'document_time', 'explicit'"
+    )
+    anchor_reference: Optional[str] = Field(
+        None,
+        description="Reference ID if relative to another entry"
+    )
+    
+    # Position in text
+    start_char: int = Field(..., description="Start position in normalized text")
+    end_char: int = Field(..., description="End position in normalized text")
+    segment_id: str = Field(..., description="Source segment")
+    
+    # Confidence
+    confidence: float = Field(
+        0.8,
+        ge=0.0, le=1.0,
+        description="Confidence in extraction and normalization"
+    )
+
+
+class TemporalRelationship(BaseModel):
+    """
+    V6: An Allen-style temporal relation between two timeline elements.
+    
+    Captures how events/statements relate to each other in time.
+    Uses full Allen's 13 interval relations for precision.
+    """
+    
+    id: str = Field(..., description="Unique relation identifier")
+    
+    # The two elements being related
+    source_id: str = Field(..., description="First element (event/statement ID)")
+    target_id: str = Field(..., description="Second element (event/statement ID)")
+    
+    # Allen relation
+    relation: AllenRelation = Field(..., description="Temporal relation type")
+    
+    # Evidence supporting this relation
+    evidence_type: RelationEvidence = Field(
+        RelationEvidence.NARRATIVE_ORDER,
+        description="What evidence supports this relation"
+    )
+    evidence_text: Optional[str] = Field(
+        None,
+        description="The marker text that indicated this: 'then', 'while'"
+    )
+    
+    # Confidence
+    confidence: float = Field(
+        0.5,
+        ge=0.0, le=1.0,
+        description="Confidence in this relation"
+    )
+
+
+class TimeGap(BaseModel):
+    """
+    V6: A detected gap in the timeline.
+    
+    Used for investigation question generation.
+    Flags unexplained periods that may need follow-up.
+    """
+    
+    id: str = Field(..., description="Unique gap identifier")
+    
+    # Position in timeline
+    after_entry_id: str = Field(..., description="Entry before the gap")
+    before_entry_id: str = Field(..., description="Entry after the gap")
+    
+    # Gap characteristics
+    gap_type: TimeGapType = Field(..., description="EXPLAINED, UNEXPLAINED, etc.")
+    estimated_duration_minutes: Optional[int] = Field(
+        None,
+        description="Estimated gap size in minutes (if calculable)"
+    )
+    
+    # For explained gaps
+    explanation_text: Optional[str] = Field(
+        None,
+        description="Marker explaining gap: '20 minutes later', 'the next day'"
+    )
+    
+    # Investigation flags
+    requires_investigation: bool = Field(
+        False,
+        description="Whether this gap should generate a question"
+    )
+    suggested_question: Optional[str] = Field(
+        None,
+        description="Auto-generated question for investigator"
+    )
+
+
 class TimelineEntry(BaseModel):
     """
-    A temporally-positioned element in the narrative timeline.
+    V6: A positioned element in the reconstructed timeline.
     
-    Timeline entries allow reconstruction of events in chronological
-    order, even when the narrative presents them out of order.
+    Enhanced with multi-day support, normalized times, and gap linking.
     """
     
     id: str = Field(..., description="Unique timeline entry identifier")
     
-    # What this entry represents (one of these should be set)
+    # What this entry represents
     event_id: Optional[str] = Field(None, description="Link to Event")
     statement_id: Optional[str] = Field(None, description="Link to AtomicStatement")
     group_id: Optional[str] = Field(None, description="Link to StatementGroup")
     
-    # Temporal information
+    # V6: Enhanced temporal information
+    temporal_expression_id: Optional[str] = Field(
+        None,
+        description="Link to TemporalExpression with normalized time"
+    )
+    
+    # V6: Multi-day support
+    day_offset: int = Field(
+        0,
+        description="Days from incident: 0=incident day, 1=next day, etc."
+    )
+    
+    # Normalized time (from TemporalExpression or computed)
+    normalized_time: Optional[str] = Field(
+        None,
+        description="ISO time: 'T23:30:00'"
+    )
+    normalized_date: Optional[str] = Field(
+        None,
+        description="ISO date: '2026-01-10'"
+    )
+    
+    # V6: Estimated offset for events without explicit time
+    estimated_minutes_from_start: Optional[int] = Field(
+        None,
+        description="Estimated minutes from first event (for relative positioning)"
+    )
+    
+    # Legacy fields (for backward compatibility)
     absolute_time: Optional[str] = Field(
         None,
-        description="Explicit time ('11:30 PM', '3:00 AM')"
+        description="Original time string ('11:30 PM')"
     )
     date: Optional[str] = Field(
         None,
-        description="Explicit date ('January 15th, 2026')"
+        description="Original date string ('January 15th, 2026')"
     )
     relative_time: Optional[str] = Field(
         None,
-        description="Relative time marker ('20 minutes later', 'the next day')"
+        description="Relative marker ('the next day', '20 minutes later')"
     )
     
-    # Ordering (computed by timeline pass)
+    # Ordering
     sequence_order: int = Field(
         0,
         ge=0,
         description="Computed chronological order (0 = earliest)"
     )
     
-    # Temporal relations to other entries
+    # V6: Gap linking
+    gap_before_id: Optional[str] = Field(
+        None,
+        description="TimeGap ID for gap before this entry"
+    )
+    
+    # V6: Source tracking
+    time_source: TimeSource = Field(
+        TimeSource.INFERRED,
+        description="How this time was determined"
+    )
+    
+    # V6: Relation links
+    temporal_relation_ids: list[str] = Field(
+        default_factory=list,
+        description="TemporalRelationship IDs involving this entry"
+    )
+    
+    # Legacy relation fields (for backward compatibility)
     before_entry_ids: list[str] = Field(
         default_factory=list,
-        description="Entries that come before this one"
+        description="Entries that come before this one (legacy)"
     )
     after_entry_ids: list[str] = Field(
         default_factory=list,
-        description="Entries that come after this one"
+        description="Entries that come after this one (legacy)"
     )
     
     # Confidence
@@ -497,6 +667,20 @@ class TransformResult(BaseModel):
     evidence_classifications: list[EvidenceClassification] = Field(
         default_factory=list,
         description="Evidence type and reliability for statements"
+    )
+    
+    # V6: Enhanced Timeline Reconstruction
+    temporal_expressions: list[TemporalExpression] = Field(
+        default_factory=list,
+        description="Normalized temporal expressions from narrative"
+    )
+    temporal_relationships: list[TemporalRelationship] = Field(
+        default_factory=list,
+        description="Allen-style temporal relations between events"
+    )
+    time_gaps: list[TimeGap] = Field(
+        default_factory=list,
+        description="Detected gaps in the timeline"
     )
 
     # Metadata

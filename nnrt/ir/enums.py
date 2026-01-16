@@ -270,6 +270,152 @@ class LocationType(str, Enum):
     UNKNOWN = "unknown"
 
 
+# ============================================================================
+# V6: Timeline Reconstruction
+# ============================================================================
+
+class AllenRelation(str, Enum):
+    """
+    V6: Allen's 13 temporal interval relations.
+    
+    Complete algebra for reasoning about how time intervals relate.
+    Used for precise timeline reconstruction and multi-narrative comparison.
+    
+    See: Allen, J.F. (1983) "Maintaining Knowledge about Temporal Intervals"
+    """
+    
+    # Basic ordering (most common in narratives)
+    BEFORE = "before"               # A ends before B starts (A ─── B)
+    AFTER = "after"                 # A starts after B ends (B ─── A)
+    
+    # Adjacent (no gap between)
+    MEETS = "meets"                 # A ends exactly when B starts (A───B)
+    MET_BY = "met_by"               # A starts exactly when B ends (B───A)
+    
+    # Overlapping
+    OVERLAPS = "overlaps"           # A starts first, ends during B
+    OVERLAPPED_BY = "overlapped_by" # A starts during B, ends after B
+    
+    # Containment
+    DURING = "during"               # A is entirely within B
+    CONTAINS = "contains"           # A entirely contains B
+    
+    # Shared start
+    STARTS = "starts"               # A and B start together, A ends first
+    STARTED_BY = "started_by"       # A and B start together, B ends first
+    
+    # Shared end
+    FINISHES = "finishes"           # A and B end together, A starts after B
+    FINISHED_BY = "finished_by"     # A and B end together, B starts after A
+    
+    # Identical
+    EQUALS = "equals"               # A and B have identical intervals
+    
+    # Uncertainty
+    UNKNOWN = "unknown"
+    
+    def display_label(self, simplified: bool = True) -> str:
+        """Get display label, optionally simplified to 7 relations."""
+        if not simplified:
+            return self.value.replace('_', ' ')
+        
+        # Collapse 13 → 7 for simplified display
+        DISPLAY_MAP = {
+            'before': 'then',
+            'after': 'before',
+            'meets': 'immediately before',
+            'met_by': 'immediately after',
+            'overlaps': 'overlapping with',
+            'overlapped_by': 'overlapping with',
+            'during': 'during',
+            'contains': 'during',
+            'starts': 'starting with',
+            'started_by': 'starting with',
+            'finishes': 'ending with',
+            'finished_by': 'ending with',
+            'equals': 'at the same time as',
+            'unknown': '(timing unclear)',
+        }
+        return DISPLAY_MAP.get(self.value, self.value)
+    
+    def inverse(self) -> "AllenRelation":
+        """Get the inverse relation (swap A and B)."""
+        INVERSE_MAP = {
+            'before': AllenRelation.AFTER,
+            'after': AllenRelation.BEFORE,
+            'meets': AllenRelation.MET_BY,
+            'met_by': AllenRelation.MEETS,
+            'overlaps': AllenRelation.OVERLAPPED_BY,
+            'overlapped_by': AllenRelation.OVERLAPS,
+            'during': AllenRelation.CONTAINS,
+            'contains': AllenRelation.DURING,
+            'starts': AllenRelation.STARTED_BY,
+            'started_by': AllenRelation.STARTS,
+            'finishes': AllenRelation.FINISHED_BY,
+            'finished_by': AllenRelation.FINISHES,
+            'equals': AllenRelation.EQUALS,
+            'unknown': AllenRelation.UNKNOWN,
+        }
+        return INVERSE_MAP.get(self.value, AllenRelation.UNKNOWN)
+
+
+class TemporalExpressionType(str, Enum):
+    """
+    V6: Types of temporal expressions (TIMEX3-inspired).
+    
+    Classifies what kind of time reference was extracted.
+    """
+    
+    DATE = "date"           # Specific date: "January 10th, 2026"
+    TIME = "time"           # Specific time: "11:30 PM"
+    DATETIME = "datetime"   # Combined: "January 10th at 11:30 PM"
+    DURATION = "duration"   # Length of time: "20 minutes", "three hours"
+    RELATIVE = "relative"   # Relative reference: "the next day", "later"
+    SET = "set"             # Recurring: "every night", "weekly"
+    VAGUE = "vague"         # Imprecise: "morning", "later that night"
+
+
+class TimeSource(str, Enum):
+    """
+    V6: How confident we are about a timeline placement.
+    
+    Indicates the source of temporal information.
+    """
+    
+    EXPLICIT = "explicit"       # Stated directly: "At 11:30 PM"
+    RELATIVE = "relative"       # Inferred from marker: "then", "after that"
+    INFERRED = "inferred"       # From narrative order only
+    DOCUMENT = "document"       # From document metadata
+    CORROBORATED = "corroborated"  # Confirmed by multiple sources
+
+
+class TimeGapType(str, Enum):
+    """
+    V6: Classification of gaps between timeline entries.
+    
+    Used for investigation question generation.
+    """
+    
+    EXPLAINED = "explained"             # Gap has a marker: "20 minutes later"
+    UNEXPLAINED = "unexplained"         # Gap with no marker (needs investigation)
+    DAY_BOUNDARY = "day_boundary"       # Gap crosses to next day
+    UNCERTAIN = "uncertain"             # Can't determine gap size
+    NONE = "none"                       # No significant gap
+
+
+class RelationEvidence(str, Enum):
+    """
+    V6: What evidence supports a temporal relation.
+    
+    Tracks why we believe two events have a particular relation.
+    """
+    
+    EXPLICIT_MARKER = "explicit_marker"   # "then", "after that", "while"
+    TIME_COMPARISON = "time_comparison"   # Compared absolute times
+    NARRATIVE_ORDER = "narrative_order"   # Order in text (fallback)
+    INFERRED = "inferred"                 # Logical inference
+
+
 class EventType(str, Enum):
     """
     Types of events that can be extracted.

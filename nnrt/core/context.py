@@ -22,6 +22,9 @@ from nnrt.ir.schema_v0_1 import (
     SemanticSpan,
     SpeechAct,
     StatementGroup,
+    TemporalExpression,
+    TemporalRelationship,
+    TimeGap,
     TimelineEntry,
     TraceEntry,
     TransformResult,
@@ -77,6 +80,11 @@ class TransformContext:
     statement_groups: list[StatementGroup] = field(default_factory=list)
     timeline: list[TimelineEntry] = field(default_factory=list)
     evidence_classifications: list[EvidenceClassification] = field(default_factory=list)
+    
+    # V6: Enhanced Timeline Reconstruction
+    temporal_expressions: list[TemporalExpression] = field(default_factory=list)
+    temporal_relationships: list[TemporalRelationship] = field(default_factory=list)
+    time_gaps: list[TimeGap] = field(default_factory=list)
 
     # Cross-pass decision communication
     # Maps span_id -> PolicyDecision that applies to this span
@@ -256,6 +264,10 @@ class TransformContext:
             statement_groups=self.statement_groups,
             timeline=self.timeline,
             evidence_classifications=self.evidence_classifications,
+            # V6: Enhanced Timeline
+            temporal_expressions=self.temporal_expressions,
+            temporal_relationships=self.temporal_relationships,
+            time_gaps=self.time_gaps,
             # Metadata
             uncertainty=self.uncertainty,
             policy_decisions=self.policy_decisions,
