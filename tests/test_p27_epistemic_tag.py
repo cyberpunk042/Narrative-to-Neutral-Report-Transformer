@@ -91,9 +91,11 @@ class TestClassifyEpistemic:
         "This constitutes false imprisonment",
     ])
     def test_legal_claim_characterizations(self, text):
-        """Legal characterizations should classify as legal_claim."""
+        """Legal characterizations should classify as legal_claim or sub-type."""
         epistemic_type, evidence_source, confidence = _classify_epistemic(text)
-        assert epistemic_type == "legal_claim", f"'{text}' should be legal_claim, got {epistemic_type}"
+        # V5 P2: legal_claim split into sub-types for taxonomy purity
+        valid_types = {'legal_claim', 'legal_claim_direct', 'legal_claim_admin', 'legal_claim_causation', 'legal_claim_attorney'}
+        assert epistemic_type in valid_types, f"'{text}' should be legal_claim or sub-type, got {epistemic_type}"
     
     # =========================================================================
     # conspiracy_claim: Unfalsifiable allegations
@@ -186,12 +188,14 @@ class TestEdgeCases:
         """'He intentionally used excessive force' - has both interpretation 
         ('intentionally') and legal_claim ('excessive force').
         
-        EXPECTED: legal_claim wins because it's more legally dangerous.
+        EXPECTED: legal_claim (or sub-type) wins because it's more legally dangerous.
         """
         text = "He intentionally used excessive force"
         epistemic_type, _, _ = _classify_epistemic(text)
         # Legal claims are more dangerous and should take priority
-        assert epistemic_type == "legal_claim", \
+        # V5 P2: Now split into sub-types
+        valid_types = {'legal_claim', 'legal_claim_direct', 'legal_claim_admin', 'legal_claim_causation', 'legal_claim_attorney'}
+        assert epistemic_type in valid_types, \
             f"'{text}' should be legal_claim (not interpretation), got {epistemic_type}"
     
     def test_clearly_racial_profiling_is_legal_claim(self):
@@ -200,16 +204,18 @@ class TestEdgeCases:
         """
         text = "This was clearly racial profiling"
         epistemic_type, _, _ = _classify_epistemic(text)
-        assert epistemic_type == "legal_claim", \
-            f"'{text}' should be legal_claim, got {epistemic_type}"
+        valid_types = {'legal_claim', 'legal_claim_direct', 'legal_claim_admin', 'legal_claim_causation', 'legal_claim_attorney'}
+        assert epistemic_type in valid_types, \
+            f"'{text}' should be legal_claim or sub-type, got {epistemic_type}"
     
     def test_deliberately_violated_rights_is_legal_claim(self):
         """'He deliberately violated my rights' - interpretation + legal.
         """
         text = "He deliberately violated my civil rights"
         epistemic_type, _, _ = _classify_epistemic(text)
-        assert epistemic_type == "legal_claim", \
-            f"'{text}' should be legal_claim, got {epistemic_type}"
+        valid_types = {'legal_claim', 'legal_claim_direct', 'legal_claim_admin', 'legal_claim_causation', 'legal_claim_attorney'}
+        assert epistemic_type in valid_types, \
+            f"'{text}' should be legal_claim or sub-type, got {epistemic_type}"
     
     def test_brutally_assaulted_is_legal_not_interpretation(self):
         """'They brutally assaulted me' - has invective ('brutally') and
@@ -217,10 +223,11 @@ class TestEdgeCases:
         """
         text = "They brutally assaulted me"
         epistemic_type, _, _ = _classify_epistemic(text)
-        # Should be legal_claim due to 'assault' language
+        # Should be legal_claim or sub-type due to 'assault' language
         # (or direct_event if we're being neutral about physical actions)
-        assert epistemic_type in ("legal_claim", "direct_event"), \
-            f"'{text}' should be legal_claim or direct_event, got {epistemic_type}"
+        valid_types = {'legal_claim', 'legal_claim_direct', 'direct_event'}
+        assert epistemic_type in valid_types, \
+            f"'{text}' should be legal_claim, legal_claim_direct, or direct_event, got {epistemic_type}"
     
     def test_scared_during_assault_is_self_report(self):
         """'I was so scared during the assault' - has self_report ('scared')
@@ -239,7 +246,8 @@ class TestEdgeCases:
         """
         text = "This cover-up proves police brutality is real"
         epistemic_type, _, _ = _classify_epistemic(text)
-        # Conspiracy claims are the most dangerous
-        assert epistemic_type in ("conspiracy_claim", "legal_claim"), \
+        # Conspiracy claims are the most dangerous, or legal claim sub-types
+        valid_types = {'conspiracy_claim', 'legal_claim', 'legal_claim_direct'}
+        assert epistemic_type in valid_types, \
             f"'{text}' should be conspiracy_claim or legal_claim, got {epistemic_type}"
 

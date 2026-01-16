@@ -79,6 +79,12 @@ LEGAL_SCRUB_PATTERNS = [
      "-- reporter alleges racism --"),
     (r'\bpattern\s+of\s+(abuse|misconduct|violence|brutality)\b',
      "-- reporter alleges pattern of misconduct --"),
+    
+    # V5 STRESS TEST: Additional legal patterns
+    (r'\bracial\s+profiling\b',
+     "-- reporter characterizes as racial profiling --"),
+    (r'\b(clearly\s+)?(illegal|unlawful)\s+(assault|stop|detention)\b',
+     "-- reporter characterizes action as illegal --"),
 ]
 
 # V5: Intent/threat attributions that MUST be attributed
@@ -126,6 +132,13 @@ CONSPIRACY_SCRUB_PATTERNS = [
      ""),
     (r'\bthugs\s+with\s+badges\b',
      "officers"),
+    # V5 STRESS TEST: Additional conspiracy patterns
+    (r'\bcover.?up\b',
+     "-- reporter alleges cover-up --"),
+    (r'\bterrorize\s+(our|the)\s+communit(y|ies)\b',
+     "-- reporter characterizes conduct --"),
+    (r'\bwhole\s+system\s+is\s+corrupt\b',
+     "-- reporter characterizes system --"),
 ]
 
 # Invective to remove or neutralize
@@ -141,6 +154,14 @@ INVECTIVE_SCRUB_PATTERNS = [
     (r'\bbrutally', ""),
     (r'\bviciously', ""),
     (r'\bsavagely', ""),
+    # V5 STRESS TEST: Additional invective patterns  
+    (r'\bbrutal,?\s*', ""),  # "brutal, psychotic cops" or "brutal cops"
+    (r'\bviolent\s+offender\b', "individual with history"),
+    (r'\bcriminal\s+behavior\b', "alleged conduct"),
+    (r'\bhorrifying\b', "concerning"),
+    (r'\bmenacingly\b', ""),
+    (r'\baggressively\b', ""),
+    (r'\btorture\b', "treatment"),
 ]
 
 

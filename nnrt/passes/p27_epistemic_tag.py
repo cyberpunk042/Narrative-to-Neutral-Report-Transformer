@@ -124,21 +124,34 @@ INFERENCE_PATTERNS = [
 # V5: Legacy combined pattern (for backward compatibility)
 INTERPRETATION_PATTERNS = CHARACTERIZATION_PATTERNS + INFERENCE_PATTERNS
 
-# Legal characterizations (legal conclusions, rights claims)
-LEGAL_CLAIM_PATTERNS = [
+# =============================================================================
+# P2 FIX: Split Legal Claims into Sub-Categories (Issue #2)
+# =============================================================================
+# Legal allegations bucket was mixing different epistemic classes:
+# - Direct legal allegations ("excessive force", "false arrest")
+# - Admin outcomes ("IA found within policy")
+# - Medical causation ("PTSD directly caused by")
+# - Attorney opinions ("attorney says this is clearest case")
+#
+# These are now separate sub-types for taxonomy purity.
+# =============================================================================
+
+# LEGAL_CLAIM_DIRECT: Pure legal allegations made by reporter
+# These are claims about law violation, not admin or medical
+LEGAL_CLAIM_DIRECT_PATTERNS = [
     r'\bwithout\s+(my\s+)?consent\b',
     r'\bwithout\s+(any\s+)?legal\s+justification\b',
     r'\billegal\s+(assault|search|detention|arrest|stop)\b',
     r'\bexcessive\s+(force|violence)\b',
+    r'\bexcessive\s+(and\s+)?\w*\s*(force|violence)\b',  # "excessive and unnecessary violence"
     r'\bpolice\s+(brutality|misconduct)\b',
-    r'\bcivil\s+rights\s+violation\b',
+    r'\bcivil\s+rights\s+violations?\b',  # singular or plural
     r'\bviolated\s+(my|his|her|their|our)\s+(civil\s+)?rights\b',
     r'\bfalse\s+(imprisonment|arrest)\b',
     r'\bconstitutional\s+rights\b',
     r'\bobstruction\s+of\s+justice\b',
     r'\bwitness\s+intimidation\b',
     r'\bracial\s+profiling\b',
-    r'\bwithin\s+policy\b',
     r'\bcriminal\s+behavior\b',
     r'\bcomplete\s+(and\s+total\s+)?lie\b',
     r'\bfabricated\b',
@@ -148,10 +161,60 @@ LEGAL_CLAIM_PATTERNS = [
     r'\bharassment\b',
     r'\bassault\s+and\s+battery\b',
     r'\bassaulted\s+(me|him|her|them|us)\b',
-    # V4.1: More legal patterns
-    r'\bno\s+legal\s+basis\b',  # "no legal basis to stop me"
-    r'\bthe\s+racism\b',  # "the racism in this department"
+    r'\bno\s+legal\s+basis\b',
+    r'\bthe\s+racism\b',
 ]
+
+# LEGAL_CLAIM_ADMIN: Administrative outcomes (IA, policy findings, letters)
+# These are document-based findings, not allegations
+LEGAL_CLAIM_ADMIN_PATTERNS = [
+    r'\breceived\s+a\s+letter\b',
+    r'\bfiled\s+a\s+(formal\s+)?complaint\b',
+    r'\bformal\s+complaint\b',
+    r'\bcomplaint\s+had\s+been\s+investigated\b',
+    r'\binternal\s+affairs\b',
+    r'\bfound\s+to\s+be\b.*\bpolicy\b',
+    r'\bwithin\s+policy\b',
+    r'\b(ia|internal\s+affairs)\s+(found|concluded|determined)\b',
+    r'\bdepartment\s+(ruled|found|concluded)\b',
+    r'\bcleared\s+of\s+(any\s+)?(wrongdoing|misconduct)\b',
+    r'\bexonerated\b',
+    r'\bsustained\s+(the\s+)?complaint\b',
+    r'\bunsustained\b',
+    r'\bunfounded\b',
+]
+
+# LEGAL_CLAIM_CAUSATION: Medical/psychological causation claims
+# These link a condition to an event ("PTSD directly caused by")
+LEGAL_CLAIM_CAUSATION_PATTERNS = [
+    r'\b(ptsd|anxiety|depression|trauma)\s+(directly\s+)?(caused|resulted\s+from)\b',
+    r'\bcaused\s+by\s+(the\s+)?(incident|stop|arrest|assault|encounter)\b',
+    r'\b(injuries?|condition)\s+(were|was)\s+(directly\s+)?(caused|result)\b',
+    r'\bdirectly\s+(caused|resulted|led\s+to)\b',
+    r'\bas\s+a\s+(direct\s+)?result\s+of\b',
+    r'\bdue\s+to\s+(the\s+)?(trauma|incident|assault|actions?)\b',
+    r'\bsuffering\s+(as\s+a\s+)?(direct\s+)?result\b',
+]
+
+LEGAL_CLAIM_ATTORNEY_PATTERNS = [
+    r'\b(my\s+)?(attorney|lawyer)\s+(says?|said|told|believes?|thinks?|stated)\b',
+    r'\b(my\s+)?(attorney|lawyer)\s+\w+\s+\w+\s+(says?|said|told|believes?)\b',  # "My attorney Jennifer Walsh says"
+    r'\battorney\s+(opinion|assessment|evaluation)\b',
+    r'\b(clearest|strongest|most\s+egregious)\s+(case|example)\b',
+    r'\blegally\s+(speaking|qualified)\b',
+    r'\bfrom\s+a\s+legal\s+standpoint\b',
+    r'\b(my\s+)?lawyer\s+(has|thinks?|believes?|says?)\b',
+    r'\blegal\s+counsel\s+(advised|recommended|stated)\b',
+    r'\bper\s+(my\s+)?(attorney|lawyer|legal)\b',
+]
+
+# Legacy combined pattern (for backward compatibility)
+LEGAL_CLAIM_PATTERNS = (
+    LEGAL_CLAIM_DIRECT_PATTERNS + 
+    LEGAL_CLAIM_ADMIN_PATTERNS + 
+    LEGAL_CLAIM_CAUSATION_PATTERNS + 
+    LEGAL_CLAIM_ATTORNEY_PATTERNS
+)
 
 # Direct quote markers
 QUOTE_PATTERNS = [
@@ -161,7 +224,7 @@ QUOTE_PATTERNS = [
     r'^\w+\s+told\s+(me|him|her|them)\s+["\']',
 ]
 
-# Document-based / administrative
+# Document-based / administrative (legacy, now mostly in LEGAL_CLAIM_ADMIN)
 DOCUMENT_PATTERNS = [
     r'\breceived\s+a\s+letter\b',
     r'\bfiled\s+a\s+(formal\s+)?complaint\b',
@@ -170,14 +233,52 @@ DOCUMENT_PATTERNS = [
     r'internal\s+affairs\b',
     r'\bfound\s+to\s+be\b.*\bpolicy\b',
 ]
+# =============================================================================
+# P1 FIX: Medical documentation (when attributed to medical provider)
+# =============================================================================
+# Issue #3: Medical content was being misclassified as self-report
+# These patterns MUST be checked BEFORE self-report injury patterns
+# to correctly attribute provider findings vs reporter claims
+# =============================================================================
 
-# Medical documentation (when attributed to medical provider)
 MEDICAL_FINDING_PATTERNS = [
-    r'\b(dr\.?|doctor)\s+\w+\s+(documented|said|diagnosed|noted)\b',
-    r'\bmedical\s+records?\b',
-    r'\b(she|he)\s+documented\b',
-    r'\bdiagnosed\s+(with|me)\b',
+    # Doctor as subject (explicit title) - allow name after title
+    r'\b(dr\.?|doctor)\s+\w+\s+(documented|said|diagnosed|noted|found|observed|recorded)\b',
+    r'\b(dr\.?|doctor)\s+\w+\s+\w+\s+(documented|said|diagnosed|noted|found|observed|recorded)\b',  # "Dr. Amanda Foster documented"
+    r'\b(the\s+)?(doctor|physician|nurse|emt|ems|paramedic|attendant)\s+(documented|noted|found|observed|said|recorded)\b',
+    
+    # Provider pronoun patterns (key fix for Issue #3)
+    # When "she/he" refers to a medical provider and documents medical info
+    # Allow optional words between verb and medical term (e.g., "the", "my", "several")
+    r'\b(she|he)\s+documented\s+(\w+\s+)*(bruises?|injuries?|wounds?|trauma|lacerations?)\b',
+    r'\b(she|he)\s+noted\s+(\w+\s+)*(bruises?|injuries?|wounds?|condition|swelling|redness)\b',
+    r'\b(she|he)\s+found\s+(\w+\s+)*(bruises?|trauma|injuries?|fractures?|contusions?)\b',
+    r'\b(she|he)\s+observed\s+(\w+\s+)*(bruises?|injuries?|swelling|redness|marks?)\b',
+    r'\b(she|he)\s+photographed\s+(\w+\s+)*(injuries?|bruises?|wounds?)\b',
+    r'\b(she|he)\s+recorded\s+(\w+\s+)*(injuries?|condition|symptoms)\b',
+    
+    # Medical provider as subject (title then action)
+    r'\b(the\s+)?(nurse|emt|paramedic|physician)\s+(saw|examined|treated|noted|documented)\b',
+    r'\b(my\s+)?(doctor|physician)\s+(told\s+me|said|confirmed|diagnosed)\b',
+    
+    # Medical documentation markers
+    r'\bmedical\s+records?\s+(show|indicate|document|state|reflect)\b',
+    r'\bmedical\s+report\s+(states?|shows?|indicates?)\b',
+    r'\b(er|emergency\s+room)\s+(staff|doctor|nurse)\s+(noted|documented|recorded)\b',
+    r'\b(hospital|clinic)\s+(records?|documentation)\s+(show|indicate)\b',
+    
+    # Diagnosed patterns (provider is implicit source)
+    r'\bdiagnosed\s+(me\s+)?with\b',
+    r'\bi\s+was\s+diagnosed\s+(with|as\s+having)\b',
     r'\binjuries\s+were\s+consistent\s+with\b',
+    r'\bmedical\s+examination\s+(revealed|showed|found)\b',
+    r'\bx.?ray\s+(showed|revealed|confirmed)\b',
+    r'\b(ct|mri|scan)\s+(showed|revealed|found)\b',
+    
+    # Attribution to medical source
+    r'\baccording\s+to\s+(my\s+)?(doctor|physician|the\s+medical)\b',
+    r'\bper\s+(the\s+)?(medical|doctor|physician)\b',
+    r'\b(the\s+)?medical\s+(professional|staff|team)\s+(said|noted|documented)\b',
 ]
 
 # Conspiracy claims (unfalsifiable allegations)
@@ -220,10 +321,28 @@ def _classify_epistemic(text: str) -> tuple[str, str, float]:
         if re.search(pattern, text_lower):
             return ("conspiracy_claim", "inference", 0.9)
     
-    # 2. Legal characterizations (explicit legal labels only)
-    for pattern in LEGAL_CLAIM_PATTERNS:
+    # 2. P2 FIX: Legal claims with sub-types for taxonomy purity
+    # Check specific sub-types first, then fall back to generic
+    
+    # 2a. Attorney opinions (professional opinion, highest specificity)
+    for pattern in LEGAL_CLAIM_ATTORNEY_PATTERNS:
         if re.search(pattern, text_lower):
-            return ("legal_claim", "inference", 0.85)
+            return ("legal_claim_attorney", "opinion", 0.85)
+    
+    # 2b. Medical/psych causation claims (links condition to event)
+    for pattern in LEGAL_CLAIM_CAUSATION_PATTERNS:
+        if re.search(pattern, text_lower):
+            return ("legal_claim_causation", "inference", 0.85)
+    
+    # 2c. Admin outcomes (IA findings, policy determinations)
+    for pattern in LEGAL_CLAIM_ADMIN_PATTERNS:
+        if re.search(pattern, text_lower):
+            return ("legal_claim_admin", "document", 0.85)
+    
+    # 2d. Direct legal allegations (fallback for other legal claims)
+    for pattern in LEGAL_CLAIM_DIRECT_PATTERNS:
+        if re.search(pattern, text_lower):
+            return ("legal_claim_direct", "inference", 0.85)
     
     # 3. V5: CHARACTERIZATION (name-calling, insults - distinct from inference)
     for pattern in CHARACTERIZATION_PATTERNS:
@@ -235,8 +354,16 @@ def _classify_epistemic(text: str) -> tuple[str, str, float]:
         if re.search(pattern, text_lower):
             return ("inference", "inference", 0.85)
     
-    # 5. V5: Self-reported with sub-types
-    # Check specific sub-types first
+    # 5. P1 FIX: Medical findings BEFORE self-report
+    # This is critical for Issue #3: "She documented bruises" should be
+    # medical_finding, not state_injury. Medical provider as subject changes
+    # the provenance from self-report to document.
+    for pattern in MEDICAL_FINDING_PATTERNS:
+        if re.search(pattern, text_lower):
+            return ("medical_finding", "document", 0.90)
+    
+    # 6. V5: Self-reported with sub-types
+    # Only check these AFTER medical findings to avoid mis-classification
     for pattern in STATE_PSYCHOLOGICAL_PATTERNS:
         if re.search(pattern, text_lower):
             return ("state_psychological", "self_report", 0.9)
@@ -257,11 +384,6 @@ def _classify_epistemic(text: str) -> tuple[str, str, float]:
     for pattern in SELF_REPORT_PATTERNS:
         if re.search(pattern, text_lower):
             return ("self_report", "self_report", 0.9)
-    
-    # 6. Medical findings (when attributed to provider)
-    for pattern in MEDICAL_FINDING_PATTERNS:
-        if re.search(pattern, text_lower):
-            return ("medical_finding", "document", 0.85)
     
     # 7. Administrative/document-based
     for pattern in DOCUMENT_PATTERNS:
