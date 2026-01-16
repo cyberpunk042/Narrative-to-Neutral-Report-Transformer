@@ -456,6 +456,47 @@ function reRenderFilteredPanel(panel) {
 }
 
 function buildFilterBar(panel, filterOptions) {
+    // Check if options have row property for multi-row layout
+    const hasRows = filterOptions.some(opt => opt.row);
+
+    if (hasRows) {
+        // Group by row
+        const row1 = filterOptions.filter(opt => opt.row === 1);
+        const row2 = filterOptions.filter(opt => opt.row === 2);
+
+        // Panel-specific row labels
+        const rowLabels = {
+            atomicStatements: ['Facts & Self-Report', 'Analysis & Claims'],
+            entities: ['Primary Roles', 'Professional'],
+            events: ['Physical & Verbal', 'Procedural'],
+        };
+        const labels = rowLabels[panel] || ['Row 1', 'Row 2'];
+
+        return `
+            <div class="filter-bar multi-row" data-filter-panel="${panel}">
+                <div class="filter-row" data-row-label="${labels[0]}">
+                    ${row1.map(opt => `
+                        <button class="filter-chip ${filters[panel] === opt.value ? 'active' : ''} ${opt.color || ''}"
+                                data-filter="${opt.value}"
+                                onclick="setFilter('${panel}', '${opt.value}')">
+                            ${opt.label}
+                        </button>
+                    `).join('')}
+                </div>
+                <div class="filter-row" data-row-label="${labels[1]}">
+                    ${row2.map(opt => `
+                        <button class="filter-chip ${filters[panel] === opt.value ? 'active' : ''} ${opt.color || ''}"
+                                data-filter="${opt.value}"
+                                onclick="setFilter('${panel}', '${opt.value}')">
+                            ${opt.label}
+                        </button>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    // Single row (default)
     return `
         <div class="filter-bar" data-filter-panel="${panel}">
             ${filterOptions.map(opt => `
@@ -1021,18 +1062,27 @@ function displayResults(result) {
 // =============================================================================
 
 function renderAtomicStatements(statements) {
-    // V4: Updated with epistemic types
+    // V5: Organized into two strategic rows
+    // Row 1: Facts (observable) + Self-Report (subjective but verifiable)
+    // Row 2: Analysis (interpretation) + Dangerous (requires scrutiny)
     const filterOptions = [
-        { value: 'all', label: 'All' },
-        { value: 'direct_event', label: '📹 Observed', color: 'observation' },
-        { value: 'self_report', label: '💭 Self-Report', color: 'self-report' },
-        { value: 'interpretation', label: '🧠 Interpretation', color: 'interpretation' },
-        { value: 'legal_claim', label: '⚖️ Legal', color: 'legal' },
-        { value: 'conspiracy_claim', label: '🔮 Conspiracy', color: 'conspiracy' },
-        { value: 'quote', label: '💬 Quote', color: 'quote' },
-        { value: 'medical_finding', label: '🏥 Medical', color: 'medical' },
-        { value: 'admin_action', label: '📋 Admin', color: 'admin' },
-        { value: 'unknown', label: '❓ Unknown', color: 'unknown' },
+        // === ROW 1: FACTS & SELF-REPORT ===
+        { value: 'all', label: 'All', row: 1 },
+        { value: 'direct_event', label: '📹 Observed', color: 'observation', row: 1 },
+        { value: 'quote', label: '💬 Quote', color: 'quote', row: 1 },
+        { value: 'medical_finding', label: '🏥 Medical', color: 'medical', row: 1 },
+        { value: 'state_acute', label: '😰 Acute', color: 'self-report', row: 1 },
+        { value: 'state_injury', label: '🩹 Injury', color: 'self-report', row: 1 },
+        { value: 'state_psychological', label: '🧠 Psych', color: 'self-report', row: 1 },
+
+        // === ROW 2: ANALYSIS & DANGEROUS ===
+        { value: 'characterization', label: '🏷️ Characterization', color: 'interpretation', row: 2 },
+        { value: 'inference', label: '🔮 Inference', color: 'interpretation', row: 2 },
+        { value: 'legal_claim_direct', label: '⚖️ Legal', color: 'legal', row: 2 },
+        { value: 'legal_claim_admin', label: '📋 Admin', color: 'admin', row: 2 },
+        { value: 'legal_claim_attorney', label: '👔 Attorney', color: 'legal', row: 2 },
+        { value: 'conspiracy_claim', label: '⚠️ Conspiracy', color: 'conspiracy', row: 2 },
+        { value: 'unknown', label: '❓ Other', color: 'unknown', row: 2 },
     ];
 
     // V4: Filter by epistemic_type instead of type
@@ -1087,11 +1137,19 @@ function renderAtomicStatements(statements) {
 }
 
 function renderEntities(entities) {
-    // Collect unique roles from entities
-    const roles = [...new Set(entities.map(e => e.role).filter(Boolean))];
+    // V5: Predefined entity role filters with strategic organization
     const filterOptions = [
-        { value: 'all', label: 'All' },
-        ...roles.map(r => ({ value: r, label: r.charAt(0).toUpperCase() + r.slice(1) }))
+        { value: 'all', label: 'All', row: 1 },
+        // Row 1: Primary roles
+        { value: 'reporter', label: '📝 Reporter', color: 'self-report', row: 1 },
+        { value: 'subject_officer', label: '👮 Officers', color: 'legal', row: 1 },
+        { value: 'supervisor', label: '⭐ Supervisor', color: 'admin', row: 1 },
+        { value: 'witness_civilian', label: '👁️ Witnesses', color: 'quote', row: 1 },
+        // Row 2: Professional roles
+        { value: 'medical_provider', label: '🏥 Medical', color: 'medical', row: 2 },
+        { value: 'legal_counsel', label: '⚖️ Legal', color: 'legal', row: 2 },
+        { value: 'investigator', label: '🔍 Investigator', color: 'admin', row: 2 },
+        { value: 'other', label: '❓ Other', color: 'unknown', row: 2 },
     ];
 
     const filtered = filters.entities === 'all'
@@ -1121,11 +1179,21 @@ function renderEntities(entities) {
 }
 
 function renderEvents(events) {
-    // Collect unique types from events
-    const types = [...new Set(events.map(e => e.type).filter(Boolean))];
+    // V5: Predefined event type filters with strategic organization
     const filterOptions = [
-        { value: 'all', label: 'All' },
-        ...types.map(t => ({ value: t, label: t.charAt(0).toUpperCase() + t.slice(1) }))
+        { value: 'all', label: 'All', row: 1 },
+        // Row 1: Physical & Observable
+        { value: 'action', label: '💪 Action', color: 'observation', row: 1 },
+        { value: 'physical_restraint', label: '🔗 Restraint', color: 'legal', row: 1 },
+        { value: 'verbal', label: '💬 Verbal', color: 'quote', row: 1 },
+        { value: 'verbal_command', label: '📢 Command', color: 'quote', row: 1 },
+        { value: 'movement', label: '🚶 Movement', color: 'observation', row: 1 },
+        // Row 2: Procedural & Medical
+        { value: 'search', label: '🔎 Search', color: 'admin', row: 2 },
+        { value: 'arrest', label: '⚖️ Arrest', color: 'legal', row: 2 },
+        { value: 'medical_treatment', label: '🏥 Medical', color: 'medical', row: 2 },
+        { value: 'complaint_filed', label: '📋 Complaint', color: 'admin', row: 2 },
+        { value: 'unknown', label: '❓ Other', color: 'unknown', row: 2 },
     ];
 
     const filtered = filters.events === 'all'

@@ -1510,6 +1510,69 @@ body {
     border: 1px solid var(--text-muted);
 }
 
+/* V5: Self-report sub-types */
+.stmt-type-badge.state_acute {
+    background: rgba(236, 72, 153, 0.2);
+    color: #ec4899;
+    border: 1px solid #ec4899;
+}
+
+.stmt-type-badge.state_injury {
+    background: rgba(220, 38, 127, 0.2);
+    color: #dc2680;
+    border: 1px solid #dc2680;
+}
+
+.stmt-type-badge.state_psychological {
+    background: rgba(192, 38, 211, 0.2);
+    color: #c026d3;
+    border: 1px solid #c026d3;
+}
+
+.stmt-type-badge.state_socioeconomic {
+    background: rgba(168, 85, 247, 0.2);
+    color: #a855f7;
+    border: 1px solid #a855f7;
+}
+
+/* V5: Characterization/Inference split */
+.stmt-type-badge.characterization {
+    background: rgba(139, 92, 246, 0.2);
+    color: #8b5cf6;
+    border: 1px solid #8b5cf6;
+}
+
+.stmt-type-badge.inference {
+    background: rgba(124, 58, 237, 0.2);
+    color: #7c3aed;
+    border: 1px solid #7c3aed;
+}
+
+/* V5: Legal sub-types (Issue #2 fix) */
+.stmt-type-badge.legal_claim_direct {
+    background: rgba(251, 146, 60, 0.2);
+    color: #fb923c;
+    border: 1px solid #fb923c;
+}
+
+.stmt-type-badge.legal_claim_admin {
+    background: rgba(100, 116, 139, 0.2);
+    color: #64748b;
+    border: 1px solid #64748b;
+}
+
+.stmt-type-badge.legal_claim_causation {
+    background: rgba(234, 88, 12, 0.2);
+    color: #ea580c;
+    border: 1px solid #ea580c;
+}
+
+.stmt-type-badge.legal_claim_attorney {
+    background: rgba(161, 98, 7, 0.2);
+    color: #a16207;
+    border: 1px solid #a16207;
+}
+
 /* Source tag styling */
 .meta-tag.source {
     background: rgba(99, 102, 241, 0.15);
@@ -1630,6 +1693,36 @@ body {
     border-bottom: 1px solid var(--border-color);
 }
 
+/* V5: Multi-row filter layout */
+.filter-bar.multi-row {
+    flex-direction: column;
+    gap: var(--space-xs);
+}
+
+.filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    padding: 4px 0;
+}
+
+.filter-row::before {
+    content: attr(data-row-label);
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    min-width: 110px;
+    padding-right: var(--space-sm);
+}
+
+.filter-row:first-child {
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: var(--space-sm);
+}
+
 .filter-chip {
     font-family: inherit;
     font-size: 0.7rem;
@@ -1688,6 +1781,32 @@ body {
 .filter-chip.active.info {
     background: var(--info);
     border-color: var(--info);
+}
+
+/* V5: Filter chip colors for new sub-types */
+.filter-chip.active.self-report {
+    background: #ec4899;
+    border-color: #ec4899;
+}
+
+.filter-chip.active.legal {
+    background: #fb923c;
+    border-color: #fb923c;
+}
+
+.filter-chip.active.admin {
+    background: #64748b;
+    border-color: #64748b;
+}
+
+.filter-chip.active.conspiracy {
+    background: #ef4444;
+    border-color: #ef4444;
+}
+
+.filter-chip.active.medical {
+    background: #14b8a6;
+    border-color: #14b8a6;
 }
 
 .filtered-items {
