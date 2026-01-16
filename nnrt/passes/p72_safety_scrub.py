@@ -28,8 +28,12 @@ log = get_pass_logger(PASS_NAME)
 # =============================================================================
 # DANGEROUS PATTERNS TO TRANSFORM IN RENDERED OUTPUT
 # =============================================================================
+# V5: ATTRIBUTION ENFORCEMENT
+# Every allegation/inference MUST use "reporter asserts/perceives/characterizes"
+# This is the final safety net - patterns that slip through get caught here.
+# =============================================================================
 
-# Legal characterizations that should be attributed
+# Legal characterizations that MUST be attributed
 # (pattern, replacement)
 LEGAL_SCRUB_PATTERNS = [
     # Direct legal claims → attributed form
@@ -39,10 +43,71 @@ LEGAL_SCRUB_PATTERNS = [
      "-- reporter characterizes conduct as police brutality --"),
     (r'\bracial\s+profiling\s+and\s+harassment',
      "-- reporter characterizes conduct as racial profiling and harassment --"),
-    (r'\bexcessive\s+force',
-     "described force"),  # Neutral phrasing
     (r'\bpolice\s+brutality',
-     "-- reporter characterizes conduct --"),
+     "-- reporter characterizes conduct as brutality --"),
+    
+    # V5: Legal terms that must be attributed
+    (r'\bexcessive\s+force\b',
+     "-- reporter describes force as excessive --"),
+    (r'\bfalse\s+arrest\b',
+     "-- reporter characterizes arrest as false --"),
+    (r'\bunlawful\s+(detention|stop|search|arrest)\b',
+     "-- reporter characterizes action as unlawful --"),
+    (r'\billegal\s+(search|detention|arrest|stop)\b',
+     "-- reporter characterizes action as illegal --"),
+    (r'\bobstruction\s+of\s+justice\b',
+     "-- reporter alleges obstruction of justice --"),
+    (r'\bwitness\s+intimidation\b',
+     "-- reporter alleges witness intimidation --"),
+    (r'\b(civil|constitutional)\s+rights?\s+violation\b',
+     "-- reporter alleges rights violation --"),
+    (r'\bharassment\b',
+     "-- reporter characterizes conduct as harassment --"),
+    (r'\bassault\s+and\s+battery\b',
+     "-- reporter alleges assault --"),
+    (r'\bwrongful\s+(termination|arrest|detention)\b',
+     "-- reporter characterizes as wrongful --"),
+    
+    # V5: Systemic claims MUST be attributed
+    (r'\bsystematic\s+(racism|discrimination|abuse)\b',
+     "-- reporter alleges systemic issues --"),
+    (r'\bsystemic\s+(racism|discrimination|abuse|misconduct)\b',
+     "-- reporter alleges systemic issues --"),
+    (r'\binstitutionalized\s+(racism|discrimination)\b',
+     "-- reporter alleges institutional issues --"),
+    (r'\bracism\s+in\s+(this|the)\s+(department|force|police)\b',
+     "-- reporter alleges racism --"),
+    (r'\bpattern\s+of\s+(abuse|misconduct|violence|brutality)\b',
+     "-- reporter alleges pattern of misconduct --"),
+]
+
+# V5: Intent/threat attributions that MUST be attributed
+INTENT_SCRUB_PATTERNS = [
+    # Threat perceptions
+    (r'\bready\s+to\s+(shoot|attack|assault|kill)\s+(me|him|her|them|us)\b',
+     "-- reporter perceived threat --"),
+    (r'\b(was|were)\s+going\s+to\s+(shoot|attack|kill|hurt)\b',
+     "-- reporter perceived intent to harm --"),
+    (r'\bwanted\s+to\s+(hurt|harm|kill|intimidate|punish)\b',
+     "-- reporter perceived intent --"),
+    (r'\btrying\s+to\s+(kill|hurt|harm|intimidate)\b',
+     "-- reporter perceived attempt to harm --"),
+    
+    # Intent attribution
+    (r'\b(clearly|obviously|definitely)\s+intended\s+to\b',
+     "-- reporter infers intent --"),
+    (r'\bdeliberately\s+(tried|attempted|wanted)\b',
+     "-- reporter infers deliberate action --"),
+    (r'\bintentionally\s+(hurt|harmed|ignored|denied)\b',
+     "-- reporter infers intentional action --"),
+    
+    # Threat characterizations
+    (r'\b[Tt]hreat\s+and\s+\w+\s+intimidation\b',
+     "-- reporter characterizes as threatening --"),
+    (r'\b(was|were)\s+(clearly\s+)?a\s+threat\b',
+     "-- reporter perceived as threatening --"),
+    (r'\bthreatening\s+(behavior|manner|tone)\b',
+     "-- reporter perceived threatening behavior --"),
 ]
 
 # Conspiracy language to remove entirely
@@ -55,15 +120,27 @@ CONSPIRACY_SCRUB_PATTERNS = [
      ""),
     (r'\bwhitewash',
      ""),
+    (r'\bblue\s+wall\s+of\s+silence\b',
+     ""),
+    (r'\bcode\s+of\s+silence\b',
+     ""),
+    (r'\bthugs\s+with\s+badges\b',
+     "officers"),
 ]
 
-# Invective to remove
+# Invective to remove or neutralize
 INVECTIVE_SCRUB_PATTERNS = [
     (r'\bthug\s+cop[s]?', "officer"),
+    (r'\bdirty\s+cop[s]?', "officer"),
+    (r'\bcorrupt\s+cop[s]?', "officer"),
     (r'\bpsychotic', ""),
     (r'\bmaniac', ""),
+    (r'\bsadist(ic)?', ""),
+    (r'\bmonster', ""),
+    (r'\bfascist', ""),
     (r'\bbrutally', ""),
     (r'\bviciously', ""),
+    (r'\bsavagely', ""),
 ]
 
 
@@ -88,6 +165,14 @@ def safety_scrub(ctx: TransformContext) -> TransformContext:
             scrubbed = new_text
             scrub_count += count
             log.info("legal_scrub", pattern=pattern[:30], count=count)
+    
+    # V5: Apply intent/threat scrubs
+    for pattern, replacement in INTENT_SCRUB_PATTERNS:
+        new_text, count = re.subn(pattern, replacement, scrubbed, flags=re.IGNORECASE)
+        if count > 0:
+            scrubbed = new_text
+            scrub_count += count
+            log.info("intent_scrub", pattern=pattern[:30], count=count)
     
     # Apply conspiracy scrubs
     for pattern, replacement in CONSPIRACY_SCRUB_PATTERNS:
