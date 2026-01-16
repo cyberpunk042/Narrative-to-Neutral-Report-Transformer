@@ -237,9 +237,11 @@ class TransformContext:
 
     def to_result(self) -> TransformResult:
         """Convert context to final TransformResult."""
+        duration_ms = (datetime.now() - self.start_time).total_seconds() * 1000
         return TransformResult(
             request_id=self.request.request_id or str(uuid4()),
             timestamp=self.start_time,
+            processing_duration_ms=duration_ms,
             # Core IR
             segments=self.segments,
             spans=self.spans,
