@@ -69,7 +69,7 @@ RELATIVE_PATTERNS = [
     (re.compile(r'\bafter\s+that\b', re.I), TemporalExpressionType.RELATIVE, 'sequence'),
     (re.compile(r'\bafterwards?\b', re.I), TemporalExpressionType.RELATIVE, 'sequence'),
     (re.compile(r'\bsubsequently\b', re.I), TemporalExpressionType.RELATIVE, 'sequence'),
-    (re.compile(r'\bnext\b', re.I), TemporalExpressionType.RELATIVE, 'sequence'),
+    (re.compile(r'\bnext\s+(day|morning|week|month|time)\b', re.I), TemporalExpressionType.RELATIVE, 'sequence'),
     (re.compile(r'\beventually\b', re.I), TemporalExpressionType.RELATIVE, 'sequence'),
     (re.compile(r'\bfinally\b', re.I), TemporalExpressionType.RELATIVE, 'sequence'),
     
@@ -247,6 +247,36 @@ def extract_temporal_expressions(ctx: TransformContext) -> TransformContext:
                           reason="medical abbreviation",
                           channel="TEMPORAL")
                 continue
+            
+            # Skip temporal expressions inside quoted speech
+            # Check if entity is between quotation marks
+            before_text = text[max(0, ent.start_char - 30):ent.start_char]
+            after_text = text[ent.end_char:min(len(text), ent.end_char + 30)]
+            
+            # Count quotes before and after
+            quotes_before = before_text.count('"') + before_text.count("'") + before_text.count('"') + before_text.count('"')
+            quotes_after = after_text.count('"') + after_text.count("'") + after_text.count('"') + after_text.count('"')
+            
+            # If odd number of quotes before AND after, we're inside a quote
+            # Also check for direct quote patterns
+            if quotes_before % 2 == 1 and quotes_after % 2 == 1:
+                log.debug("skipping_quoted_temporal", 
+                          text=ent_text, 
+                          reason="inside quotation marks",
+                          channel="TEMPORAL")
+                continue
+            
+            # Also skip single-word vague date references that aren't standalone
+            # e.g., "today" in "Not today" or "yesterday" in a sentence without other markers
+            if ent_text.lower() in ('today', 'yesterday', 'tomorrow'):
+                # Check if it's part of a longer phrase like "Not today"
+                context = text[max(0, ent.start_char - 10):min(len(text), ent.end_char + 10)].lower()
+                if 'not ' in context or "n't " in context or 'never ' in context:
+                    log.debug("skipping_negated_temporal", 
+                              text=ent_text, 
+                              reason="negated context",
+                              channel="TEMPORAL")
+                    continue
             
             seen_spans.add(span_key)
             

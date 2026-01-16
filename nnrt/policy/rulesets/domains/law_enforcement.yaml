@@ -61,12 +61,22 @@ rules:
   - id: le_violent_cop
     category: law_enforcement
     priority: 75
-    description: "Replace 'violent cop' compound"
+    description: "Replace 'violent cop' (singular) compound"
     match:
       type: phrase
-      patterns: ["violent cop", "violent cops", "violent officer", "violent officers"]
+      patterns: ["violent cop", "violent officer"]
     action: replace
     replacement: "officer"
+
+  - id: le_violent_cops
+    category: law_enforcement
+    priority: 75
+    description: "Replace 'violent cops' (plural) compound"
+    match:
+      type: phrase
+      patterns: ["violent cops", "violent officers"]
+    action: replace
+    replacement: "officers"
 
   - id: le_violent_modifier
     category: law_enforcement

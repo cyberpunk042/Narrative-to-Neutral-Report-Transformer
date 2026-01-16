@@ -57,6 +57,49 @@ class SectionRegistry:
         cls._rendered.clear()
 
 
+def _deduplicate_statements(statements: List[str]) -> List[str]:
+    """
+    Remove duplicate and subsument statements.
+    
+    If one statement is a substring of another, keep only the longer one.
+    Also removes exact duplicates.
+    
+    Example:
+        ["I froze in place", "I was so scared I froze in place"]
+        -> ["I was so scared I froze in place"]
+    """
+    if not statements:
+        return []
+    
+    # Normalize for comparison
+    unique: List[str] = []
+    seen_lower: Set[str] = set()
+    
+    # Sort by length descending - longer statements first
+    sorted_stmts = sorted(statements, key=len, reverse=True)
+    
+    for stmt in sorted_stmts:
+        stmt_lower = stmt.lower().strip()
+        
+        # Skip exact duplicates (case-insensitive)
+        if stmt_lower in seen_lower:
+            continue
+        
+        # Skip if this is a substring of something we've already kept
+        is_substring = False
+        for kept in seen_lower:
+            if stmt_lower in kept:
+                is_substring = True
+                break
+        
+        if not is_substring:
+            unique.append(stmt)
+            seen_lower.add(stmt_lower)
+    
+    # Return in original order (longest first was just for processing)
+    return unique
+
+
 def format_structured_output(
     rendered_text: str,
     atomic_statements: List[Any],
@@ -379,6 +422,14 @@ def format_structured_output(
         # V4: Group by epistemic type for observation split
         epistemic = getattr(stmt, 'epistemic_type', 'unknown')
         statements_by_epistemic[epistemic].append(text)
+    
+    # =========================================================================
+    # V7: Deduplicate all statement lists to remove fragments/substrings
+    # =========================================================================
+    for key in statements_by_type:
+        statements_by_type[key] = _deduplicate_statements(statements_by_type[key])
+    for key in statements_by_epistemic:
+        statements_by_epistemic[key] = _deduplicate_statements(statements_by_epistemic[key])
     
     # =========================================================================
     # V4: OBSERVED EVENTS - Quality filter: only camera-friendly statements

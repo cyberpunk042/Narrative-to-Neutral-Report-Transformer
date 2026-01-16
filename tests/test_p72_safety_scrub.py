@@ -27,7 +27,8 @@ class TestSafetyScrubPatterns:
         ("This was racial profiling", True),
         ("This was clearly racial profiling", True),
         ("This was police brutality", True),
-        ("They used excessive force", True),
+        # Note: "excessive force" is now handled by policy interp_excessive rule
+        # ("They used excessive force", True),  # Handled by policy, not safety scrub
         ("Officer approached me", False),  # Neutral - no change
     ])
     def test_legal_scrub_applied(self, input_text, should_change):

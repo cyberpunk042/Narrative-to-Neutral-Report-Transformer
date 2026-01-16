@@ -334,7 +334,11 @@ def _extract_clauses(doc, segment) -> list[dict]:
             
             # Sort by position and reconstruct text
             clause_tokens.sort(key=lambda t: t.i)
-            clause_text = " ".join(t.text for t in clause_tokens).strip()
+            
+            # Use text_with_ws to preserve original spacing (handles contractions)
+            # text_with_ws includes the whitespace after each token
+            clause_text = "".join(t.text_with_ws for t in clause_tokens).strip()
+            
             # Use first token's start and last token's end for span tracking
             start_idx = clause_tokens[0].idx
             end_idx = clause_tokens[-1].idx + len(clause_tokens[-1].text)
@@ -353,7 +357,8 @@ def _extract_clauses(doc, segment) -> list[dict]:
             
             # Sort by position and reconstruct text
             clause_tokens.sort(key=lambda t: t.i)
-            clause_text = " ".join(t.text for t in clause_tokens).strip()
+            # Use text_with_ws to preserve original spacing (contractions)
+            clause_text = "".join(t.text_with_ws for t in clause_tokens).strip()
             start_idx = clause_tokens[0].idx
             end_idx = clause_tokens[-1].idx + len(clause_tokens[-1].text)
             
@@ -370,7 +375,8 @@ def _extract_clauses(doc, segment) -> list[dict]:
             
             # Sort by position and reconstruct text
             subtree.sort(key=lambda t: t.i)
-            clause_text = " ".join(t.text for t in subtree).strip()
+            # Use text_with_ws to preserve original spacing (contractions)
+            clause_text = "".join(t.text_with_ws for t in subtree).strip()
             start_idx = subtree[0].idx
             end_idx = subtree[-1].idx + len(subtree[-1].text)
         

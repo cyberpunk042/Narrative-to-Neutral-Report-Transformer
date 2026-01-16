@@ -47,8 +47,7 @@ LEGAL_SCRUB_PATTERNS = [
      "-- reporter characterizes conduct as brutality --"),
     
     # V5: Legal terms that must be attributed
-    (r'\bexcessive\s+force\b',
-     "-- reporter describes force as excessive --"),
+    # Note: "excessive force" is handled by policy interp_excessive rule
     (r'\bfalse\s+arrest\b',
      "-- reporter characterizes arrest as false --"),
     (r'\bunlawful\s+(detention|stop|search|arrest)\b',
@@ -143,24 +142,30 @@ CONSPIRACY_SCRUB_PATTERNS = [
 
 # Invective to remove or neutralize
 INVECTIVE_SCRUB_PATTERNS = [
-    (r'\bthug\s+cop[s]?', "officer"),
-    (r'\bdirty\s+cop[s]?', "officer"),
-    (r'\bcorrupt\s+cop[s]?', "officer"),
-    (r'\bpsychotic', ""),
-    (r'\bmaniac', ""),
-    (r'\bsadist(ic)?', ""),
-    (r'\bmonster', ""),
-    (r'\bfascist', ""),
-    (r'\bbrutally', ""),
-    (r'\bviciously', ""),
-    (r'\bsavagely', ""),
+    # Preserve plural forms: "thug cops" → "officers", "thug cop" → "officer"
+    (r'\bthug\s+cops\b', "officers"),
+    (r'\bthug\s+cop\b', "officer"),
+    (r'\bdirty\s+cops\b', "officers"),
+    (r'\bdirty\s+cop\b', "officer"),
+    (r'\bcorrupt\s+cops\b', "officers"),
+    (r'\bcorrupt\s+cop\b', "officer"),
+    (r'\bviolent\s+cops\b', "officers"),
+    (r'\bviolent\s+cop\b', "officer"),
+    (r'\bpsychotic\s*,?\s*', ""),  # Remove with possible trailing comma/space
+    (r'\bmaniac\s*', ""),
+    (r'\bsadist(ic)?\s*', ""),
+    (r'\bmonster\s*', ""),
+    (r'\bfascist\s*', ""),
+    (r'\bbrutally\s*', ""),
+    (r'\bviciously\s*', ""),
+    (r'\bsavagely\s*', ""),
     # V5 STRESS TEST: Additional invective patterns  
     (r'\bbrutal,?\s*', ""),  # "brutal, psychotic cops" or "brutal cops"
     (r'\bviolent\s+offender\b', "individual with history"),
     (r'\bcriminal\s+behavior\b', "alleged conduct"),
     (r'\bhorrifying\b', "concerning"),
     (r'\bmenacingly\b', ""),
-    (r'\baggressively\b', ""),
+    (r'\baggressively\b', "in a manner described as aggressive"),
     (r'\btorture\b', "treatment"),
 ]
 
@@ -211,11 +216,15 @@ def safety_scrub(ctx: TransformContext) -> TransformContext:
             scrub_count += count
             log.info("invective_scrub", pattern=pattern[:30], count=count)
     
-    # Clean up artifacts
+    # Always clean up artifacts (article agreement, double spaces, etc.)
+    # This must run even if no scrubs were applied, since policy may have
+    # created issues like "an person" (when "innocent" was removed)
     scrubbed = _clean_artifacts(scrubbed)
     
+    # Always update the rendered text with the cleaned version
+    ctx.rendered_text = scrubbed
+    
     if scrub_count > 0:
-        ctx.rendered_text = scrubbed
         log.info("safety_scrub_complete", 
             scrubs_applied=scrub_count,
             original_len=len(original),
@@ -255,6 +264,11 @@ def _clean_artifacts(text: str) -> str:
     
     # Remove leftover "-- --" patterns
     result = re.sub(r'--\s*--', '', result)
+    
+    # Fix article agreement: "an person" → "a person", "a individual" → "an individual"
+    # When a word is removed, we may have wrong article
+    result = re.sub(r'\ban\s+([bcdfghjklmnpqrstvwxyzBCDFGHJKLMNPQRSTVWXYZ])', r'a \1', result)
+    result = re.sub(r'\ba\s+([aeiouAEIOU])', r'an \1', result)
     
     # Trim extra whitespace
     result = result.strip()
