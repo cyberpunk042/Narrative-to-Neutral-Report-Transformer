@@ -148,6 +148,9 @@ def transform():
                 events=result.events,
                 identifiers=result.identifiers,
                 metadata={'mode': mode, 'pipeline': pipeline_id},
+                # V6: Timeline and gap data
+                timeline=result.timeline,
+                time_gaps=result.time_gaps,
             )
         elif mode == 'raw':
             # Raw mode: Simple neutralization with disclaimer
@@ -463,6 +466,9 @@ def transform_stream():
                     events=result.events,
                     identifiers=result.identifiers,
                     metadata={'mode': mode, 'pipeline': pipeline_id},
+                    # V6: Timeline and gap data
+                    timeline=result.timeline,
+                    time_gaps=result.time_gaps,
                 )
             elif mode == 'raw':
                 disclaimer = "═" * 70 + "\n"

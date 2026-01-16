@@ -61,6 +61,9 @@ def run_stress_test():
         entities=result.entities,
         events=result.events,
         identifiers=result.identifiers,
+        # V6: Timeline data
+        timeline=result.timeline,
+        time_gaps=result.time_gaps,
     )
     
     # =========================================================================

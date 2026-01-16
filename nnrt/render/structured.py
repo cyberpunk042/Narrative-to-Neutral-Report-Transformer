@@ -969,6 +969,68 @@ def format_structured_output(
             lines.append(f"      ⚠️ Gaps needing investigation: {investigation_count}")
         lines.append("")
     
+    # ==========================================================================
+    # V6: INVESTIGATION QUESTIONS SECTION
+    # ==========================================================================
+    try:
+        from nnrt.v6.questions import generate_all_questions
+        
+        question_set = generate_all_questions(
+            time_gaps=time_gaps,
+            atomic_statements=atomic_statements,
+            events=events,
+        )
+        
+        if question_set.total_count > 0:
+            lines.append("─" * 70)
+            lines.append("")
+            lines.append("INVESTIGATION QUESTIONS")
+            lines.append("─" * 70)
+            lines.append("Auto-generated questions for investigator follow-up:")
+            lines.append("")
+            
+            # Priority icons
+            priority_icons = {
+                'critical': '🔴',
+                'high': '🟠',
+                'medium': '🟡',
+                'low': '⚪',
+            }
+            
+            # Show critical and high priority questions
+            shown = 0
+            for q in question_set.questions:
+                if shown >= 10:
+                    remaining = question_set.total_count - shown
+                    if remaining > 0:
+                        lines.append(f"  ... and {remaining} more questions (see full report)")
+                    break
+                
+                priority_val = q.priority.value if hasattr(q.priority, 'value') else str(q.priority)
+                icon = priority_icons.get(priority_val, '○')
+                category_val = q.category.value if hasattr(q.category, 'value') else str(q.category)
+                
+                lines.append(f"  {icon} [{priority_val.upper()}] {category_val.replace('_', ' ').title()}")
+                lines.append(f"     {q.text}")
+                if q.related_text:
+                    excerpt = q.related_text[:50] + "..." if len(q.related_text) > 50 else q.related_text
+                    lines.append(f"     Context: \"{excerpt}\"")
+                lines.append("")
+                shown += 1
+            
+            # Summary
+            lines.append(f"  📊 Question Summary: {question_set.total_count} total")
+            if question_set.critical_count > 0:
+                lines.append(f"      🔴 Critical: {question_set.critical_count}")
+            if question_set.high_count > 0:
+                lines.append(f"      🟠 High Priority: {question_set.high_count}")
+            lines.append("")
+    except ImportError:
+        pass  # V6 questions module not available
+    except Exception as e:
+        # Don't crash render if question generation fails
+        pass
+    
     # === V5: RAW NEUTRALIZED NARRATIVE ===
     if rendered_text:
         lines.append("─" * 70)

@@ -32,7 +32,7 @@ from nnrt.passes import (
 )
 from nnrt.passes.p42_coreference import resolve_coreference
 from nnrt.passes.p43_resolve_actors import resolve_actors
-from nnrt.passes.p44_timeline import build_timeline
+from nnrt.passes.p44_timeline_v6 import build_enhanced_timeline as build_timeline
 from nnrt.passes.p46_group_statements import group_statements
 from nnrt.passes.p48_classify_evidence import classify_evidence
 from nnrt.passes.p27_epistemic_tag import tag_epistemic
