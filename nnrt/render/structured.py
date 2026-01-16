@@ -64,6 +64,9 @@ def format_structured_output(
     events: List[Any],
     identifiers: List[Any],
     metadata: Dict[str, Any] = None,
+    # V6: Timeline and gap data (optional for backward compatibility)
+    timeline: List[Any] = None,
+    time_gaps: List[Any] = None,
 ) -> str:
     """
     Format transform result as an official structured report.
@@ -75,6 +78,8 @@ def format_structured_output(
         events: List of Event objects
         identifiers: List of Identifier objects
         metadata: Optional metadata dict
+        timeline: V6 - Optional list of TimelineEntry objects
+        time_gaps: V6 - Optional list of TimeGap objects
     
     Returns:
         Plain text formatted as official report
@@ -817,6 +822,152 @@ def format_structured_output(
             lines.append(f"  📊 Event Validation: {passed}/{total} passed ({100*passed//total}%)")
             lines.append(f"  ⚠️ Validated events list disabled pending event extraction fixes")
             lines.append("")
+    
+    # ==========================================================================
+    # V6: RECONSTRUCTED TIMELINE SECTION
+    # ==========================================================================
+    if timeline and len(timeline) > 0:
+        lines.append("─" * 70)
+        lines.append("")
+        lines.append("RECONSTRUCTED TIMELINE")
+        lines.append("─" * 70)
+        lines.append("Events ordered by reconstructed chronology. Day offsets show multi-day span.")
+        lines.append("")
+        
+        # Group entries by day
+        entries_by_day = {}
+        for entry in timeline:
+            day = getattr(entry, 'day_offset', 0)
+            if day not in entries_by_day:
+                entries_by_day[day] = []
+            entries_by_day[day].append(entry)
+        
+        # Map event IDs to descriptions
+        event_map = {e.id: e for e in events} if events else {}
+        
+        # Gap map for investigation markers
+        gap_map = {}
+        investigation_count = 0
+        if time_gaps:
+            for gap in time_gaps:
+                gap_map[gap.before_entry_id] = gap
+                if getattr(gap, 'requires_investigation', False):
+                    investigation_count += 1
+        
+        # Render each day
+        for day_offset in sorted(entries_by_day.keys()):
+            day_entries = entries_by_day[day_offset]
+            
+            # Day header
+            if day_offset == 0:
+                day_label = "INCIDENT DAY (Day 0)"
+            elif day_offset == 1:
+                day_label = "NEXT DAY (Day 1)"
+            elif day_offset < 7:
+                day_label = f"DAY {day_offset}"
+            elif day_offset < 30:
+                weeks = day_offset // 7
+                day_label = f"~{weeks} WEEK{'S' if weeks > 1 else ''} LATER (Day {day_offset})"
+            elif day_offset < 100:
+                months = day_offset // 30
+                day_label = f"~{months} MONTH{'S' if months > 1 else ''} LATER (Day {day_offset})"
+            else:
+                months = day_offset // 30
+                day_label = f"~{months} MONTHS LATER (Day {day_offset})"
+            
+            lines.append(f"  ┌─── {day_label} ───")
+            lines.append("  │")
+            
+            for entry in day_entries:
+                # Get event description
+                event = event_map.get(entry.event_id) if entry.event_id else None
+                desc = getattr(event, 'description', entry.event_id or 'Unknown event')[:50] if event else entry.event_id or 'Unknown'
+                
+                # Time info
+                time_info = ""
+                if entry.normalized_time:
+                    # Convert T23:30:00 to 11:30 PM display
+                    time_val = entry.normalized_time
+                    try:
+                        import re
+                        match = re.match(r'T(\d{2}):(\d{2})', time_val)
+                        if match:
+                            h, m = int(match.group(1)), int(match.group(2))
+                            ampm = "AM" if h < 12 else "PM"
+                            h = h % 12 or 12
+                            time_info = f"[{h}:{m:02d} {ampm}] "
+                    except:
+                        time_info = f"[{time_val}] "
+                elif entry.absolute_time:
+                    time_info = f"[{entry.absolute_time}] "
+                elif entry.relative_time:
+                    time_info = f"[{entry.relative_time}] "
+                
+                # Source indicator
+                source = getattr(entry, 'time_source', None)
+                source_icon = ""
+                if source:
+                    source_val = source.value if hasattr(source, 'value') else str(source)
+                    if source_val == 'explicit':
+                        source_icon = "⏱️"  # Explicit time
+                    elif source_val == 'relative':
+                        source_icon = "⟳"  # Relative/derived
+                    else:
+                        source_icon = "○"  # Inferred
+                
+                # Check for gap before this entry
+                gap_marker = ""
+                if entry.id in gap_map:
+                    gap = gap_map[entry.id]
+                    if getattr(gap, 'requires_investigation', False):
+                        gap_marker = " ⚠️ "
+                
+                lines.append(f"  │  {source_icon} {time_info}{gap_marker}{desc}")
+            
+            lines.append("  │")
+        
+        lines.append("  └─────────────────────────────")
+        
+        # Legend
+        lines.append("")
+        lines.append("  Legend: ⏱️=explicit time  ⟳=relative time  ○=inferred  ⚠️=gap needs investigation")
+        lines.append("")
+        
+        # Investigation questions if any
+        if investigation_count > 0 and time_gaps:
+            lines.append("  ⚠️ TIMELINE GAPS REQUIRING INVESTIGATION:")
+            lines.append("")
+            
+            gap_num = 1
+            for gap in time_gaps:
+                if getattr(gap, 'requires_investigation', False):
+                    question = getattr(gap, 'suggested_question', 'What happened during this gap?')
+                    gap_type = getattr(gap, 'gap_type', None)
+                    gap_type_val = gap_type.value if hasattr(gap_type, 'value') else str(gap_type)
+                    
+                    lines.append(f"    {gap_num}. [{gap_type_val.upper()}] {question}")
+                    gap_num += 1
+                    
+                    if gap_num > 5:  # Limit display
+                        remaining = investigation_count - 5
+                        if remaining > 0:
+                            lines.append(f"    ... and {remaining} more gaps to investigate")
+                        break
+            
+            lines.append("")
+        
+        # Summary stats
+        explicit_count = sum(1 for e in timeline if getattr(e, 'time_source', None) and 
+                           (getattr(e.time_source, 'value', str(e.time_source)) == 'explicit'))
+        relative_count = sum(1 for e in timeline if getattr(e, 'time_source', None) and 
+                           (getattr(e.time_source, 'value', str(e.time_source)) == 'relative'))
+        inferred_count = len(timeline) - explicit_count - relative_count
+        
+        lines.append(f"  📊 Timeline: {len(timeline)} events across {len(entries_by_day)} day(s)")
+        lines.append(f"      ⏱️ Explicit times: {explicit_count}  ⟳ Relative: {relative_count}  ○ Inferred: {inferred_count}")
+        if investigation_count > 0:
+            lines.append(f"      ⚠️ Gaps needing investigation: {investigation_count}")
+        lines.append("")
     
     # === V5: RAW NEUTRALIZED NARRATIVE ===
     if rendered_text:
