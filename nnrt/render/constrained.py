@@ -65,6 +65,9 @@ _tokenizer = None
 _loaded_model_name: Optional[str] = None
 
 
+DEFAULT_MODEL = "google/flan-t5-small"
+
+
 @dataclass
 class RenderCandidate:
     """A candidate rendering from the LLM."""
