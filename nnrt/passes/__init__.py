@@ -12,6 +12,8 @@ from nnrt.passes.p30_extract_identifiers import extract_identifiers
 from nnrt.passes.p32_extract_entities import extract_entities
 from nnrt.passes.p34_extract_events import extract_events
 from nnrt.passes.p40_build_ir import build_ir
+from nnrt.passes.p42_coreference import resolve_coreference
+from nnrt.passes.p43_resolve_actors import resolve_actors
 from nnrt.passes.p50_policy import evaluate_policy
 from nnrt.passes.p60_augment_ir import augment_ir
 from nnrt.passes.p70_render import render
@@ -31,6 +33,8 @@ __all__ = [
     "extract_entities",
     "extract_events",
     "build_ir",
+    "resolve_coreference",
+    "resolve_actors",
     "evaluate_policy",
     "augment_ir",
     "render",

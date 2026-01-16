@@ -746,10 +746,11 @@ def format_structured_output(
             lines.append("")
     
     # =========================================================================
-    # V6: RECORDED EVENTS with Invariant Validation
+    # V6: EVENT VALIDATION (Quarantine Only)
     # =========================================================================
-    # Events MUST pass invariants to render in main section.
-    # Failed events go to quarantine bucket with explicit issues.
+    # CRITICAL: The "validated events" section was generating incorrect facts
+    # (wrong actor attributions, misattributed actions). Until event extraction
+    # is fixed upstream, we ONLY show quarantine stats - no validated list.
     # =========================================================================
     
     if events:
@@ -774,64 +775,29 @@ def format_structured_output(
             
             # Separate HARD failures from SOFT warnings
             hard_failures = [r for r in results if not r.passes and r.severity == InvariantSeverity.HARD]
-            soft_warnings = [r for r in results if not r.passes and r.severity == InvariantSeverity.SOFT]
             
             if hard_failures:
-                # Quarantine: event fails HARD invariants
                 quarantined_events.append((event, hard_failures))
             else:
-                # Validated: event passes all HARD invariants
-                validated_events.append((event, soft_warnings))
+                validated_events.append(event)
         
-        # Render validated events with Actor/Action/Target format
-        if validated_events:
-            lines.append("OBSERVED EVENTS (VALIDATED)")
-            lines.append("─" * 70)
-            lines.append("  ✅ Events with resolved actors (camera-friendly)")
-            lines.append("")
-            
-            seen = set()
-            for event, warnings in validated_events:
-                actor = getattr(event, 'actor_label', None)
-                action = getattr(event, 'action_verb', None)
-                target = getattr(event, 'target_label', None) or getattr(event, 'target_object', None)
-                
-                # Build event line
-                if actor and action:
-                    event_line = f"{actor} {action}"
-                    if target:
-                        event_line += f" {target}"
-                else:
-                    # Fallback to description
-                    event_line = getattr(event, 'description', str(event))[:80]
-                
-                # Dedupe
-                if event_line in seen:
-                    continue
-                seen.add(event_line)
-                
-                # Check if camera-friendly before rendering
-                if is_camera_friendly(event_line):
-                    lines.append(f"  • {event_line}")
-                    
-                    # Add soft warnings inline if any
-                    if warnings:
-                        warn_msgs = ", ".join(w.message for w in warnings)
-                        lines.append(f"      ⚠️ ({warn_msgs})")
-                else:
-                    # Not camera-friendly - add attribution
-                    lines.append(f"  • [Reporter description] {event_line}")
-            
-            lines.append("")
+        # NOTE: We do NOT render validated_events list because event extraction
+        # is generating incorrect actor assignments. This would introduce
+        # factual errors into the report. Example errors we were seeing:
+        # - "Officer Rodriguez call 911" (was actually Patricia Chen)
+        # - "Officer Jenkins document bruises" (was medical provider)
+        # - "Officer Rodriguez receive a letter" (was Reporter)
+        #
+        # The validated list will be restored when p34_extract_events is fixed.
         
-        # Render quarantined events with explicit issues
+        # Render quarantine info only
         if quarantined_events:
             lines.append("EVENTS (ACTOR UNRESOLVED)")
             lines.append("─" * 70)
             lines.append("  ⚠️ These events could not be validated for neutral rendering:")
             lines.append("")
             
-            for event, failures in quarantined_events[:15]:  # Limit display
+            for event, failures in quarantined_events[:10]:  # Limit display
                 desc = getattr(event, 'description', str(event))[:80]
                 issues = "; ".join(f.message for f in failures)
                 
@@ -839,16 +805,17 @@ def format_structured_output(
                 lines.append(f"      Issues: {issues}")
                 lines.append("")
             
-            if len(quarantined_events) > 15:
-                lines.append(f"  ... and {len(quarantined_events) - 15} more events with unresolved actors")
+            if len(quarantined_events) > 10:
+                lines.append(f"  ... and {len(quarantined_events) - 10} more events with unresolved actors")
                 lines.append("")
         
-        # Log validation stats
+        # Validation stats
         total = len(events)
         passed = len(validated_events)
         failed = len(quarantined_events)
         if total > 0:
             lines.append(f"  📊 Event Validation: {passed}/{total} passed ({100*passed//total}%)")
+            lines.append(f"  ⚠️ Validated events list disabled pending event extraction fixes")
             lines.append("")
     
     # === V5: RAW NEUTRALIZED NARRATIVE ===

@@ -34,6 +34,7 @@ def check_event_has_actor(event) -> InvariantResult:
         ✅ "Officer Jenkins yelled at Reporter"
         ❌ "He yelled at Reporter" (pronoun)
         ❌ "yelled at Reporter" (no actor)
+        ❌ "the brutal cops attacked" (characterization, not proper noun)
     """
     actor = getattr(event, 'actor_label', None)
     desc = getattr(event, 'description', str(event))[:100]
@@ -67,6 +68,45 @@ def check_event_has_actor(event) -> InvariantResult:
             failed_content=desc,
             quarantine_bucket="EVENTS_UNRESOLVED"
         )
+    
+    # V6: Check for characterization language - not a proper resolved actor
+    CHARACTERIZATION_WORDS = {
+        "brutal", "psychotic", "thug", "corrupt", "violent", "maniac",
+        "criminal", "crazy", "evil", "the cops", "the officers", "cops"
+    }
+    for word in CHARACTERIZATION_WORDS:
+        if word in actor_lower:
+            return InvariantResult(
+                passes=False,
+                invariant_id="EVENT_HAS_ACTOR",
+                message=f"Actor contains characterization: '{actor}'",
+                failed_content=desc,
+                quarantine_bucket="EVENTS_UNRESOLVED"
+            )
+    
+    # V6: Actor should start with proper noun pattern
+    # Valid: "Officer X", "Reporter", "Person Name"
+    # Invalid: "the car", "it all", etc.
+    if actor_lower.startswith("the ") and not any(t in actor_lower for t in ["officer", "reporter", "sergeant"]):
+        return InvariantResult(
+            passes=False,
+            invariant_id="EVENT_HAS_ACTOR",
+            message=f"Actor is generic descriptor: '{actor}'",
+            failed_content=desc,
+            quarantine_bucket="EVENTS_UNRESOLVED"
+        )
+    
+    # V6: Reject fragment-like actors
+    INVALID_ACTOR_STARTS = {"it all", "you ", "this ", "that ", "these "}
+    for start in INVALID_ACTOR_STARTS:
+        if actor_lower.startswith(start):
+            return InvariantResult(
+                passes=False,
+                invariant_id="EVENT_HAS_ACTOR",
+                message=f"Actor is not a proper noun: '{actor}'",
+                failed_content=desc,
+                quarantine_bucket="EVENTS_UNRESOLVED"
+            )
     
     return InvariantResult(
         passes=True,

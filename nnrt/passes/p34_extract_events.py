@@ -207,41 +207,62 @@ def _result_to_event(
     
     # Resolve actor
     actor_id = None
-    actor_label = result.actor_mention  # Default to raw mention
+    actor_label = None  # V6: Don't default to raw mention - must be resolved
     
     if result.actor_mention:
         mention_lower = result.actor_mention.lower().strip()
         
         if mention_lower in PRONOUNS:
-            # Try pronoun resolution
+            # V6: CRITICAL - Pronoun MUST be resolved or actor_label stays None
+            # This ensures events with unresolved pronouns fail the invariant
             resolved = resolve_pronoun(mention_lower, result.source_sentence)
             if resolved:
                 actor_id = resolved.id
                 actor_label = resolved.label
+            else:
+                # V6: Pronoun not resolved - leave actor_label as None
+                # This will cause the event to fail EVENT_HAS_ACTOR invariant
+                log.debug(
+                    "unresolved_pronoun_actor",
+                    pronoun=mention_lower,
+                    source=result.source_sentence[:50] if result.source_sentence else None,
+                )
         else:
-            # Direct lookup
+            # Not a pronoun - try direct lookup
             actor_ent = find_entity(result.actor_mention)
             if actor_ent:
                 actor_id = actor_ent.id
                 actor_label = actor_ent.label
+            else:
+                # V6: Named mention but not in entity lookup - use raw mention
+                # This is acceptable (e.g., "Officer Jenkins" not yet in entities)
+                actor_label = result.actor_mention
     
     # Resolve target
     target_id = None
-    target_label = result.target_mention
+    target_label = None  # V6: Don't default to raw mention for pronouns
+    target_object = None  # For non-entity targets like "the door"
     
     if result.target_mention:
         mention_lower = result.target_mention.lower().strip()
         
         if mention_lower in PRONOUNS:
+            # V6: Target is pronoun - must resolve or leave as None
             resolved = resolve_pronoun(mention_lower, result.source_sentence)
             if resolved:
                 target_id = resolved.id
                 target_label = resolved.label
+            # If not resolved, target_label stays None (pronoun dropped)
         else:
+            # Not a pronoun - try entity lookup
             target_ent = find_entity(result.target_mention)
             if target_ent:
                 target_id = target_ent.id
                 target_label = target_ent.label
+            else:
+                # V6: Non-pronoun target not in entities - it's likely an object
+                # e.g., "grabbed the door" -> target_object = "the door"
+                target_object = result.target_mention
     
     # V5: Build formatted description with resolved actors
     # Format: [ACTOR] [ACTION] [TARGET]
@@ -255,10 +276,13 @@ def _result_to_event(
         formatted_parts.append("[action]")
     if target_label:
         formatted_parts.append(target_label)
+    elif target_object:
+        formatted_parts.append(target_object)
     
     formatted_description = " ".join(formatted_parts) if formatted_parts else result.description
     
-    # Create Event IR object with V5 resolved fields
+    # V6: Create Event IR object with properly resolved fields
+    # actor_label is None if actor was unresolved pronoun -> fails invariant
     return Event(
         id=f"evt_{uuid4().hex[:8]}",
         type=result.type,
@@ -268,11 +292,11 @@ def _result_to_event(
         actor_id=actor_id,
         target_id=target_id,
         temporal_marker=None,
-        # V5: Resolved labels for rendering
-        actor_label=actor_label,
+        # V6: Resolved labels for rendering
+        actor_label=actor_label,  # None if unresolved pronoun
         action_verb=result.action_verb,
-        target_label=target_label if target_id else None,
-        target_object=result.target_mention if not target_id and result.target_mention else None,
+        target_label=target_label,  # None if unresolved pronoun
+        target_object=target_object,  # Non-entity target (e.g., "the door")
         is_uncertain=False,
     )
 

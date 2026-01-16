@@ -113,6 +113,14 @@ class AtomicStatement:
     # Extracted claim: The core factual claim extracted for attribution
     # Example: "racial profiling" extracted from "This was clearly racial profiling"
     extracted_claim: Optional[str] = None
+    
+    # =========================================================================
+    # V5: Actor Resolution
+    # =========================================================================
+    
+    # Actor-resolved text: The statement with pronouns replaced by entity names
+    # Example: "He grabbed my arm" → "Officer Jenkins grabbed reporter's arm"
+    actor_resolved_text: Optional[str] = None
 
 
 
