@@ -1,7 +1,10 @@
 # V6 Timeline Reconstruction — Research & Redesign
 
-## Status: 🔬 RESEARCH PHASE
+## Status: ✅ IMPLEMENTED (2026-01-16)
 ## Created: 2026-01-16
+
+> **See [/docs/v6_features.md](../v6_features.md) for usage documentation.**
+> **See [/examples/](../../examples/) for example scripts.**
 
 ---
 

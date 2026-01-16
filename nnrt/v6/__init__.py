@@ -8,6 +8,7 @@ V6 introduces three major features:
 
 Usage:
     from nnrt.v6.questions import generate_all_questions, QuestionSet
+    from nnrt.v6.comparison import compare_narratives, ComparisonResult
 """
 
 from nnrt.v6.questions import (
@@ -18,10 +19,27 @@ from nnrt.v6.questions import (
     QuestionCategory,
 )
 
+from nnrt.v6.comparison import (
+    compare_narratives,
+    format_comparison_report,
+    ComparisonResult,
+    ComparisonFinding,
+    ComparisonType,
+    SeverityLevel,
+)
+
 __all__ = [
+    # Questions
     "generate_all_questions",
     "QuestionSet",
     "InvestigationQuestion",
     "QuestionPriority",
     "QuestionCategory",
+    # Comparison
+    "compare_narratives",
+    "format_comparison_report",
+    "ComparisonResult",
+    "ComparisonFinding",
+    "ComparisonType",
+    "SeverityLevel",
 ]
