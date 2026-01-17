@@ -87,19 +87,46 @@ def check_event_has_actor(event) -> InvariantResult:
     # V6: Actor should start with proper noun pattern
     # Valid: "Officer X", "Reporter", "Person Name"
     # Invalid: "the car", "it all", etc.
-    if actor_lower.startswith("the ") and not any(t in actor_lower for t in ["officer", "reporter", "sergeant"]):
+    # V8.1: Allow "the officer", "the officers", "the cruiser" etc.
+    if actor_lower.startswith("the "):
+        allowed_entity_classes = [
+            "officer", "officers", "sergeant", "detective", "reporter",
+            "witness", "cruiser", "vehicle", "car", "person", "woman", "man",
+            "neighbor", "bystander", "people",
+        ]
+        if not any(t in actor_lower for t in allowed_entity_classes):
+            return InvariantResult(
+                passes=False,
+                invariant_id="EVENT_HAS_ACTOR",
+                message=f"Actor is generic descriptor: '{actor}'",
+                failed_content=desc,
+                quarantine_bucket="EVENTS_UNRESOLVED"
+            )
+    
+    # V8.1: "this/that + entity class" are valid actors
+    # "this unmarked police cruiser" -> valid (vehicle entity class)
+    # "this officer" -> valid
+    # "it all" -> invalid
+    ENTITY_CLASS_WORDS = {
+        "cruiser", "vehicle", "car", "officer", "officers", "person", "woman", "man",
+        "police", "patrol", "ambulance", "witness", "bystander",
+    }
+    
+    # Only reject truly invalid actor patterns
+    if actor_lower.startswith("it "):
+        # "it all started" - not an actor
         return InvariantResult(
             passes=False,
             invariant_id="EVENT_HAS_ACTOR",
-            message=f"Actor is generic descriptor: '{actor}'",
+            message=f"Actor is not a proper noun: '{actor}'",
             failed_content=desc,
             quarantine_bucket="EVENTS_UNRESOLVED"
         )
     
-    # V6: Reject fragment-like actors
-    INVALID_ACTOR_STARTS = {"it all", "you ", "this ", "that ", "these "}
-    for start in INVALID_ACTOR_STARTS:
-        if actor_lower.startswith(start):
+    if actor_lower.startswith(("this ", "that ", "these ")):
+        # Check if it contains an entity class word
+        has_entity_class = any(ec in actor_lower for ec in ENTITY_CLASS_WORDS)
+        if not has_entity_class:
             return InvariantResult(
                 passes=False,
                 invariant_id="EVENT_HAS_ACTOR",

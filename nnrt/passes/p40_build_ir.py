@@ -114,17 +114,28 @@ def build_ir(ctx: TransformContext) -> TransformContext:
                 speaker_label = None
                 for child in token.children:
                     if child.dep_ == "nsubj":
-                        # Try to match to existing entity
-                        speaker_id = _resolve_speaker(child.text, entities)
-                        if speaker_id:
-                            # Get the label from the resolved entity
+                        subject_text = child.text.lower()
+                        
+                        # V8.1: "I" in first-person narrative = Reporter
+                        if subject_text == "i":
+                            speaker_label = "Reporter"
+                            # Try to find Reporter entity
                             for ent in entities:
-                                if ent.id == speaker_id:
-                                    speaker_label = ent.label
+                                if ent.role and ent.role.value == "reporter":
+                                    speaker_id = ent.id
                                     break
-                        if not speaker_label:
-                            # Use the text itself as label if not resolved
-                            speaker_label = child.text
+                        else:
+                            # Try to match to existing entity
+                            speaker_id = _resolve_speaker(child.text, entities)
+                            if speaker_id:
+                                # Get the label from the resolved entity
+                                for ent in entities:
+                                    if ent.id == speaker_id:
+                                        speaker_label = ent.label
+                                        break
+                            if not speaker_label:
+                                # Use the text itself as label if not resolved
+                                speaker_label = child.text
                 
                 # Extract quoted content if present
                 content = _extract_speech_content(segment.text)

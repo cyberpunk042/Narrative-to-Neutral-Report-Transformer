@@ -151,6 +151,8 @@ def transform():
                 # V6: Timeline and gap data
                 timeline=result.timeline,
                 time_gaps=result.time_gaps,
+                # V9: Segments for event generator
+                segments=result.segments,
             )
         elif mode == 'raw':
             # Raw mode: Simple neutralization with disclaimer
@@ -469,6 +471,8 @@ def transform_stream():
                     # V6: Timeline and gap data
                     timeline=result.timeline,
                     time_gaps=result.time_gaps,
+                    # V9: Segments for event generator
+                    segments=result.segments,
                 )
             elif mode == 'raw':
                 disclaimer = "═" * 70 + "\n"

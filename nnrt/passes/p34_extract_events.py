@@ -67,6 +67,9 @@ def extract_events(ctx: TransformContext) -> TransformContext:
     # Build Entity Lookup for linking
     text_to_entity = _build_entity_lookup(ctx.entities)
 
+    # V9: Track previous segment for cross-sentence pronoun resolution
+    previous_segment_text = None
+    
     # Process each segment using the interface
     for segment in ctx.segments:
         # Use the interface - not direct spaCy
@@ -74,9 +77,17 @@ def extract_events(ctx: TransformContext) -> TransformContext:
         
         # Convert extraction results to Event IR objects
         for result in extraction_results:
-            event = _result_to_event(result, text_to_entity, segment.id)
+            event = _result_to_event(
+                result, 
+                text_to_entity, 
+                segment.id,
+                previous_segment_text=previous_segment_text,  # V9: Pass context
+            )
             if event:
                 events.append(event)
+        
+        # V9: Update previous segment for next iteration
+        previous_segment_text = segment.text
 
     ctx.events = events
     
@@ -129,12 +140,13 @@ def _build_entity_lookup(entities: List[Entity]) -> Dict[str, Entity]:
 def _result_to_event(
     result: EventExtractResult,
     entity_lookup: Dict[str, Entity],
-    segment_id: str
+    segment_id: str,
+    previous_segment_text: str = None,  # V9: Previous segment for pronoun context
 ) -> Optional[Event]:
     """
     Convert an EventExtractResult to an Event IR object.
     
-    V5: Enhanced with pronoun resolution using source_sentence context.
+    V9: Enhanced with cross-sentence pronoun resolution using previous segment.
     """
     # V5: Pronouns that need resolution
     PRONOUNS = {'he', 'she', 'they', 'it', 'him', 'her', 'them', 'i', 'we'}
@@ -171,38 +183,118 @@ def _result_to_event(
     
     def resolve_pronoun(pronoun: str, source_sentence: str) -> Optional[Entity]:
         """
-        V5: Resolve pronoun using context from source sentence.
+        V9: Improved pronoun resolution with gender-awareness and better context.
         
-        Strategy: Look for named entities mentioned in the same sentence.
+        Strategy:
+        1. 'I'/'me' → Always Reporter
+        2. 'she'/'her' → Look for female entities (Mrs., Woman, etc.)
+        3. 'he'/'him' → Look for male entities (Officer, Mr., etc.)
+        4. 'they'/'them' → Multiple officers or unresolved
         """
         if not source_sentence:
             return None
         
+        pronoun_lower = pronoun.lower().strip()
         sentence_lower = source_sentence.lower()
         
-        # Find entities mentioned in the sentence
-        mentioned_entities = []
-        for key, ent in entity_lookup.items():
-            if key in sentence_lower and not key in PRONOUNS:
-                mentioned_entities.append(ent)
-        
-        # If exactly one entity found, resolve to it
-        if len(mentioned_entities) == 1:
-            return mentioned_entities[0]
-        
-        # If pronoun is 'I', look for reporter entity
-        if pronoun.lower() == 'i':
+        # =================================================================
+        # RULE 1: First-person pronouns → Reporter
+        # =================================================================
+        if pronoun_lower in {'i', 'me', 'my', 'myself'}:
             for ent in entity_lookup.values():
                 if ent.role == EntityRole.REPORTER:
                     return ent
+            return None  # If no Reporter entity, leave unresolved
         
-        # For 'he', prefer officers if sentence mentions police context
-        if pronoun.lower() in {'he', 'him'}:
-            if 'officer' in sentence_lower or 'jenkins' in sentence_lower or 'rodriguez' in sentence_lower:
-                for ent in mentioned_entities:
-                    if ent.role == EntityRole.SUBJECT_OFFICER:
-                        return ent
+        # =================================================================
+        # RULE 2: Find named entities mentioned in sentence
+        # Only match FULL entity labels, not partial word matches
+        # =================================================================
+        mentioned_entities = []
+        for key, ent in entity_lookup.items():
+            # Skip pronouns and short words
+            if key in PRONOUNS or len(key) < 3:
+                continue
+            # Skip if already in list
+            if ent in mentioned_entities:
+                continue
+            # Match only full words (prevents "police officers" matching "Officer Rodriguez")
+            import re
+            if re.search(r'\b' + re.escape(key) + r'\b', sentence_lower):
+                # Skip generic terms that shouldn't match to specific entities
+                if key in {'officer', 'officers', 'police', 'cops', 'cop', 'sergeant'}:
+                    continue
+                mentioned_entities.append(ent)
         
+        # =================================================================
+        # RULE 3: Gender-based resolution for 'she'/'her'
+        # V9: Also look in previous segment if not found in current
+        # =================================================================
+        if pronoun_lower in {'she', 'her', 'herself'}:
+            # Look for female entities in current sentence
+            for ent in mentioned_entities:
+                label = ent.label.lower()
+                # Female indicators
+                if any(x in label for x in ['mrs', 'ms', 'miss', 'woman', 'lady']):
+                    return ent
+                # Female first names (common)
+                FEMALE_NAMES = {'patricia', 'amanda', 'sarah', 'jennifer', 'maria', 'linda', 'susan'}
+                if any(name in label for name in FEMALE_NAMES):
+                    return ent
+            
+            # V9: If not found in current sentence, check previous segment
+            if previous_segment_text:
+                prev_lower = previous_segment_text.lower()
+                for key, ent in entity_lookup.items():
+                    if key in PRONOUNS or len(key) < 3:
+                        continue
+                    if key in {'officer', 'officers', 'police', 'cops', 'cop', 'sergeant'}:
+                        continue
+                    import re
+                    if re.search(r'\b' + re.escape(key) + r'\b', prev_lower):
+                        label = ent.label.lower()
+                        # Check for female entity
+                        if any(x in label for x in ['mrs', 'ms', 'miss', 'woman', 'lady']):
+                            return ent
+                        FEMALE_NAMES = {'patricia', 'amanda', 'sarah', 'jennifer', 'maria', 'linda', 'susan'}
+                        if any(name in label for name in FEMALE_NAMES):
+                            return ent
+            
+            # If no female entity found, leave unresolved
+            return None
+        
+        # =================================================================
+        # RULE 4: Gender-based resolution for 'he'/'him'
+        # =================================================================
+        if pronoun_lower in {'he', 'him', 'his', 'himself'}:
+            # Look for male entities in sentence
+            for ent in mentioned_entities:
+                label = ent.label.lower()
+                # Officer context
+                if 'officer' in label or 'sergeant' in label:
+                    return ent
+                # Male indicators
+                if any(x in label for x in ['mr', 'dr.']):
+                    return ent
+            # If only one entity mentioned, use it
+            if len(mentioned_entities) == 1:
+                return mentioned_entities[0]
+            return None
+        
+        # =================================================================
+        # RULE 5: 'they'/'them' - usually refers to police officers (multiple)
+        # =================================================================
+        if pronoun_lower in {'they', 'them', 'their', 'themselves'}:
+            # In police context, "they" usually means officers
+            if 'officer' in sentence_lower or 'police' in sentence_lower:
+                # Could return first officer, but safer to leave unresolved
+                return None
+            # If only one entity mentioned, could refer to it
+            if len(mentioned_entities) == 1:
+                return mentioned_entities[0]
+            return None
+        
+        # Default: unresolved
         return None
     
     # Resolve actor

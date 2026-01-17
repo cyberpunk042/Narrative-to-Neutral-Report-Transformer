@@ -54,12 +54,12 @@ rules:
   - id: cert_proves_phrase
     category: certainty
     priority: 76
-    description: "Soften 'which proves' logical conclusions"
+    description: "Transform 'which proves' to reporter conclusion"
     match:
       type: phrase
       patterns: ["which proves", "proves that", "this proves", "that proves"]
     action: replace
-    replacement: "which suggests"
+    replacement: "-- reporter concludes --"
 
   - id: cert_obvious_it_was
     category: certainty

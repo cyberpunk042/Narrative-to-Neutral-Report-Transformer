@@ -64,6 +64,8 @@ def run_stress_test():
         # V6: Timeline data
         timeline=result.timeline,
         time_gaps=result.time_gaps,
+        # V9: Segments for event generator
+        segments=result.segments,
     )
     
     # =========================================================================

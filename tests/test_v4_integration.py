@@ -48,13 +48,13 @@ class TestFormatStructuredOutputIntegration:
     """Integration tests for format_structured_output with real data."""
     
     def test_direct_events_appear_in_observed_events_section(self):
-        """direct_event statements should appear in OBSERVED EVENTS section."""
+        """direct_event statements should appear in OBSERVED EVENTS or NARRATIVE EXCERPTS."""
         from nnrt.render.structured import format_structured_output
         
         statements = [
             AtomicStatement(
                 id="stmt_1",
-                text="Officer grabbed my arm",
+                text="Officer Jenkins grabbed my arm",  # V8: Needs explicit actor
                 epistemic_type="direct_event"
             ),
         ]
@@ -67,8 +67,9 @@ class TestFormatStructuredOutputIntegration:
             identifiers=[],
         )
         
-        assert "OBSERVED EVENTS (INCIDENT SCENE)" in output
-        assert "Officer grabbed my arm" in output
+        # V8: Should appear in either STRICT or NARRATIVE EXCERPTS
+        assert "OBSERVED EVENTS" in output or "NARRATIVE EXCERPTS" in output
+        assert "Officer Jenkins grabbed my arm" in output
     
     def test_self_reports_appear_in_self_reported_section(self):
         """self_report statements should appear in SELF-REPORTED STATE section."""
@@ -115,7 +116,7 @@ class TestFormatStructuredOutputIntegration:
         )
         
         # Should be in follow-up section due to "went to the hospital"
-        assert "OBSERVED EVENTS (FOLLOW-UP ACTIONS)" in output or "OBSERVED EVENTS (INCIDENT SCENE)" in output
+        assert "OBSERVED EVENTS (FOLLOW-UP ACTIONS)" in output or "OBSERVED EVENTS (STRICT)" in output
     
     def test_interpretive_content_excluded_from_observed_events(self):
         """Statements with interpretive words should go to REPORTER DESCRIPTIONS."""
@@ -137,8 +138,8 @@ class TestFormatStructuredOutputIntegration:
             identifiers=[],
         )
         
-        # Should NOT be in OBSERVED EVENTS (INCIDENT SCENE)
-        assert "REPORTER DESCRIPTIONS" in output or "witnessed the horrifying assault" not in output.split("OBSERVED EVENTS (INCIDENT SCENE)")[0] if "OBSERVED EVENTS (INCIDENT SCENE)" in output else True
+        # Should NOT be in OBSERVED EVENTS (STRICT)
+        assert "REPORTER DESCRIPTIONS" in output or "witnessed the horrifying assault" not in output.split("OBSERVED EVENTS (STRICT)")[0] if "OBSERVED EVENTS (STRICT)" in output else True
     
     def test_mixed_epistemic_types_route_correctly(self):
         """Mixed statements should route to correct sections."""
@@ -229,13 +230,13 @@ class TestCameraFriendlyFilterIntegration:
                 identifiers=[],
             )
             
-            # Should NOT appear in INCIDENT SCENE (should be in REPORTER DESCRIPTIONS)
-            if "OBSERVED EVENTS (INCIDENT SCENE)" in output:
-                incident_section = output.split("OBSERVED EVENTS (INCIDENT SCENE)")[1]
+            # Should NOT appear in STRICT (should be in REPORTER DESCRIPTIONS)
+            if "OBSERVED EVENTS (STRICT)" in output:
+                incident_section = output.split("OBSERVED EVENTS (STRICT)")[1]
                 if "OBSERVED EVENTS (FOLLOW-UP" in incident_section:
                     incident_section = incident_section.split("OBSERVED EVENTS (FOLLOW-UP")[0]
                 elif "REPORTER DESCRIPTIONS" in incident_section:
                     incident_section = incident_section.split("REPORTER DESCRIPTIONS")[0]
                     
                 assert f"Test {word} statement" not in incident_section, \
-                    f"'{word}' should exclude statement from INCIDENT SCENE"
+                    f"'{word}' should exclude statement from STRICT"

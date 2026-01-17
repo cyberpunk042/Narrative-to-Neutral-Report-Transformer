@@ -100,12 +100,12 @@ rules:
   - id: le_no_reason
     category: law_enforcement
     priority: 90
-    description: "Soften 'for no reason'"
+    description: "Soften 'for no reason' with attribution"
     match:
       type: phrase
       patterns: ["for no reason", "for absolutely no reason", "without any reason"]
     action: replace
-    replacement: "without stated cause"
+    replacement: "-- reporter states no cause was given --"
 
   - id: le_was_clearly_looking_trouble
     category: law_enforcement

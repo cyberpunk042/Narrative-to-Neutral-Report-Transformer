@@ -2,7 +2,7 @@
 Tests for Observation Split - Rendered Report (render/structured.py)
 
 Tests the V4 observation section rendering:
-- OBSERVED EVENTS (INCIDENT SCENE) - camera-friendly only
+- OBSERVED EVENTS (STRICT - camera-friendly only
 - OBSERVED EVENTS (FOLLOW-UP ACTIONS) - post-incident
 - REPORTER DESCRIPTIONS - excluded content
 - SELF-REPORTED STATE - internal states
@@ -134,9 +134,9 @@ class TestRenderedSections:
     """Tests for the rendered output sections."""
     
     def test_observed_events_incident_scene_header(self):
-        """OBSERVED EVENTS (INCIDENT SCENE) header should be correct."""
-        expected_header = "OBSERVED EVENTS (INCIDENT SCENE)"
-        assert "INCIDENT SCENE" in expected_header
+        """OBSERVED EVENTS (STRICT) header should be correct."""
+        expected_header = "OBSERVED EVENTS (STRICT"
+        assert "STRICT" in expected_header
     
     def test_observed_events_follow_up_header(self):
         """OBSERVED EVENTS (FOLLOW-UP ACTIONS) header should be correct."""
@@ -160,18 +160,18 @@ class TestSectionOrdering:
     def test_expected_section_order(self):
         """Sections should appear in logical order."""
         expected_order = [
-            "OBSERVED EVENTS (INCIDENT SCENE)",
+            "OBSERVED EVENTS (STRICT",
             "OBSERVED EVENTS (FOLLOW-UP ACTIONS)",
             "REPORTER DESCRIPTIONS",
             "SELF-REPORTED STATE",
         ]
         
         # Just verify the order makes sense (incident before follow-up)
-        assert expected_order.index("OBSERVED EVENTS (INCIDENT SCENE)") < \
+        assert expected_order.index("OBSERVED EVENTS (STRICT") < \
                expected_order.index("OBSERVED EVENTS (FOLLOW-UP ACTIONS)")
         
         # Reporter descriptions after observed events
-        assert expected_order.index("OBSERVER EVENTS (INCIDENT SCENE)" if False else "OBSERVED EVENTS (INCIDENT SCENE)") < \
+        assert expected_order.index("OBSERVER EVENTS (INCIDENT SCENE)" if False else "OBSERVED EVENTS (STRICT") < \
                expected_order.index("REPORTER DESCRIPTIONS")
 
 

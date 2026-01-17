@@ -110,6 +110,8 @@ def format_structured_output(
     # V6: Timeline and gap data (optional for backward compatibility)
     timeline: List[Any] = None,
     time_gaps: List[Any] = None,
+    # V9: Segments needed for event generator
+    segments: List[Any] = None,
 ) -> str:
     """
     Format transform result as an official structured report.
@@ -419,53 +421,145 @@ def format_structured_output(
         
         return result.strip()
     
-    def is_camera_friendly(text: str, neutralized_text: str = None) -> bool:
+    def is_strict_camera_friendly(text: str) -> tuple[bool, str]:
         """
-        Check if statement is purely observational (no interpretive content).
+        V8: STRICT camera-friendly check for OBSERVED EVENTS section.
         
-        V7: Now checks the NEUTRALIZED text, so "They brutally slammed me"
-        becomes "They slammed me" which IS camera-friendly.
+        Returns (passed, failure_reason) tuple.
         
-        V4.3: Also requires proper subject (actor) for true camera-friendliness.
-        "twisted it behind my back" is not camera-friendly - WHO twisted?
+        V8.1: Fixed to check for named actors ANYWHERE in sentence, not just start.
+        "His partner, Officer Rodriguez..." passes because Officer Rodriguez is named.
         """
-        # Use neutralized text if provided, otherwise use original
-        check_text = neutralized_text if neutralized_text else text
-        text_lower = check_text.lower()
+        import re
+        text_lower = text.lower().strip()
+        words = text_lower.split()
         
-        # V7: Still check for remaining disqualifiers that couldn't be stripped
-        # (These are ones where stripping changes meaning too much)
-        REMAINING_DISQUALIFIERS = [
-            # Legal conclusions that change meaning  
-            'assault', 'assaulting', 'torture', 'terrorize', 'misconduct', 'violation',
-            'illegal', 'unlawful', 'criminal', 'guilty',
-            # Intent that can't be stripped
-            'wanted to', 'mocking', 'fishing', 'laughing at',
-            # Conspiracy language
-            'cover-up', 'coverup', 'whitewash', 'conspiracy', 'conspiring',
-            'hiding more', 'protect their own', 'always protect',
-        ]
-        
-        for word in REMAINING_DISQUALIFIERS:
-            if word in text_lower:
-                return False
-        
-        # V4.3: Require proper subject - not a verb-first fragment
-        words = text_lower.strip().split()
-        if not words:
-            return False
+        if not words or len(words) < 3:
+            return (False, "too_short")
         
         first_word = words[0]
-        # Fragments starting with verbs are not camera-friendly
-        # (they lack the "who" - the actor)
-        verb_starts = [
-            'twisted', 'grabbed', 'pushed', 'slammed', 'found', 'tried',
-            'stepped', 'saw', 'also', 'that', 'put', 'cut', 'filed',
-        ]
-        if first_word in verb_starts:
-            return False
         
-        return True
+        # =====================================================================
+        # Rule 1: No conjunction starts (dependent clause fragments)
+        # =====================================================================
+        CONJUNCTION_STARTS = [
+            'but', 'and', 'when', 'which', 'although', 'while', 'because',
+            'since', 'that', 'where', 'if', 'though', 'unless',
+        ]
+        if first_word in CONJUNCTION_STARTS:
+            return (False, f"conjunction_start:{first_word}")
+        
+        # =====================================================================
+        # Rule 2: No embedded quotes (should go to QUOTES section)
+        # =====================================================================
+        if '"' in text or '"' in text or '"' in text:
+            return (False, "contains_quote")
+        
+        # =====================================================================
+        # Rule 3: No verb-first fragments (missing actor entirely)
+        # =====================================================================
+        VERB_STARTS = [
+            'twisted', 'grabbed', 'pushed', 'slammed', 'found', 'tried',
+            'stepped', 'saw', 'also', 'put', 'cut', 'screamed',
+            'yelled', 'shouted', 'told', 'called',
+            'ran', 'walked', 'went', 'came', 'left', 'arrived',
+            'started', 'began', 'stopped', 'continued', 'happened',
+            'witnessed', 'watched', 'heard', 'felt', 'noticed', 'realized',
+            'screeching', 'immediately',
+        ]
+        if first_word in VERB_STARTS:
+            return (False, f"verb_start:{first_word}")
+        
+        # =====================================================================
+        # Rule 4: Must have NAMED ACTOR anywhere in first clause
+        # V8.1: Check ANYWHERE, not just at start
+        # "His partner, Officer Rodriguez" -> Officer Rodriguez is the actor
+        # =====================================================================
+        
+        # Named actor patterns to search for ANYWHERE in the text
+        # V8.1: Case-sensitive for proper nouns, case-insensitive for titles
+        
+        # Check for named actor anywhere in the sentence
+        has_named_actor = False
+        
+        # Pattern 1: Title + Name (case-insensitive for title, sensitive for name)
+        title_pattern = r'\b(Officer|Sergeant|Detective|Captain|Lieutenant|Deputy|Dr\.?|Mr\.?|Mrs\.?|Ms\.?)\s+[A-Z][a-z]+'
+        if re.search(title_pattern, text):
+            has_named_actor = True
+        
+        # Pattern 2: Two-word proper nouns (CASE SENSITIVE - requires actual capitals)
+        # This must NOT use IGNORECASE
+        if not has_named_actor:
+            proper_noun_pattern = r'\b[A-Z][a-z]+\s+[A-Z][a-z]+\b'
+            match = re.search(proper_noun_pattern, text)  # NO IGNORECASE
+            if match:
+                # Verify it's not a common phrase like "He found", "My neighbor"
+                matched = match.group()
+                first_word = matched.split()[0].lower()
+                skip_words = ['he', 'she', 'they', 'it', 'i', 'my', 'his', 'her', 'the', 'a', 'an', 'we', 'you']
+                if first_word not in skip_words:
+                    has_named_actor = True
+        
+        # Also check for valid actor patterns at START
+        START_ACTOR_PATTERNS = [
+            # Named persons at start
+            r'^(officer|sergeant|detective|captain|lieutenant|deputy|dr\.?|mr\.?|mrs\.?|ms\.?)\s+\w+',
+            # Entity classes at start (Another witness, The officers, This cruiser)
+            r'^(the|a|an|this|that|another|one|two|three|four|five)\s+(officer|officers|sergeant|detective|witness|witnesses|neighbor|woman|man|person|vehicle|car|cruiser|people)',
+            # Generic plurals (Officers approached, Witnesses saw)
+            r'^(officers|witnesses|bystanders|paramedics)\s+',
+        ]
+        
+        for pattern in START_ACTOR_PATTERNS:
+            if re.match(pattern, text_lower):
+                has_named_actor = True
+                break
+        
+        # =====================================================================
+        # Rule 5: Pronoun starts are OK only if named actor exists
+        # "His partner, Officer Rodriguez" -> OK (Officer Rodriguez named)
+        # "He found my wallet" -> NOT OK (who is He?)
+        # =====================================================================
+        PRONOUN_STARTS = [
+            'he', 'she', 'they', 'it', 'we', 'i', 'you',
+            'his', 'her', 'their', 'its', 'my', 'your', 'our',
+            'him', 'them', 'us', 'me',
+        ]
+        
+        if first_word in PRONOUN_STARTS:
+            if not has_named_actor:
+                return (False, f"pronoun_start:{first_word}")
+            # Has pronoun start BUT also has named actor - check if actor is clear
+            # "My neighbor, Marcus Johnson" -> actor is Marcus Johnson, OK
+            # "His partner, Officer Rodriguez" -> actor is Officer Rodriguez, OK
+        
+        # If no named actor and not a valid start pattern, reject
+        if not has_named_actor:
+            return (False, f"no_valid_actor:{first_word}")
+        
+        # =====================================================================
+        # Rule 6: No interpretive/legal content
+        # =====================================================================
+        INTERPRETIVE_BLOCKERS = [
+            'assault', 'brutality', 'torture', 'violation', 'misconduct',
+            'illegal', 'unlawful', 'criminal', 'guilty', 'innocent',
+            'cover-up', 'conspiracy', 'corrupt', 'abuse', 'terrorize',
+        ]
+        for blocker in INTERPRETIVE_BLOCKERS:
+            if blocker in text_lower:
+                return (False, f"interpretive:{blocker}")
+        
+        # Passed all checks
+        return (True, "passed")
+    
+    def is_camera_friendly(text: str, neutralized_text: str = None) -> bool:
+        """
+        Legacy check - now wraps is_strict_camera_friendly.
+        Returns just boolean for backward compatibility.
+        """
+        check_text = neutralized_text if neutralized_text else text
+        passed, _ = is_strict_camera_friendly(check_text)
+        return passed
     
     def is_follow_up_event(text: str) -> bool:
         """Check if event is a true follow-up ACTION (reporter did something post-incident)."""
@@ -519,105 +613,218 @@ def format_structured_output(
         ]
     
     # =========================================================================
-    # V7: OBSERVED EVENTS - Neutralize first, THEN filter
-    # Events with characterization are NEUTRALIZED, not discarded
+    # V8.2: OBSERVED EVENTS - Extract camera-friendly facts from ALL types
+    # Not just direct_event, but also characterization and legal_claim_direct
+    # if they contain observable physical actions with named actors
     # =========================================================================
-    if statements_by_epistemic.get('direct_event'):
-        incident_events = []
-        follow_up_events = []
-        source_derived = []  # V4.3: Research results, conclusions - need provenance
-        excluded_events = []  # Statements that still can't be camera-friendly after neutralization
-        
-        for text in statements_by_epistemic['direct_event']:
-            # V7: Neutralize the text first
-            neutralized = neutralize_for_observed(text)
+    
+    strict_events = []       # Passed all strict checks
+    narrative_excerpts = []  # Failed with reasons
+    follow_up_events = []    # Post-incident actions
+    source_derived = []      # Research/conclusions
+    
+    # V8.2: Process multiple epistemic types that might contain observable events
+    # Order matters - direct_event first, then others
+    OBSERVABLE_EPISTEMIC_TYPES = [
+        'direct_event',        # Primary: observable events
+        'characterization',    # May contain "Officer X did Y like a Z"
+        'legal_claim_direct',  # May contain "Officer X grabbed with excessive force"
+        'state_injury',        # May contain "Officer X put handcuffs on me"
+    ]
+    
+    seen_in_strict = set()  # Tracks original text
+    seen_neutralized = set()  # V8.2: Also track neutralized versions to catch duplicates
+    
+    for epistemic_type in OBSERVABLE_EPISTEMIC_TYPES:
+        if not statements_by_epistemic.get(epistemic_type):
+            continue
             
-            # Skip very short neutralized text (fragments)
-            if len(neutralized) < 15:
-                excluded_events.append(text)
+        for text in statements_by_epistemic[epistemic_type]:
+            # Skip if original already seen
+            if text in seen_in_strict:
                 continue
             
-            # Now check if the NEUTRALIZED version is camera-friendly
-            if not is_camera_friendly(text, neutralized):
-                # Even after neutralization, contains hard-block terms
-                excluded_events.append(text)
-            elif is_source_derived(neutralized):
-                # V4.3: Research/conclusion - needs provenance
-                source_derived.append(neutralized)
-            elif is_follow_up_event(neutralized):
+            # V8.2: Neutralize the text first (strips characterization)
+            neutralized = neutralize_for_observed(text)
+            
+            # V8.2: Skip if neutralized version already seen
+            neutralized_key = ' '.join(neutralized.split()).strip().lower()
+            if neutralized_key in seen_neutralized:
+                seen_in_strict.add(text)  # Mark original as seen
+                continue
+            
+            # Skip if neutralized version is too short
+            if len(neutralized) < 15:
+                if epistemic_type == 'direct_event':
+                    narrative_excerpts.append((text, "too_short"))
+                continue
+            
+            # Skip if neutralized version already seen
+            if neutralized in seen_in_strict:
+                continue
+            
+            # Check if follow-up (before strict check)
+            if is_follow_up_event(neutralized):
                 follow_up_events.append(neutralized)
-            else:
-                incident_events.append(neutralized)
+                seen_in_strict.add(neutralized)
+                seen_in_strict.add(text)
+                continue
+            
+            # Check if source-derived
+            if is_source_derived(neutralized):
+                source_derived.append(neutralized)
+                seen_in_strict.add(neutralized)
+                seen_in_strict.add(text)
+                continue
+            
+            # V8.2: Apply STRICT camera-friendly check to neutralized text
+            passed, reason = is_strict_camera_friendly(neutralized)
+            
+            if passed:
+                strict_events.append(neutralized)
+                seen_in_strict.add(neutralized)
+                seen_in_strict.add(text)
+                seen_neutralized.add(neutralized_key)  # V8.2: Track neutralized version
+            elif epistemic_type == 'direct_event':
+                # Only track excerpts for direct_event (others go to their sections)
+                narrative_excerpts.append((text, reason))
+    
+    # =========================================================================
+    # SECTION 1: OBSERVED EVENTS (STRICT / CAMERA-FRIENDLY)
+    # V9: Use event-based generation for higher quality
+    # =========================================================================
+    
+    # V9: Import and use the new event generator
+    from nnrt.render.event_generator import get_strict_event_sentences
+    
+    v9_strict_events = []
+    if events:
+        try:
+            v9_strict_events = get_strict_event_sentences(
+                events=events,
+                segments=segments,
+                atomic_statements=atomic_statements,
+                entities=entities,
+                max_events=25,
+            )
+        except Exception as e:
+            # Fall back to V8 method if V9 fails
+            pass
+    
+    # V9: Use V9 events if available, otherwise fall back to V8
+    # Do NOT combine - V9 is strictly higher quality and avoids duplicates
+    if v9_strict_events:
+        # Use V9 events only
+        final_strict_events = v9_strict_events
+    else:
+        # Fall back to V8 (atomic_statements-based)
+        seen_normalized = set()
+        final_strict_events = []
+        for text in strict_events:
+            normalized = ' '.join(text.split()).strip().lower()
+            if normalized not in seen_normalized:
+                seen_normalized.add(normalized)
+                final_strict_events.append(text)
+    
+    if final_strict_events:
+        lines.append("OBSERVED EVENTS (STRICT / CAMERA-FRIENDLY)")
+        lines.append("─" * 70)
+        lines.append("ℹ️ Fully normalized: Actor (entity/class) + action + object. No pronouns, quotes, or fragments.")
+        lines.append("")
+        for text in final_strict_events:
+            lines.append(f"  • {text}")
+        lines.append("")
+    
+    # FOLLOW-UP events (post-incident observable actions)
+    if follow_up_events:
+        lines.append("OBSERVED EVENTS (FOLLOW-UP ACTIONS)")
+        lines.append("─" * 70)
+        for text in follow_up_events:
+            lines.append(f"  • {text}")
+        lines.append("")
+    
+    # =========================================================================
+    # SECTION 2: NARRATIVE EXCERPTS (UNNORMALIZED)
+    # Items that couldn't be normalized, with documented reasons
+    # =========================================================================
+    if narrative_excerpts:
+        # Group by reason for cleaner display (defaultdict is imported at module level)
+        by_reason = defaultdict(list)
+        for text, reason in narrative_excerpts:
+            # Simplify reason codes for display
+            reason_type = reason.split(':')[0] if ':' in reason else reason
+            by_reason[reason_type].append(text)
         
-        # INCIDENT SCENE events (purely observational)
-        if incident_events:
-            lines.append("OBSERVED EVENTS (INCIDENT SCENE)")
-            lines.append("─" * 70)
-            for text in incident_events:
-                lines.append(f"  • {text}")
+        lines.append("NARRATIVE EXCERPTS (UNNORMALIZED)")
+        lines.append("─" * 70)
+        lines.append("⚠️ These excerpts couldn't be normalized. Listed by rejection reason:")
+        lines.append("")
+        
+        # Nice labels for reason codes
+        REASON_LABELS = {
+            'pronoun_start': 'Pronoun start (actor unresolved)',
+            'conjunction_start': 'Fragment (conjunction start)',
+            'verb_start': 'Fragment (verb start, missing actor)',
+            'no_valid_actor': 'Actor not explicit (needs resolution)',
+            'contains_quote': 'Contains quote (see QUOTES section)',
+            'too_short': 'Too short (fragment)',
+            'interpretive': 'Contains interpretive language',
+        }
+        
+        for reason_type, texts in by_reason.items():
+            label = REASON_LABELS.get(reason_type, reason_type)
+            lines.append(f"  [{label}]")
+            for text in texts[:5]:  # Limit per category
+                lines.append(f"    - {text[:80]}{'...' if len(text) > 80 else ''}")
+            if len(texts) > 5:
+                lines.append(f"    ... and {len(texts) - 5} more")
+            lines.append("")
+
+    
+    # =========================================================================
+    # V6: SOURCE-DERIVED INFORMATION with Provenance Validation
+    # =========================================================================
+    # Uses VERIFIED_HAS_EVIDENCE invariant to ensure honest status labels.
+    # =========================================================================
+    if source_derived:
+        from nnrt.validation import check_verified_has_evidence
+        
+        lines.append("SOURCE-DERIVED INFORMATION")
+        lines.append("─" * 70)
+        lines.append("  ⚠️ The following claims require external provenance verification:")
+        lines.append("")
+        
+        for idx, text in enumerate(source_derived[:10], 1):
+            lines.append(f"  [{idx}] CLAIM: {text[:100]}{'...' if len(text) > 100 else ''}")
+            
+            # Get provenance from atomic_statements
+            source_type = "Reporter"
+            prov_status = "Needs Provenance"
+            
+            if atomic_statements:
+                for stmt in atomic_statements:
+                    if hasattr(stmt, 'text') and stmt.text.strip() == text.strip():
+                        source_type = getattr(stmt, 'source_type', 'reporter').title()
+                        raw_status = getattr(stmt, 'provenance_status', 'needs_provenance')
+                        
+                        # V6: Map to honest display labels
+                        status_labels = {
+                            'verified': 'Verified ✅',           # Only with external evidence
+                            'cited': 'Cited (unverified)',      # Has attribution but not verified
+                            'self_attested': 'Self-Attested',   # Reporter's word only
+                            'inference': 'Inference',           # Reporter's interpretation
+                            'needs_provenance': 'Needs Provenance ⚠️',
+                            'missing': 'Needs Provenance ⚠️',
+                        }
+                        prov_status = status_labels.get(raw_status, f'{raw_status.title()} ⚠️')
+                        break
+            
+            lines.append(f"      Source: {source_type}")
+            lines.append(f"      Status: {prov_status}")
             lines.append("")
         
-        # FOLLOW-UP events (post-incident observable actions)
-        if follow_up_events:
-            lines.append("OBSERVED EVENTS (FOLLOW-UP ACTIONS)")
-            lines.append("─" * 70)
-            for text in follow_up_events:
-                lines.append(f"  • {text}")
-            lines.append("")
-        
-        # =====================================================================
-        # V6: SOURCE-DERIVED INFORMATION with Provenance Validation
-        # =====================================================================
-        # Uses VERIFIED_HAS_EVIDENCE invariant to ensure honest status labels.
-        # =====================================================================
-        if source_derived:
-            from nnrt.validation import check_verified_has_evidence
-            
-            lines.append("SOURCE-DERIVED INFORMATION")
-            lines.append("─" * 70)
-            lines.append("  ⚠️ The following claims require external provenance verification:")
-            lines.append("")
-            
-            for idx, text in enumerate(source_derived[:10], 1):
-                lines.append(f"  [{idx}] CLAIM: {text[:100]}{'...' if len(text) > 100 else ''}")
-                
-                # Get provenance from atomic_statements
-                source_type = "Reporter"
-                prov_status = "Needs Provenance"
-                
-                if atomic_statements:
-                    for stmt in atomic_statements:
-                        if hasattr(stmt, 'text') and stmt.text.strip() == text.strip():
-                            source_type = getattr(stmt, 'source_type', 'reporter').title()
-                            raw_status = getattr(stmt, 'provenance_status', 'needs_provenance')
-                            
-                            # V6: Map to honest display labels
-                            status_labels = {
-                                'verified': 'Verified ✅',           # Only with external evidence
-                                'cited': 'Cited (unverified)',      # Has attribution but not verified
-                                'self_attested': 'Self-Attested',   # Reporter's word only
-                                'inference': 'Inference',           # Reporter's interpretation
-                                'needs_provenance': 'Needs Provenance ⚠️',
-                                'missing': 'Needs Provenance ⚠️',
-                            }
-                            prov_status = status_labels.get(raw_status, f'{raw_status.title()} ⚠️')
-                            break
-                
-                lines.append(f"      Source: {source_type}")
-                lines.append(f"      Status: {prov_status}")
-                lines.append("")
-            
-            if len(source_derived) > 10:
-                lines.append(f"  ... and {len(source_derived) - 10} more claims needing provenance")
-                lines.append("")
-        
-        # REPORTER DESCRIPTIONS (excluded from OBSERVED EVENTS due to interpretive content)
-        # Data is preserved with proper attribution
-        if excluded_events:
-            lines.append("REPORTER DESCRIPTIONS (contains characterization)")
-            lines.append("─" * 70)
-            for text in excluded_events:
-                lines.append(f"  • Reporter describes: {text}")
+        if len(source_derived) > 10:
+            lines.append(f"  ... and {len(source_derived) - 10} more claims needing provenance")
             lines.append("")
     
     # =========================================================================
@@ -817,20 +1024,49 @@ def format_structured_output(
                 speaker_label = None
                 content = text
             
-            # Try to extract speaker from text
-            if " said " in text:
-                parts = text.split(" said ", 1)
-                MockQuote.speaker_label = parts[0].strip()[:50]
-                MockQuote.content = parts[1] if len(parts) > 1 else text
-            elif " yelled " in text:
-                parts = text.split(" yelled ", 1)
-                MockQuote.speaker_label = parts[0].strip()[:50]
-                MockQuote.content = parts[1] if len(parts) > 1 else text
-            elif " shouted " in text:
-                parts = text.split(" shouted ", 1)
-                MockQuote.speaker_label = parts[0].strip()[:50]
-                MockQuote.content = parts[1] if len(parts) > 1 else text
-            else:
+            # V8.1: Expanded list of speech verbs
+            SPEECH_VERBS = [
+                ' said ', ' yelled ', ' shouted ', ' asked ', ' told ',
+                ' screamed ', ' whispered ', ' replied ', ' answered ',
+                ' explained ', ' stated ', ' mentioned ', ' demanded ',
+                ' threatened ', ' warned ', ' muttered ', ' exclaimed ',
+            ]
+            
+            speaker_found = False
+            for verb in SPEECH_VERBS:
+                if verb in text:
+                    parts = text.split(verb, 1)
+                    speaker_text = parts[0].strip()
+                    
+                    # V8.1: "I asked", "I tried to explain" -> Reporter
+                    if speaker_text.lower() in ['i', 'i also', 'i then']:
+                        MockQuote.speaker_label = "Reporter"
+                    else:
+                        MockQuote.speaker_label = speaker_text[:50]
+                    MockQuote.content = parts[1] if len(parts) > 1 else text
+                    speaker_found = True
+                    break
+            
+            # V8.1: Handle "I tried to explain" pattern
+            if not speaker_found:
+                first_person_patterns = [
+                    'I tried to explain',
+                    'I explained',
+                    'I asked him',
+                    'I asked her',
+                    'I asked them',
+                    'I told him',
+                    'I told her',
+                    'I told them',
+                ]
+                for pattern in first_person_patterns:
+                    if text.startswith(pattern):
+                        MockQuote.speaker_label = "Reporter"
+                        MockQuote.content = text
+                        speaker_found = True
+                        break
+            
+            if not speaker_found:
                 MockQuote.speaker_label = None
                 MockQuote.content = text
             

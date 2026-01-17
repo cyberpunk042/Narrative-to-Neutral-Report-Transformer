@@ -85,6 +85,7 @@ def main():
         identifiers=result.identifiers,
         timeline=result.timeline,
         time_gaps=result.time_gaps,
+        segments=result.segments,  # V9: For event generator
     )
     
     # Show just the timeline section
