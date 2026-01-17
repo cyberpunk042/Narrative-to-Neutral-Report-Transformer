@@ -370,17 +370,83 @@ def format_structured_output(
         'investigated', 'pursuing legal', 'my attorney',
     ]
     
-    def is_camera_friendly(text: str) -> bool:
+    # V7: Words to STRIP (not disqualify) - factual core remains
+    INTERPRETIVE_STRIP_WORDS = [
+        # Characterizing adverbs - remove but keep the verb
+        'brutally', 'viciously', 'aggressively', 'menacingly', 'savagely',
+        'deliberately', 'intentionally', 'obviously', 'clearly',
+        'absolutely', 'completely', 'totally', 'definitely', 'certainly',
+        'innocently', 'distressingly', 'horrifyingly', 'terrifyingly',
+        # Characterizing adjectives - remove but keep the noun
+        'brutal', 'vicious', 'psychotic', 'horrifying', 'horrific',
+        'terrifying', 'shocking', 'excessive', 'innocent', 'menacing',
+        'distressing', 'manic', 'maniacal',
+        # Loaded phrases - remove entirely
+        'like a maniac', 'like a criminal', 'for no reason', 'for absolutely no reason',
+        'without any reason', 'with excessive force', 'without provocation',
+    ]
+    
+    def neutralize_for_observed(text: str) -> str:
+        """
+        V7: Neutralize text by stripping interpretive words while keeping factual core.
+        
+        Example:
+          "They brutally slammed me" -> "They slammed me"
+          "innocently walking" -> "walking"
+        """
+        import re
+        result = text
+        
+        # Strip interpretive words/phrases
+        for word in INTERPRETIVE_STRIP_WORDS:
+            # Match word with word boundaries and optional trailing comma/space
+            pattern = r'\b' + re.escape(word) + r'\b[,]?\s*'
+            result = re.sub(pattern, '', result, flags=re.IGNORECASE)
+        
+        # Clean up extra spaces
+        result = ' '.join(result.split())
+        
+        # Fix article agreement after stripping
+        result = re.sub(r'\ban\s+([bcdfghjklmnpqrstvwxyzBCDFGHJKLMNPQRSTVWXYZ])', r'a \1', result)
+        result = re.sub(r'\ba\s+([aeiouAEIOU])', r'an \1', result)
+        
+        # Clean up trailing punctuation artifacts
+        result = re.sub(r'\s+\.', '.', result)  # " ." -> "."
+        result = re.sub(r'\s+,', ',', result)   # " ," -> ","
+        result = re.sub(r',\s*\.', '.', result)  # ", ." or ",." -> "."
+        result = re.sub(r',\s*$', '', result)   # Trailing comma
+        result = re.sub(r'\s+\.+$', '.', result)  # Trailing space+period(s)
+        
+        return result.strip()
+    
+    def is_camera_friendly(text: str, neutralized_text: str = None) -> bool:
         """
         Check if statement is purely observational (no interpretive content).
+        
+        V7: Now checks the NEUTRALIZED text, so "They brutally slammed me"
+        becomes "They slammed me" which IS camera-friendly.
         
         V4.3: Also requires proper subject (actor) for true camera-friendliness.
         "twisted it behind my back" is not camera-friendly - WHO twisted?
         """
-        text_lower = text.lower()
+        # Use neutralized text if provided, otherwise use original
+        check_text = neutralized_text if neutralized_text else text
+        text_lower = check_text.lower()
         
-        # Check for interpretive words
-        for word in INTERPRETIVE_DISQUALIFIERS:
+        # V7: Still check for remaining disqualifiers that couldn't be stripped
+        # (These are ones where stripping changes meaning too much)
+        REMAINING_DISQUALIFIERS = [
+            # Legal conclusions that change meaning  
+            'assault', 'assaulting', 'torture', 'terrorize', 'misconduct', 'violation',
+            'illegal', 'unlawful', 'criminal', 'guilty',
+            # Intent that can't be stripped
+            'wanted to', 'mocking', 'fishing', 'laughing at',
+            # Conspiracy language
+            'cover-up', 'coverup', 'whitewash', 'conspiracy', 'conspiring',
+            'hiding more', 'protect their own', 'always protect',
+        ]
+        
+        for word in REMAINING_DISQUALIFIERS:
             if word in text_lower:
                 return False
         
@@ -426,32 +492,62 @@ def format_structured_output(
     # =========================================================================
     # V7: Deduplicate all statement lists to remove fragments/substrings
     # =========================================================================
+    MIN_STATEMENT_LENGTH = 10  # Filter out single-word fragments like "bruised"
+    
+    def clean_statement(text: str) -> str:
+        """Clean up a statement: fix trailing punctuation, normalize whitespace."""
+        import re as re_clean
+        result = text.strip()
+        result = re_clean.sub(r'\s+\.', '.', result)  # " ." -> "."
+        result = re_clean.sub(r'\s+,', ',', result)   # " ," -> ","
+        result = ' '.join(result.split())  # Normalize whitespace
+        return result
+    
     for key in statements_by_type:
         statements_by_type[key] = _deduplicate_statements(statements_by_type[key])
+        # Clean and filter fragments
+        statements_by_type[key] = [
+            clean_statement(s) for s in statements_by_type[key] 
+            if len(s.strip()) >= MIN_STATEMENT_LENGTH
+        ]
     for key in statements_by_epistemic:
         statements_by_epistemic[key] = _deduplicate_statements(statements_by_epistemic[key])
+        # Clean and filter fragments
+        statements_by_epistemic[key] = [
+            clean_statement(s) for s in statements_by_epistemic[key] 
+            if len(s.strip()) >= MIN_STATEMENT_LENGTH
+        ]
     
     # =========================================================================
-    # V4: OBSERVED EVENTS - Quality filter: only camera-friendly statements
-    # CRITICAL INVARIANT: If it contains interpretation, it doesn't belong here
+    # V7: OBSERVED EVENTS - Neutralize first, THEN filter
+    # Events with characterization are NEUTRALIZED, not discarded
     # =========================================================================
     if statements_by_epistemic.get('direct_event'):
         incident_events = []
         follow_up_events = []
         source_derived = []  # V4.3: Research results, conclusions - need provenance
-        excluded_events = []  # Statements with interpretive content
+        excluded_events = []  # Statements that still can't be camera-friendly after neutralization
         
         for text in statements_by_epistemic['direct_event']:
-            if not is_camera_friendly(text):
-                # Contains interpretive words - exclude from OBSERVED EVENTS
+            # V7: Neutralize the text first
+            neutralized = neutralize_for_observed(text)
+            
+            # Skip very short neutralized text (fragments)
+            if len(neutralized) < 15:
                 excluded_events.append(text)
-            elif is_source_derived(text):
+                continue
+            
+            # Now check if the NEUTRALIZED version is camera-friendly
+            if not is_camera_friendly(text, neutralized):
+                # Even after neutralization, contains hard-block terms
+                excluded_events.append(text)
+            elif is_source_derived(neutralized):
                 # V4.3: Research/conclusion - needs provenance
-                source_derived.append(text)
-            elif is_follow_up_event(text):
-                follow_up_events.append(text)
+                source_derived.append(neutralized)
+            elif is_follow_up_event(neutralized):
+                follow_up_events.append(neutralized)
             else:
-                incident_events.append(text)
+                incident_events.append(neutralized)
         
         # INCIDENT SCENE events (purely observational)
         if incident_events:
@@ -1129,4 +1225,13 @@ def format_structured_output(
     
     lines.append("═" * 70)
     
-    return "\n".join(lines)
+    # V7: Final cleanup pass for the entire output
+    result = "\n".join(lines)
+    
+    # Fix trailing spaces before punctuation
+    import re
+    result = re.sub(r'\s+\.', '.', result)  # " ." -> "."
+    result = re.sub(r'\s+,', ',', result)   # " ," -> ","
+    result = re.sub(r',\s*\.', '.', result)  # ",." -> "."
+    
+    return result

@@ -6,10 +6,43 @@ description: "Soften statements that attribute intentions, motives, or mental st
 priority_range: [88, 95]
 
 rules:
-  - id: intent_wanted_to
+  # V7: Split "wanted to" handling - harmful vs benign verbs
+  # Harmful verbs get attributed, benign verbs just use "appeared to"
+  
+  - id: intent_wanted_to_hurt
+    category: intent_attribution
+    priority: 91
+    description: "Attribute 'wanted to hurt' to reporter inference"
+    match:
+      type: phrase
+      patterns: ["wanted to hurt", "wanted to harm"]
+    action: replace
+    replacement: "-- reporter infers intent to harm --"
+
+  - id: intent_wanted_to_kill
+    category: intent_attribution
+    priority: 91
+    description: "Attribute 'wanted to kill/attack' to reporter inference"
+    match:
+      type: phrase
+      patterns: ["wanted to kill", "wanted to attack"]
+    action: replace
+    replacement: "-- reporter infers intent to harm --"
+
+  - id: intent_wanted_to_inflict
+    category: intent_attribution
+    priority: 91
+    description: "Attribute 'wanted to inflict/damage' to reporter inference"
+    match:
+      type: phrase
+      patterns: ["wanted to inflict", "wanted to damage", "wanted to injure", "wanted to punish"]
+    action: replace
+    replacement: "-- reporter infers intent to cause harm --"
+
+  - id: intent_wanted_to_benign
     category: intent_attribution
     priority: 90
-    description: "Replace 'wanted to' with 'appeared to' (except benign verbs)"
+    description: "Replace 'wanted to' with 'appeared to' for neutral verbs"
     match:
       type: phrase
       patterns: ["wanted to", "meant to"]

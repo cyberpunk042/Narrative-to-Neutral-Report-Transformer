@@ -17,6 +17,7 @@ from nnrt.passes.p43_resolve_actors import resolve_actors
 from nnrt.passes.p50_policy import evaluate_policy
 from nnrt.passes.p60_augment_ir import augment_ir
 from nnrt.passes.p70_render import render
+from nnrt.passes.p72_safety_scrub import safety_scrub
 from nnrt.passes.p75_cleanup_punctuation import cleanup_punctuation
 from nnrt.passes.p80_package import package
 
@@ -38,6 +39,7 @@ __all__ = [
     "evaluate_policy",
     "augment_ir",
     "render",
+    "safety_scrub",
     "cleanup_punctuation",
     "package",
 ]

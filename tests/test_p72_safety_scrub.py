@@ -97,13 +97,13 @@ class TestCleanArtifacts:
         assert _clean_artifacts("word ,") == "word,"
     
     def test_empty_parens_removed(self):
-        """Empty parentheses should be removed."""
-        assert _clean_artifacts("text () more") == "text  more"
-        assert _clean_artifacts("text [] more") == "text  more"
+        """Empty parentheses should be removed (and whitespace collapsed)."""
+        assert _clean_artifacts("text () more") == "text more"
+        assert _clean_artifacts("text [] more") == "text more"
     
     def test_double_dashes_removed(self):
-        """Leftover -- -- patterns should be removed."""
-        assert _clean_artifacts("text -- -- more") == "text  more"
+        """Leftover -- -- patterns should be removed (and whitespace collapsed)."""
+        assert _clean_artifacts("text -- -- more") == "text more"
 
 
 class TestSafetyScrubIntegration:

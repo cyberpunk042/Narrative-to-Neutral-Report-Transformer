@@ -149,7 +149,7 @@ def setup_structured_only_pipeline(engine: Engine, profile: str = "law_enforceme
     The UI formats the Neutral Output panel as an "official document" with
     bullet points and sections rather than flowing prose.
     """
-    from nnrt.passes import cleanup_punctuation
+    from nnrt.passes import cleanup_punctuation, safety_scrub
     from nnrt.policy.loader import clear_cache
     from nnrt.policy.engine import set_default_profile
     
@@ -181,6 +181,7 @@ def setup_structured_only_pipeline(engine: Engine, profile: str = "law_enforceme
             evaluate_policy,
             augment_ir,
             render,                # YES - render neutral output
+            safety_scrub,          # V7: Article agreement + cleanup
             cleanup_punctuation,   # YES - fix punctuation
             package,               # YES - package output
         ],

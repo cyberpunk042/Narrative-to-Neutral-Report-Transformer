@@ -50,12 +50,24 @@ rules:
     action: reframe
     reframe_template: "described as {original}"
 
-  - id: interp_excessive
+  - id: interp_with_excessive_force
     category: interpretation
-    priority: 79
-    description: "Reframe 'excessive' characterization"
+    priority: 81
+    description: "Reframe 'with excessive force' to preserve 'with'"
     match:
-      type: keyword
-      patterns: ["excessive"]
-    action: reframe
-    reframe_template: "described as {original}"
+      type: phrase
+      patterns: ["with excessive force"]
+    action: replace
+    replacement: "with force described as excessive"
+
+  - id: interp_excessive_force
+    category: interpretation
+    priority: 80
+    description: "Reframe 'excessive force' to 'force described as excessive'"
+    match:
+      type: phrase
+      patterns: ["excessive force"]
+    action: replace
+    replacement: "force described as excessive"
+
+  # Note: standalone 'excessive' is not transformed to avoid awkward phrasing

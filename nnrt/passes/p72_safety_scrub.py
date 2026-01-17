@@ -35,19 +35,37 @@ log = get_pass_logger(PASS_NAME)
 
 # Legal characterizations that MUST be attributed
 # (pattern, replacement)
+# V7: ORDER MATTERS - compound phrases FIRST to prevent partial matches
 LEGAL_SCRUB_PATTERNS = [
-    # Direct legal claims → attributed form
-    (r'\b[Tt]his\s+was\s+(clearly\s+)?(racial\s+profiling)', 
-     "-- reporter characterizes the stop as racial profiling --"),
-    (r'\b[Tt]his\s+was\s+(clearly\s+)?(police\s+brutality)',
-     "-- reporter characterizes conduct as police brutality --"),
-    (r'\bracial\s+profiling\s+and\s+harassment',
+    # =========================================================================
+    # COMPOUND PHRASES - Match FIRST to prevent partial matches
+    # =========================================================================
+    (r'\b[Tt]his\s+was\s+(clearly\s+)?racial\s+profiling\s+and\s+harassment\b',
      "-- reporter characterizes conduct as racial profiling and harassment --"),
-    (r'\bpolice\s+brutality',
-     "-- reporter characterizes conduct as brutality --"),
+    (r'\bracial\s+profiling\s+and\s+harassment\b',
+     "-- reporter characterizes conduct as racial profiling and harassment --"),
+    (r'\b[Tt]his\s+was\s+(clearly\s+)?(a\s+)?threat\s+and\s+witness\s+intimidation\b',
+     "-- reporter characterizes as threat and witness intimidation --"),
+    (r'\bassault\s+and\s+battery\b',
+     "-- reporter alleges assault and battery --"),
+    (r'\bobstruction\s+of\s+justice\s+and\s+(witness\s+)?intimidation\b',
+     "-- reporter alleges obstruction of justice and intimidation --"),
     
-    # V5: Legal terms that must be attributed
-    # Note: "excessive force" is handled by policy interp_excessive rule
+    # =========================================================================
+    # FULL SENTENCE PATTERNS - Match before fragments
+    # =========================================================================
+    (r'\b[Tt]his\s+was\s+(clearly\s+)?racial\s+profiling\b',
+     "-- reporter characterizes the stop as racial profiling --"),
+    (r'\b[Tt]his\s+was\s+(clearly\s+)?police\s+brutality\b',
+     "-- reporter characterizes conduct as police brutality --"),
+    (r'\b[Tt]his\s+(was\s+)?(clearly\s+)?a\s+threat\b',
+     "-- reporter perceived as threatening --"),
+    
+    # =========================================================================
+    # SINGLE LEGAL TERMS - Match last (only if not already matched above)
+    # =========================================================================
+    (r'\bpolice\s+brutality\b',
+     "-- reporter characterizes conduct as brutality --"),
     (r'\bfalse\s+arrest\b',
      "-- reporter characterizes arrest as false --"),
     (r'\bunlawful\s+(detention|stop|search|arrest)\b',
@@ -60,14 +78,13 @@ LEGAL_SCRUB_PATTERNS = [
      "-- reporter alleges witness intimidation --"),
     (r'\b(civil|constitutional)\s+rights?\s+violation\b',
      "-- reporter alleges rights violation --"),
-    (r'\bharassment\b',
-     "-- reporter characterizes conduct as harassment --"),
-    (r'\bassault\s+and\s+battery\b',
-     "-- reporter alleges assault --"),
     (r'\bwrongful\s+(termination|arrest|detention)\b',
      "-- reporter characterizes as wrongful --"),
+    # Note: standalone "harassment" and "racial profiling" moved to end
     
-    # V5: Systemic claims MUST be attributed
+    # =========================================================================
+    # SYSTEMIC CLAIMS - attributed
+    # =========================================================================
     (r'\bsystematic\s+(racism|discrimination|abuse)\b',
      "-- reporter alleges systemic issues --"),
     (r'\bsystemic\s+(racism|discrimination|abuse|misconduct)\b',
@@ -79,9 +96,13 @@ LEGAL_SCRUB_PATTERNS = [
     (r'\bpattern\s+of\s+(abuse|misconduct|violence|brutality)\b',
      "-- reporter alleges pattern of misconduct --"),
     
-    # V5 STRESS TEST: Additional legal patterns
+    # =========================================================================
+    # STANDALONE TERMS - Match LAST (only if not already matched above)
+    # =========================================================================
     (r'\bracial\s+profiling\b',
      "-- reporter characterizes as racial profiling --"),
+    (r'\bharassment\b',
+     "-- reporter characterizes conduct as harassment --"),
     (r'\b(clearly\s+)?(illegal|unlawful)\s+(assault|stop|detention)\b',
      "-- reporter characterizes action as illegal --"),
 ]
@@ -184,31 +205,66 @@ def safety_scrub(ctx: TransformContext) -> TransformContext:
     scrubbed = original
     scrub_count = 0
     
+    def attribution_aware_sub(pattern, replacement, text):
+        """
+        V7: Substitute pattern with replacement, but SKIP text already inside
+        attribution markers (--...--) to prevent nested attributions.
+        """
+        # Split text into attributed and non-attributed segments
+        result = []
+        pos = 0
+        count = 0
+        
+        # Find all attribution spans first
+        attribution_spans = []
+        for m in re.finditer(r'--[^-]+--', text):
+            attribution_spans.append((m.start(), m.end()))
+        
+        def is_inside_attribution(start, end):
+            for attr_start, attr_end in attribution_spans:
+                if start >= attr_start and end <= attr_end:
+                    return True
+            return False
+        
+        # Now find all pattern matches and only substitute those outside attributions
+        last_end = 0
+        for m in re.finditer(pattern, text, re.IGNORECASE):
+            if not is_inside_attribution(m.start(), m.end()):
+                result.append(text[last_end:m.start()])
+                result.append(replacement)
+                last_end = m.end()
+                count += 1
+            # If inside attribution, skip (include original text later)
+        
+        result.append(text[last_end:])
+        return ''.join(result), count
+    
     # Apply legal scrubs
     for pattern, replacement in LEGAL_SCRUB_PATTERNS:
-        new_text, count = re.subn(pattern, replacement, scrubbed, flags=re.IGNORECASE)
+        new_text, count = attribution_aware_sub(pattern, replacement, scrubbed)
         if count > 0:
             scrubbed = new_text
             scrub_count += count
             log.info("legal_scrub", pattern=pattern[:30], count=count)
+
     
-    # V5: Apply intent/threat scrubs
+    # V5: Apply intent/threat scrubs (with attribution-aware substitution)
     for pattern, replacement in INTENT_SCRUB_PATTERNS:
-        new_text, count = re.subn(pattern, replacement, scrubbed, flags=re.IGNORECASE)
+        new_text, count = attribution_aware_sub(pattern, replacement, scrubbed)
         if count > 0:
             scrubbed = new_text
             scrub_count += count
             log.info("intent_scrub", pattern=pattern[:30], count=count)
     
-    # Apply conspiracy scrubs
+    # Apply conspiracy scrubs (with attribution-aware substitution)
     for pattern, replacement in CONSPIRACY_SCRUB_PATTERNS:
-        new_text, count = re.subn(pattern, replacement, scrubbed, flags=re.IGNORECASE)
+        new_text, count = attribution_aware_sub(pattern, replacement, scrubbed)
         if count > 0:
             scrubbed = new_text
             scrub_count += count
             log.info("conspiracy_scrub", pattern=pattern[:30], count=count)
     
-    # Apply invective scrubs
+    # Apply invective scrubs (these use simple re.subn since they don't add attributions)
     for pattern, replacement in INVECTIVE_SCRUB_PATTERNS:
         new_text, count = re.subn(pattern, replacement, scrubbed, flags=re.IGNORECASE)
         if count > 0:
@@ -265,12 +321,43 @@ def _clean_artifacts(text: str) -> str:
     # Remove leftover "-- --" patterns
     result = re.sub(r'--\s*--', '', result)
     
+    # V7: Fix nested attributions - multiple "--" patterns in same sentence
+    # Pattern: "-- reporter X -- reporter Y --" -> "-- reporter X; reporter Y --"
+    # Or simply collapse to first attribution
+    while True:
+        # Find patterns like "-- something -- --" (nested/broken)
+        match = re.search(r'--\s*([^-]+?)\s*--\s*--\s*([^-]+?)\s*--', result)
+        if match:
+            # Combine into single attribution
+            combined = f"-- {match.group(1).strip()}; {match.group(2).strip()} --"
+            result = result[:match.start()] + combined + result[match.end():]
+        else:
+            break
+    
+    # Fix patterns like "-- reporter X as -- reporter Y --" (mid-attribution break)
+    result = re.sub(
+        r'--\s*(reporter\s+\w+)\s+as\s*--\s*(reporter[^-]+)--',
+        r'-- \2--',
+        result,
+        flags=re.IGNORECASE
+    )
+    
+    # Fix "described as described as" duplication
+    result = re.sub(r'\bdescribed as\s+described as\b', 'described as', result, flags=re.IGNORECASE)
+    
+    # Fix "characterized as characterized as" etc
+    result = re.sub(r'\b(characterized|perceived|reported)\s+as\s+\1\s+as\b', r'\1 as', result, flags=re.IGNORECASE)
+    
     # Fix article agreement: "an person" → "a person", "a individual" → "an individual"
     # When a word is removed, we may have wrong article
     result = re.sub(r'\ban\s+([bcdfghjklmnpqrstvwxyzBCDFGHJKLMNPQRSTVWXYZ])', r'a \1', result)
     result = re.sub(r'\ba\s+([aeiouAEIOU])', r'an \1', result)
     
+    # Remove leftover broken attributions (empty or whitespace only)
+    result = re.sub(r'--\s+--', '', result)
+    
     # Trim extra whitespace
+    result = ' '.join(result.split())
     result = result.strip()
     
     return result
