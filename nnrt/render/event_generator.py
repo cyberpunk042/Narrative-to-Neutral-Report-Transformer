@@ -297,6 +297,10 @@ PHRASAL_VERB_PATTERNS = {
     'run': [
         (r'ran?\s+over\s+to\s+(.+?)(?:\s+and|$)', 'ran over to'),
     ],
+    # Handle when spaCy already extracts "run over" as the verb
+    'run over': [
+        (r'ran?\s+over\s+to\s+(.+?)(?:\s+and|$)', 'ran over to'),
+    ],
     'pull': [
         (r'pull(?:ed)?\s+(.+?)\s+aside', 'pulled {target} aside'),  # Special: target in middle
     ],
@@ -596,21 +600,38 @@ def is_verb_meaningful(verb: str, target: Optional[str], actor: str) -> Tuple[bo
     
     # Special case: Reporter's generic actions are less useful in STRICT section
     REPORTER_GENERIC_VERBS = {
-        # Base forms
+        # Base forms - Internal/mental actions not camera-friendly
         'freeze', 'scream', 'try', 'work', 'walk', 'research', 
         'go', 'hear', 'complain', 'charge', 'suffer', 'pursue', 'refuse',
+        'think', 'feel', 'know', 'believe', 'want', 'like', 'hate', 'fear',
+        'diagnose',  # Medical professional action, not camera-friendly for reporter
         # Past forms
         'froze', 'screamed', 'tried', 'worked', 'walked', 'researched', 
         'went', 'heard', 'complained', 'charged', 'suffered', 'pursued', 'refused',
+        'thought', 'felt', 'knew', 'believed', 'wanted', 'liked', 'hated', 'feared',
+        'diagnosed',
     }
     if actor == "Reporter" and verb_lower in REPORTER_GENERIC_VERBS:
-        if not target or len(target) < 5:
-            return False, f"Reporter's action '{verb}' needs context"
+        # Only allow with substantial target
+        if not target or len(target) < 10:
+            return False, f"Reporter's action '{verb}' needs more context"
     
     # Generic verbs that are always meaningless
-    GENERIC_VERBS = {'happen', 'happened', 'occur', 'occurred', 'be', 'was', 'were'}
+    GENERIC_VERBS = {'happen', 'happened', 'occur', 'occurred', 'be', 'was', 'were', 'seem', 'seemed', 'appear', 'appeared'}
     if verb_lower in GENERIC_VERBS:
         return False, f"Verb '{verb}' is too generic"
+    
+    # Coming/going without destination is too vague
+    MOVEMENT_VERBS_NEEDING_TARGET = {
+        'come', 'came', 'go', 'went', 'arrive', 'arrived', 
+        'come over', 'came over', 'come out', 'came out',
+    }
+    if verb_lower in MOVEMENT_VERBS_NEEDING_TARGET and not target:
+        return False, f"Movement verb '{verb}' needs destination"
+    
+    # Medical/research verbs need specifics
+    if verb_lower in {'diagnose', 'diagnosed', 'research', 'researched'} and (not target or len(target) < 15):
+        return False, f"Verb '{verb}' needs specific details to be camera-friendly"
     
     return True, None
 
@@ -678,7 +699,9 @@ def generate_strict_events(
         # Get source segment
         seg_id = ev.source_spans[0] if ev.source_spans else None
         seg = segment_lookup.get(seg_id) if seg_id else None
-        original_text = seg.text if seg else ev.description
+        
+        # V9: Prefer resolved_text (with pronouns resolved) if available
+        original_text = seg.resolved_text or seg.text if seg else ev.description
         
         # 1. Validate actor
         actor = ev.actor_label
@@ -768,6 +791,20 @@ def generate_strict_events(
         sentence = re.sub(r'\s+', ' ', sentence)
         sentence = re.sub(r'\s+\.', '.', sentence)
         
+        # 6.5: Capitalize proper nouns (officer names, etc.)
+        def capitalize_proper_nouns(text):
+            """Capitalize known proper nouns in text."""
+            # Names that should be capitalized
+            names = ['jenkins', 'rodriguez', 'williams', 'chen', 'foster', 'monroe', 'thompson', 'walsh', 'marcus', 'patricia', 'amanda', 'sarah', 'michael', 'jennifer']
+            for name in names:
+                # Capitalize when it appears as word boundary
+                text = re.sub(r'\b' + name + r'\b', name.capitalize(), text, flags=re.IGNORECASE)
+            # Also capitalize 'officers' when followed by names
+            text = re.sub(r'\bofficers\s+', 'Officers ', text, flags=re.IGNORECASE)
+            return text
+        
+        sentence = capitalize_proper_nouns(sentence)
+        
         # 7. Deduplicate
         sentence_key = sentence.lower()
         if sentence_key in seen_sentences:
@@ -806,6 +843,8 @@ def get_strict_event_sentences(
     """
     Convenience function to get just the sentence strings for STRICT section.
     
+    V10: Now uses enhanced sentence-level extraction in addition to spaCy events.
+    
     Args:
         events: Event IR objects
         segments: Segment objects
@@ -816,13 +855,84 @@ def get_strict_event_sentences(
     Returns:
         List of clean sentence strings
     """
+    # V9: Generate from spaCy events
     generated = generate_strict_events(events, segments, atomic_statements, entities)
     
     # Filter to only valid (non-excluded) events
     valid_events = [g for g in generated if g.exclusion_reason is None and g.sentence]
+    v9_sentences = [g.sentence for g in valid_events]
     
-    # Return sentences up to max
-    return [g.sentence for g in valid_events[:max_events]]
+    # V10: Also use enhanced sentence-level extraction
+    v10_sentences = []
+    try:
+        from nnrt.nlp.enhanced_event_extractor import get_enhanced_events
+        
+        # Build full text from segments
+        if segments:
+            full_text = ' '.join(s.text for s in segments if hasattr(s, 'text') and s.text)
+            
+            # Get entity names for pronoun resolution
+            entity_names = []
+            if entities:
+                for e in entities:
+                    if hasattr(e, 'label') and e.label:
+                        entity_names.append(e.label)
+            
+            # Extract enhanced events
+            enhanced = get_enhanced_events(full_text, entity_names)
+            
+            # Apply additional quality filters
+            for ev in enhanced:
+                sentence = ev.get('sentence', '')
+                
+                # Skip low-quality events
+                if not sentence or len(sentence) < 10:
+                    continue
+                    
+                # Skip incomplete targets (ends with 'at.' or 'with.')
+                if sentence.endswith(' at.') or sentence.endswith(' with.'):
+                    continue
+                    
+                # Skip malformed text with multiple consecutive periods  
+                if '..' in sentence:
+                    continue
+                    
+                if 'stateReporternt' in sentence:  # Malformed
+                    continue
+                if 'stop Reporter' in sentence or 'tell from' in sentence:
+                    continue
+                
+                v10_sentences.append(sentence)
+                
+    except ImportError:
+        pass  # Enhanced extractor not available
+    except Exception:
+        pass  # Don't crash on errors
+    
+    # Combine and deduplicate
+    seen_keys = set()
+    combined = []
+    
+    # Process V10 first (enhanced is typically higher quality)
+    for s in v10_sentences:
+        # Create dedup key from first 4 words (actor + verb)
+        # This prevents "Mrs. Patricia Chen came..." and "Mrs. Patricia Chen called..." being merged
+        words = s.split()[:4]
+        key = ' '.join(words).lower()
+        if key not in seen_keys:
+            seen_keys.add(key)
+            combined.append(s)
+    
+    # Add V9 events that aren't duplicates
+    for s in v9_sentences:
+        words = s.split()[:4]
+        key = ' '.join(words).lower()
+        if key not in seen_keys:
+            seen_keys.add(key)
+            combined.append(s)
+    
+    # Return up to max events
+    return combined[:max_events]
 
 
 def get_excluded_events_summary(

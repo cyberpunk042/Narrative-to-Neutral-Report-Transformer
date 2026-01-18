@@ -10,6 +10,7 @@ from nnrt.passes.p27_classify_atomic import classify_atomic
 from nnrt.passes.p28_link_provenance import link_provenance
 from nnrt.passes.p30_extract_identifiers import extract_identifiers
 from nnrt.passes.p32_extract_entities import extract_entities
+from nnrt.passes.p33_resolve_text_coref import resolve_text_coreference  # V9: Early coref
 from nnrt.passes.p34_extract_events import extract_events
 from nnrt.passes.p40_build_ir import build_ir
 from nnrt.passes.p42_coreference import resolve_coreference
@@ -32,6 +33,7 @@ __all__ = [
     "link_provenance",
     "extract_identifiers",
     "extract_entities",
+    "resolve_text_coreference",  # V9: Early coref
     "extract_events",
     "build_ir",
     "resolve_coreference",

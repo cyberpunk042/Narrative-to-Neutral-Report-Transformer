@@ -68,7 +68,7 @@ def setup_default_pipeline(engine: Engine, profile: str = "law_enforcement") -> 
             extract_entities,     # Phase 4: Entity Extraction
             extract_events,       # Phase 4: Event Extraction
             build_ir,
-            resolve_coreference,  # v3: Link pronouns to entities
+            resolve_coreference,  # v3: Link pronouns to entities (for chains)
             resolve_actors,       # V5: Replace pronouns with entity names
             build_timeline,       # v3: Order events temporally
             group_statements,     # v3: Cluster related statements
@@ -173,7 +173,7 @@ def setup_structured_only_pipeline(engine: Engine, profile: str = "law_enforceme
             extract_entities,
             extract_events,
             build_ir,
-            resolve_coreference,   # V5: Link pronouns to entities
+            resolve_coreference,   # V5: Link pronouns to entities (for chains)
             resolve_actors,        # V5: Replace pronouns with entity names
             build_timeline,        # V6: Enhanced timeline with gap detection
             group_statements,      # V5: Semantic grouping

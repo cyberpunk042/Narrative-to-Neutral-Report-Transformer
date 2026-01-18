@@ -44,6 +44,7 @@ nlp = [
     "spacy>=3.7",
     "accelerate>=0.25",
     "sentencepiece>=0.1.99",
+    "google-generativeai>=0.3",  # V10: LLM-based event extraction
 ]
 production = [
     "pyyaml>=6.0",

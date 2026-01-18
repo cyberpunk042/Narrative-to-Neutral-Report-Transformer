@@ -93,6 +93,12 @@ class Segment(BaseModel):
         default=None,
         description="Neutralized text after policy rules applied (None if unchanged)"
     )
+    
+    # V9: Coreference-resolved text (set by p42_coreference when FastCoref available)
+    resolved_text: Optional[str] = Field(
+        default=None,
+        description="Text with pronouns resolved to entity names (for V9 event extraction)"
+    )
     applied_rules: list[str] = Field(
         default_factory=list,
         description="IDs of policy rules that were applied to this segment"

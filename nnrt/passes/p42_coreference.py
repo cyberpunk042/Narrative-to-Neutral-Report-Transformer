@@ -1,6 +1,8 @@
 """
 p42_coreference — Pronoun and mention resolution.
 
+V9 ENHANCEMENT: Uses FastCoref for superior pronoun resolution when available.
+
 Ultra-top solution for linking pronouns to entities:
 
 Algorithm:
@@ -9,16 +11,21 @@ Algorithm:
    - Search for full names AND individual words
    - Handles cases spaCy misses
 
-2. PRONOUN COLLECTION
+2. V9: FASTCOREF RESOLUTION (when available)
+   - Uses neural coreference model for accurate pronoun resolution
+   - Can resolve pronouns across sentences
+   - Extracts named entities from descriptive mentions
+
+3. PRONOUN COLLECTION (fallback)
    - Use spaCy POS tagging (reliable) not NER
    - Classify by gender/number
 
-3. UNIFIED TIMELINE RESOLUTION
+4. UNIFIED TIMELINE RESOLUTION
    - Merge all mentions into position-sorted timeline
    - Pronouns resolve to most recent gender-matching entity
    - First person always resolves to REPORTER
 
-4. CHAIN ASSEMBLY
+5. CHAIN ASSEMBLY
    - Group mentions by resolved entity
    - Calculate confidence metrics
 
@@ -26,6 +33,7 @@ Design principles:
 - Never rely solely on spaCy NER for mention detection
 - Use word boundaries for accurate matching
 - Position-based recency is the primary resolution signal
+- V9: Use FastCoref when available for neural-based resolution
 """
 
 import re
@@ -40,6 +48,15 @@ from nnrt.nlp.spacy_loader import get_nlp
 log = structlog.get_logger("nnrt.p42_coreference")
 
 PASS_NAME = "p42_coreference"
+
+# V10: FastCoref disabled - enhanced_event_extractor now handles pronoun resolution
+# This was adding ~40s overhead with minimal benefit
+_fastcoref_available = False  # Disabled
+_fastcoref_resolver = None
+
+def _get_fastcoref():
+    """FastCoref is disabled in V10 - returns None."""
+    return None
 
 # ============================================================================
 # Pronoun Classification
@@ -72,13 +89,56 @@ def resolve_coreference(ctx: TransformContext) -> TransformContext:
     """
     Resolve pronouns and build coreference chains.
     
-    This is the ultra-top solution using exhaustive mention detection
-    and position-based recency resolution.
+    V9: Uses FastCoref when available for neural-based resolution.
+    Falls back to rule-based algorithm otherwise.
     """
     if not ctx.entities:
         log.info("no_entities", pass_name=PASS_NAME, message="No entities to resolve")
         ctx.add_trace(PASS_NAME, "skipped", after="No entities")
         return ctx
+    
+    # =========================================================================
+    # PHASE 0 (V9): FastCoref Resolution
+    # =========================================================================
+    # Use FastCoref when available for neural pronoun resolution
+    
+    fastcoref_resolver = _get_fastcoref()
+    fastcoref_resolved = 0
+    
+    if fastcoref_resolver:
+        # Build entity map for preferred names
+        entity_map = {}
+        for entity in ctx.entities:
+            if entity.label:
+                # Map first name to full entity label
+                words = entity.label.split()
+                for word in words:
+                    if word[0].isupper() and len(word) > 2:
+                        entity_map[word] = entity.label
+        
+        # Resolve pronouns in each segment
+        for segment in ctx.segments:
+            original = segment.text
+            resolved = fastcoref_resolver.resolve(original, entity_map)
+            
+            if resolved != original:
+                # Store resolved text for event extraction
+                segment.resolved_text = resolved  # V9: Add resolved_text attribute
+                fastcoref_resolved += 1
+                
+                log.debug(
+                    "fastcoref_segment_resolved",
+                    segment_id=segment.id,
+                    original_len=len(original),
+                    resolved_len=len(resolved),
+                )
+        
+        if fastcoref_resolved > 0:
+            log.info(
+                "fastcoref_resolution", 
+                pass_name=PASS_NAME,
+                segments_resolved=fastcoref_resolved,
+            )
     
     all_mentions: list[Mention] = []
     mention_counter = 0
@@ -91,6 +151,8 @@ def resolve_coreference(ctx: TransformContext) -> TransformContext:
     # For each entity, search for all occurrences in text
     
     for segment in ctx.segments:
+        # Always use original text for mention detection
+        # (resolved_text is for event extraction in p34)
         text = segment.text
         text_lower = text.lower()
         

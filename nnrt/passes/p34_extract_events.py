@@ -72,8 +72,11 @@ def extract_events(ctx: TransformContext) -> TransformContext:
     
     # Process each segment using the interface
     for segment in ctx.segments:
+        # V9: Use resolved_text (with pronouns resolved) if available
+        segment_text = segment.resolved_text or segment.text
+        
         # Use the interface - not direct spaCy
-        extraction_results = extractor.extract(segment.text)
+        extraction_results = extractor.extract(segment_text)
         
         # Convert extraction results to Event IR objects
         for result in extraction_results:
@@ -86,8 +89,8 @@ def extract_events(ctx: TransformContext) -> TransformContext:
             if event:
                 events.append(event)
         
-        # V9: Update previous segment for next iteration
-        previous_segment_text = segment.text
+        # V9: Update previous segment for next iteration (use resolved if available)
+        previous_segment_text = segment_text
 
     ctx.events = events
     
