@@ -817,6 +817,212 @@ def format_structured_output(
         lines.append("")
     
     # =========================================================================
+    # V10: ITEMS DISCOVERED Section
+    # Extract and categorize items allegedly found during searches
+    # =========================================================================
+    import re
+    
+    # Patterns that indicate discovery/seizure of items
+    DISCOVERY_PATTERNS = [
+        r'(?:he|she|they|officer|rodriguez|jenkins)\s+found\s+(.+?)(?:\.|$)',
+        r'(?:he|she|they)\s+(?:took|seized|grabbed|confiscated)\s+(.+?)(?:\.|$)',
+        r'(?:searched|searching).+?(?:found|discovered)\s+(.+?)(?:\.|$)',
+    ]
+    
+    # Item categories for classification
+    # SPECIFIC illegal substances - these ARE contraband
+    CONTRABAND_TERMS = {
+        'cocaine', 'heroin', 'meth', 'methamphetamine', 'fentanyl',
+        'crack', 'ecstasy', 'mdma', 'lsd', 'pcp',
+        'marijuana', 'weed', 'cannabis',  # Note: legal in some jurisdictions
+        'paraphernalia', 'pipe', 'bong', 'syringe', 'needles',
+    }
+    
+    # VAGUE substance terms - need clarification, could be legal or illegal
+    VAGUE_SUBSTANCE_TERMS = {
+        'drugs', 'drug', 'pills', 'narcotics', 'controlled substance',
+        'substances', 'medication', 'medicine', 'prescriptions',
+    }
+    
+    WEAPON_TERMS = {
+        'gun', 'firearm', 'pistol', 'revolver', 'rifle', 'knife', 'blade',
+        'weapon', 'brass knuckles', 'taser', 'ammunition', 'ammo', 'bullets',
+    }
+    
+    PERSONAL_EFFECTS = {
+        'wallet', 'phone', 'keys', 'id', 'identification', 'license',
+        'credit card', 'debit card', 'cash', 'money', 'watch', 'ring',
+        'glasses', 'sunglasses', 'bag', 'purse', 'backpack',
+    }
+    
+    WORK_ITEMS = {
+        'apron', 'uniform', 'badge', 'id badge', 'work id', 'tips',
+        'employee', 'work', 'job',
+    }
+    
+    discovered_items = {
+        'personal_effects': [],
+        'work_items': [],
+        'valuables': [],
+        'contraband': [],
+        'unspecified_substances': [],  # NEW: for vague substance claims
+        'weapons': [],
+        'other': [],
+    }
+    
+    discovery_context = None  # Store the discovery claim sentence
+    
+    # Search through atomic statements for discovery patterns
+    all_statements_text = []
+    for stmt in atomic_statements:
+        text = getattr(stmt, 'text', str(stmt))
+        all_statements_text.append(text)
+    
+    full_text = ' '.join(all_statements_text)
+    
+    # Use sets to deduplicate
+    discovered_items_sets = {
+        'personal_effects': set(),
+        'work_items': set(),
+        'valuables': set(),
+        'contraband': set(),
+        'unspecified_substances': set(),  # NEW: for vague substance claims
+        'weapons': set(),
+        'other': set(),
+    }
+    
+    for pattern in DISCOVERY_PATTERNS:
+        for match in re.finditer(pattern, full_text, re.IGNORECASE):
+            items_text = match.group(1)
+            discovery_context = match.group(0)
+            
+            # Skip false positives - "found out", "found that", "found to be"
+            if re.match(r'^(out|that|to be|it was|the|a |an |evidence|at least)', items_text.strip(), re.IGNORECASE):
+                continue
+            
+            # Parse individual items (split by comma, "and", etc.)
+            items = re.split(r',\s*(?:and\s+)?|\s+and\s+', items_text)
+            
+            for item in items:
+                item = item.strip().lower()
+                if not item or len(item) < 2:
+                    continue
+                
+                # Skip long phrases that aren't real items
+                if len(item) > 60:
+                    continue
+                
+                # Skip if it looks like a sentence continuation, not an item
+                if any(word in item for word in ['which proves', 'that at least', 'to be', 'the police']):
+                    continue
+                
+                # Remove possessives
+                item = re.sub(r'^my\s+', '', item)
+                item = re.sub(r'^his\s+', '', item)
+                item = re.sub(r'^her\s+', '', item)
+                item = re.sub(r'^their\s+', '', item)
+                
+                # Classify the item
+                item_lower = item.lower()
+                
+                # Check VAGUE SUBSTANCES first (drugs, pills, etc.)
+                if any(term in item_lower for term in VAGUE_SUBSTANCE_TERMS):
+                    discovered_items_sets['unspecified_substances'].add(item)
+                # Then check SPECIFIC contraband (cocaine, heroin, meth)
+                elif any(term in item_lower for term in CONTRABAND_TERMS):
+                    discovered_items_sets['contraband'].add(item)
+                elif any(term in item_lower for term in WEAPON_TERMS):
+                    discovered_items_sets['weapons'].add(item)
+                elif any(term in item_lower for term in WORK_ITEMS):
+                    discovered_items_sets['work_items'].add(item)
+                elif any(term in item_lower for term in PERSONAL_EFFECTS):
+                    if 'cash' in item_lower or 'money' in item_lower or 'tips' in item_lower:
+                        discovered_items_sets['valuables'].add(item)
+                    else:
+                        discovered_items_sets['personal_effects'].add(item)
+                elif 'cash' in item_lower or 'money' in item_lower or 'tip' in item_lower:
+                    discovered_items_sets['valuables'].add(item)
+                else:
+                    # Only add to "other" if it looks like a real item (short, no verbs)
+                    if len(item) < 30 and not any(w in item for w in ['was', 'were', 'is', 'are', 'that', 'which']):
+                        discovered_items_sets['other'].add(item)
+    
+    # Convert sets to lists for rendering
+    discovered_items = {k: list(v) for k, v in discovered_items_sets.items()}
+    
+    # Render the section if items were found
+    has_items = any(discovered_items[cat] for cat in discovered_items)
+    
+    if has_items:
+        lines.append("ITEMS DISCOVERED (as claimed by Reporter)")
+        lines.append("─" * 70)
+        lines.append("  ℹ️ Items Reporter states were found during search.")
+        lines.append("  Status: Reporter's account only. No seizure/inventory records attached.")
+        lines.append("")
+        
+        # Personal effects
+        if discovered_items['personal_effects']:
+            lines.append("  PERSONAL EFFECTS:")
+            for item in discovered_items['personal_effects']:
+                lines.append(f"    • {item}")
+            lines.append("")
+        
+        # Work items
+        if discovered_items['work_items']:
+            lines.append("  WORK-RELATED ITEMS:")
+            for item in discovered_items['work_items']:
+                lines.append(f"    • {item}")
+            lines.append("")
+        
+        # Valuables
+        if discovered_items['valuables']:
+            lines.append("  VALUABLES/CURRENCY:")
+            for item in discovered_items['valuables']:
+                lines.append(f"    • {item}")
+            lines.append("")
+        
+        # UNSPECIFIED SUBSTANCES - vague terms that need clarification
+        if discovered_items['unspecified_substances']:
+            lines.append("  ❓ UNSPECIFIED SUBSTANCES (Requires Clarification):")
+            for item in discovered_items['unspecified_substances']:
+                lines.append(f"    • \"{item}\" — term is ambiguous")
+            lines.append("")
+            lines.append("    ❓ FOLLOW-UP QUESTION: What specific substance(s) were found?")
+            lines.append("       The term used is vague and could refer to legal medication,")
+            lines.append("       prescription drugs, or controlled substances.")
+            lines.append("")
+        
+        # CONTRABAND - SPECIFIC illegal substances only
+        if discovered_items['contraband']:
+            lines.append("  ⚠️ CONTROLLED SUBSTANCES / CONTRABAND:")
+            for item in discovered_items['contraband']:
+                lines.append(f"    • {item}")
+            lines.append("")
+            lines.append("    ⚠️ NOTE: Specific controlled substance(s) claimed.")
+            lines.append("    This may indicate: (a) Reporter possessed contraband, OR")
+            lines.append("    (b) Reporter alleges items were planted. Context required.")
+            lines.append("")
+        
+        # WEAPONS - also requires special handling
+        if discovered_items['weapons']:
+            lines.append("  ⚠️ WEAPONS:")
+            for item in discovered_items['weapons']:
+                lines.append(f"    • {item}")
+            lines.append("")
+            lines.append("    ⚠️ NOTE: Presence of weapons affects incident context significantly.")
+            lines.append("")
+        
+        # Other items
+        if discovered_items['other']:
+            lines.append("  OTHER ITEMS:")
+            for item in discovered_items['other']:
+                lines.append(f"    • {item}")
+            lines.append("")
+        
+        lines.append("")
+    
+    
+    # =========================================================================
     # SECTION 2: NARRATIVE EXCERPTS (UNNORMALIZED)
     # Items that couldn't be normalized, with documented reasons
     # =========================================================================
