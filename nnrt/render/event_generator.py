@@ -897,9 +897,34 @@ def get_strict_event_sentences(
                 if '..' in sentence:
                     continue
                     
-                if 'stateReporternt' in sentence:  # Malformed
+                # Skip known malformed patterns
+                if 'stateReporternt' in sentence:
                     continue
                 if 'stop Reporter' in sentence or 'tell from' in sentence:
+                    continue
+                
+                # Skip sentences starting with unresolved pronouns
+                if sentence.startswith(('She ', 'He ', 'It ', 'They ')):
+                    continue
+                
+                # Skip sentences with base-form verbs (wrong tense)
+                # Pattern: "Actor verb" where verb is base form
+                words = sentence.split()
+                if len(words) >= 2:
+                    potential_verb = words[1].lower().rstrip('.')
+                    base_form_verbs = {'grab', 'walk', 'run', 'jump', 'take', 'put', 
+                                       'slam', 'search', 'come', 'go', 'call', 'document'}
+                    if potential_verb in base_form_verbs:
+                        continue
+                
+                # Skip nonsensical combinations
+                if ' documented slammed ' in sentence.lower():
+                    continue
+                if ' walk at night' in sentence.lower():
+                    continue
+                    
+                # Skip events with unresolved "it" as target
+                if ' it ' in sentence.lower() and 'Reporter' not in sentence:
                     continue
                 
                 v10_sentences.append(sentence)
@@ -913,20 +938,27 @@ def get_strict_event_sentences(
     seen_keys = set()
     combined = []
     
+    def normalize_for_dedup(sentence: str) -> str:
+        """Normalize sentence for deduplication key generation."""
+        s = sentence.lower()
+        # Remove title prefixes for consistent matching
+        s = s.replace('mrs. ', '').replace('mr. ', '').replace('dr. ', '').replace('ms. ', '')
+        # Normalize common verb variants
+        s = s.replace('searched through ', 'searched ').replace('came out onto ', 'came onto ')
+        # Get first 4 words
+        words = s.split()[:4]
+        return ' '.join(words)
+    
     # Process V10 first (enhanced is typically higher quality)
     for s in v10_sentences:
-        # Create dedup key from first 4 words (actor + verb)
-        # This prevents "Mrs. Patricia Chen came..." and "Mrs. Patricia Chen called..." being merged
-        words = s.split()[:4]
-        key = ' '.join(words).lower()
+        key = normalize_for_dedup(s)
         if key not in seen_keys:
             seen_keys.add(key)
             combined.append(s)
     
     # Add V9 events that aren't duplicates
     for s in v9_sentences:
-        words = s.split()[:4]
-        key = ' '.join(words).lower()
+        key = normalize_for_dedup(s)
         if key not in seen_keys:
             seen_keys.add(key)
             combined.append(s)

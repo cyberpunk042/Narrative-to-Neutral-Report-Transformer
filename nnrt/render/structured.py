@@ -729,6 +729,79 @@ def format_structured_output(
     if final_strict_events:
         lines.append("OBSERVED EVENTS (STRICT / CAMERA-FRIENDLY)")
         lines.append("─" * 70)
+        
+        # =================================================================
+        # V10: Context Summary - neutralize and present opening context
+        # =================================================================
+        context_parts = []
+        
+        # Get date/time/location from identifiers
+        ident_by_type = defaultdict(list)
+        if identifiers:
+            for ident in identifiers:
+                ident_type = getattr(ident, 'type', None)
+                if hasattr(ident_type, 'value'):
+                    ident_type = ident_type.value
+                ident_type = str(ident_type) if ident_type else 'unknown'
+                value = getattr(ident, 'value', str(ident))
+                ident_by_type[ident_type].append(value)
+        
+        date_val = ident_by_type.get('date', [None])[0]
+        time_val = ident_by_type.get('time', [None])[0]
+        location_val = ident_by_type.get('location', [None])[0]
+        
+        # Build datetime string
+        if date_val or time_val:
+            datetime_str = ""
+            if date_val:
+                datetime_str = f"on {date_val}"
+            if time_val:
+                datetime_str += f" at approximately {time_val}" if datetime_str else f"at approximately {time_val}"
+            context_parts.append(datetime_str)
+        
+        # Add location
+        if location_val:
+            context_parts.append(f"near {location_val}")
+        
+        # Get officer names from entities
+        officer_names = []
+        if entities:
+            for e in entities:
+                label = getattr(e, 'label', '')
+                role = getattr(e, 'role', '')
+                if hasattr(role, 'value'):
+                    role = role.value
+                if str(role).lower() == 'subject_officer' and label:
+                    officer_names.append(label)
+        
+        # Build context summary
+        if context_parts or officer_names:
+            context_summary = "ℹ️ Context: "
+            
+            if officer_names:
+                officers_str = " and ".join(officer_names[:2])
+                if len(officer_names) > 2:
+                    officers_str = ", ".join(officer_names[:-1]) + f", and {officer_names[-1]}"
+                context_summary += f"Reporter encountered {officers_str}"
+            else:
+                context_summary += "An encounter occurred"
+            
+            if context_parts:
+                context_summary += " " + " ".join(context_parts)
+            
+            context_summary += "."
+            
+            # Add self-reported state if available (acute)
+            if statements_by_epistemic.get('state_acute'):
+                # Get first emotional state, neutralized
+                for stmt in statements_by_epistemic['state_acute'][:1]:
+                    if 'terrified' in stmt.lower() or 'scared' in stmt.lower() or 'frightened' in stmt.lower() or 'shock' in stmt.lower():
+                        context_summary += " Reporter reports feeling frightened during this encounter."
+                        break
+            
+            lines.append(context_summary)
+            lines.append("")
+        
         lines.append("ℹ️ Fully normalized: Actor (entity/class) + action + object. No pronouns, quotes, or fragments.")
         lines.append("")
         for text in final_strict_events:

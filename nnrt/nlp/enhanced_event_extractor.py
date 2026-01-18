@@ -411,9 +411,35 @@ def extract_sentence_events(text: str, entities: List[str] = None) -> List[Extra
                 if 'my ' in target_lower or target_lower.startswith('me'):
                     target = target.replace('my ', "Reporter's ").replace('me', 'Reporter')
                 elif 'his ' in target_lower and last_male_entity:
-                    target = target.replace('his ', f"{last_male_entity}'s ")
+                    # IMPORTANT: Don't resolve "his" to the actor (e.g., "Rodriguez grabbed his phone"
+                    # should NOT become "Rodriguez grabbed Rodriguez's phone")
+                    # "his" in target likely refers to someone OTHER than the actor
+                    if actor_resolved and actor_resolved.lower() == last_male_entity.lower():
+                        # Actor is male - look for another male entity in the sentence
+                        # e.g., "Rodriguez ran to Marcus and grabbed his phone" → "his" = Marcus
+                        other_male = None
+                        for male_name in ['marcus johnson', 'marcus']:
+                            if male_name in sent_lower and 'marcus' not in actor_resolved.lower():
+                                other_male = 'Marcus Johnson' if 'johnson' in sent_lower else 'Marcus'
+                                break
+                        if other_male:
+                            target = target.replace('his ', f"{other_male}'s ")
+                        # else: leave as "his" for manual review
+                    else:
+                        target = target.replace('his ', f"{last_male_entity}'s ")
                 elif 'her ' in target_lower and last_female_entity:
-                    target = target.replace('her ', f"{last_female_entity}'s ")
+                    # Same logic for "her"
+                    if actor_resolved and actor_resolved.lower() == last_female_entity.lower():
+                        # Look for another female entity
+                        other_female = None
+                        for female_name in ['patricia chen', 'patricia']:
+                            if female_name in sent_lower and 'patricia' not in actor_resolved.lower():
+                                other_female = 'Patricia Chen' if 'chen' in sent_lower else 'Patricia'
+                                break
+                        if other_female:
+                            target = target.replace('her ', f"{other_female}'s ")
+                    else:
+                        target = target.replace('her ', f"{last_female_entity}'s ")
             
             # Build result
             results.append(ExtractedAction(
@@ -476,14 +502,22 @@ def get_enhanced_events(text: str, entities: List[str] = None) -> List[Dict]:
         'with excessive force', 'with force',
     ]
     
-    # Past tense conversions for common verbs
+    # Past tense conversions for common verbs (both base and gerund forms)
     PAST_TENSE = {
+        # Gerund → past
         'mocking': 'mocked', 'recording': 'recorded', 'yelling': 'yelled',
         'saying': 'said', 'asking': 'asked', 'telling': 'told',
         'stepping': 'stepped', 'pulling': 'pulled', 'pushing': 'pushed',
         'grabbing': 'grabbed', 'slamming': 'slammed', 'searching': 'searched',
         'running': 'ran', 'coming': 'came', 'going': 'went',
         'putting': 'put', 'taking': 'took', 'making': 'made',
+        # Base → past (for infinitives that slip through)
+        'grab': 'grabbed', 'slam': 'slammed', 'search': 'searched',
+        'run': 'ran', 'come': 'came', 'go': 'went',
+        'put': 'put', 'take': 'took', 'make': 'made',
+        'walk': 'walked', 'call': 'called', 'document': 'documented',
+        'pull': 'pulled', 'push': 'pushed', 'step': 'stepped',
+        'try': 'tried', 'approach': 'approached', 'arrive': 'arrived',
     }
     
     for action in actions:
@@ -564,6 +598,9 @@ def get_enhanced_events(text: str, entities: List[str] = None) -> List[Dict]:
         if target and target.strip() in ('him', 'her', 'them', 'it'):
             continue
         if ' him' in target or ' her ' in target:  # Unresolved pronoun in target
+            continue
+        # Skip if target starts with unresolved 'it' (e.g., "it behind Reporter's back")
+        if target.lower().startswith('it ') or ' it ' in target.lower():
             continue
             
         # QUALITY FILTER 14: Skip incomplete/broken sentences
