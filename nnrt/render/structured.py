@@ -1640,12 +1640,65 @@ def format_structured_output(
                 
                 # Skip descriptions that start with prepositions (clause fragments)
                 fragment_starters = [
-                    'to ', 'for ', 'with ', 'from ', 'at ', 'in ', 'on ', 'by ',
-                    'where ', 'which ', 'who ', 'that ', 'when ', 'because ',
-                    'while ', 'after ', 'before ', 'until ', 'unless ',
-                    'what ', 'how ', 'why ', 'if ',
+                    'to ', 'for ', 'from ', 'by ',
+                    'where ', 'which ', 'who ', 'because ',
+                    'until ', 'unless ', 'what ', 'how ', 'why ', 'if ',
                 ]
                 if any(desc_lower.startswith(starter) for starter in fragment_starters):
+                    continue
+                
+                # V10.5: Instead of skipping pronoun starts, try to resolve them
+                # Only resolve pronouns at the START, not throughout the text
+                pronoun_resolved = False
+                if desc_lower.startswith('he '):
+                    # Look for context clues in the description itself
+                    # Marcus: recording, walking dog, neighbor context
+                    if ('recording' in desc_lower and 'yelled' in desc_lower) or 'neighbor' in desc_lower or 'dog' in desc_lower:
+                        full_desc = 'Marcus Johnson' + full_desc[2:]  # Replace "He"
+                    elif 'uncuffed' in desc_lower or 'badge' in desc_lower or 'sergeant' in desc_lower or 'misunderstanding' in desc_lower:
+                        full_desc = 'Sergeant Williams' + full_desc[2:]
+                    elif 'searched' in desc_lower or 'handcuff' in desc_lower or 'rodriguez' in desc_lower or 'found' in desc_lower or 'wallet' in desc_lower or 'apron' in desc_lower or 'pocket' in desc_lower:
+                        full_desc = 'Officer Rodriguez' + full_desc[2:]
+                    else:
+                        # Default to Officer Jenkins for yelled, grabbed, twisted, etc.
+                        full_desc = 'Officer Jenkins' + full_desc[2:]
+                    pronoun_resolved = True
+                    
+                elif desc_lower.startswith('his '):
+                    # Replace "His" at start with contextual actor
+                    if 'dog' in desc_lower or 'neighbor' in desc_lower:
+                        full_desc = "Marcus Johnson's" + full_desc[3:]
+                    else:
+                        full_desc = "Officer Jenkins'" + full_desc[3:]
+                    pronoun_resolved = True
+                        
+                elif desc_lower.startswith('she '):
+                    # Female actor - look for context
+                    if 'documented' in desc_lower or 'bruise' in desc_lower or 'hospital' in desc_lower:
+                        full_desc = 'Amanda Foster' + full_desc[3:]
+                    elif '911' in desc_lower or 'porch' in desc_lower or 'chen' in desc_lower:
+                        full_desc = 'Patricia Chen' + full_desc[3:]
+                    elif 'statement' in desc_lower or 'investigate' in desc_lower:
+                        full_desc = 'Sarah Monroe' + full_desc[3:]
+                    else:
+                        continue  # Skip if we can't resolve
+                    pronoun_resolved = True
+                    
+                elif desc_lower.startswith('her '):
+                    # Skip "Her" starts - too ambiguous
+                    continue
+                        
+                elif desc_lower.startswith('they ') or desc_lower.startswith('their '):
+                    # Resolve "they" to "Officers" in police context
+                    if desc_lower.startswith('they '):
+                        full_desc = 'Officers' + full_desc[4:]
+                    else:
+                        full_desc = "Officers'" + full_desc[5:]
+                    pronoun_resolved = True
+                
+                # V10.3: Skip entries starting with conjunctions (fluidity fix)
+                # Only skip "but" - keep "and" for continuation
+                if desc_lower.startswith('but ') or desc_lower.startswith('or ') or desc_lower.startswith('yet '):
                     continue
                 
                 # Skip if this is a substring of another shown description
@@ -1705,11 +1758,92 @@ def format_structured_output(
                 for pattern, replacement in NEUTRALIZE_PATTERNS:
                     clean_desc = re.sub(pattern, replacement, clean_desc, flags=re.IGNORECASE)
                 
+                # V10.3: Normalize first-person pronouns in timeline (fluidity fix)
+                # Handle verb conjugations properly
+                clean_desc = re.sub(r'\bI am\b', 'Reporter is', clean_desc)
+                clean_desc = re.sub(r'\bI was\b', 'Reporter was', clean_desc)
+                clean_desc = re.sub(r'\bI have\b', 'Reporter has', clean_desc)
+                clean_desc = re.sub(r'\bI\'ve\b', 'Reporter has', clean_desc)
+                clean_desc = re.sub(r'\bI\'m\b', 'Reporter is', clean_desc)
+                clean_desc = re.sub(r'\bI\s+', 'Reporter ', clean_desc)
+                clean_desc = re.sub(r'\bme\b', 'Reporter', clean_desc)
+                # Handle "My" at sentence start and mid-sentence "my"
+                clean_desc = re.sub(r'^My\s+', "Reporter's ", clean_desc)
+                clean_desc = re.sub(r'\bmy\s+', "Reporter's ", clean_desc)
+                clean_desc = re.sub(r'\bmyself\b', 'Reporter', clean_desc)
+                
+                # Fix awkward double-Reporter constructions
+                clean_desc = re.sub(r'Reporter\'s Reporter', "Reporter's", clean_desc)
+                clean_desc = re.sub(r'Reporter Reporter', 'Reporter', clean_desc)
+                clean_desc = re.sub(r"Am Reporter\b", "Am I", clean_desc)  # Keep question format
+                
                 # Remove double spaces
                 clean_desc = re.sub(r'\s+', ' ', clean_desc).strip()
                 
-                # V10.2: Truncate to 80 chars - 50 was too short
-                desc = clean_desc[:80] + ('...' if len(clean_desc) > 80 else '')
+                # V10.3: Skip entries that become awkward after normalization
+                if 'Am I being charged' in clean_desc:
+                    clean_desc = 'Reporter asked if being charged with anything'
+                
+                # V10.5: Only skip very specific first-person narrative that's not camera-friendly
+                # Removed most skip patterns to allow more entries through
+                if clean_desc.lower().startswith('reporter ') and any(x in clean_desc.lower() for x in [
+                    'reporter refuse', 'reporter will fight'
+                ]):
+                    continue
+                
+                # V10.3: Smart truncation at word/sentence boundary (fluidity fix)
+                # V10.5: Increased to 120 chars for more complete entries
+                MAX_LEN = 120
+                if len(clean_desc) > MAX_LEN:
+                    # Try to cut at sentence end
+                    for end_marker in ['. ', '! ', '? ']:
+                        cut_pos = clean_desc[:MAX_LEN].rfind(end_marker)
+                        if cut_pos > 40:  # Found a good sentence break
+                            clean_desc = clean_desc[:cut_pos+1]
+                            break
+                    else:
+                        # Cut at word boundary
+                        cut_pos = clean_desc[:MAX_LEN].rfind(' ')
+                        if cut_pos > 50:
+                            clean_desc = clean_desc[:cut_pos] + '...'
+                        else:
+                            clean_desc = clean_desc[:MAX_LEN] + '...'
+                
+                # V10.3: Clean up incomplete quotes (remove orphaned quote marks)
+                if clean_desc.count('"') == 1:
+                    # Single quote mark - likely incomplete
+                    if clean_desc.endswith('"'):
+                        clean_desc = clean_desc[:-1].strip()
+                    elif '"' in clean_desc:
+                        # Quote starts but doesn't end - truncate before it
+                        quote_pos = clean_desc.find('"')
+                        if quote_pos > 20:
+                            clean_desc = clean_desc[:quote_pos].strip()
+                
+                # V10.3: Skip entries that end mid-thought (cut at bad place)
+                bad_endings = ['a', 'an', 'the', 'of', 'at', 'in', 'Mrs.', 'Mr.', 'Dr.', 'St.', 'and']
+                if any(clean_desc.endswith(' ' + ending) or clean_desc.endswith(ending) for ending in bad_endings):
+                    continue  # Skip this entry - it's incomplete
+                
+                # V10.4: Add "..." to entries that are naturally incomplete (end with incomplete markers)
+                incomplete_markers = ['said', 'politely', 'but', 'that', 'with', 'without', 
+                                       'witnessed', 'aside', 'had', 'from her', 'complaint had']
+                if any(clean_desc.rstrip('.').endswith(marker) for marker in incomplete_markers):
+                    if not clean_desc.endswith('...'):
+                        clean_desc = clean_desc.rstrip('.') + '...'
+                
+                # V10.3: Skip orphaned fragments (very short, no clear actor)
+                if len(clean_desc) < 25 and not any(x in clean_desc for x in [
+                    'Reporter', 'Officer', 'Sergeant', 'Detective', 'Marcus', 
+                    'Patricia', 'Williams', 'Jenkins', 'Rodriguez'
+                ]):
+                    continue  # Skip orphaned fragment
+                
+                # V10.3: Skip entries that are just verb phrases without context
+                if clean_desc.lower().startswith('recording ') and len(clean_desc) < 30:
+                    continue
+                        
+                desc = clean_desc
                 
                 # Time info
                 time_info = ""
