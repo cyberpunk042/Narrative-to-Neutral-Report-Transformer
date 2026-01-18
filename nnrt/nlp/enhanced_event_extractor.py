@@ -90,10 +90,55 @@ FIRST_PERSON = {'i', 'me', 'my', 'myself', 'mine'}
 PLURAL_PRONOUNS = {'they', 'them', 'their', 'themselves'}
 
 # Male indicators in names/titles
-MALE_INDICATORS = {'officer', 'sergeant', 'detective', 'mr', 'sir', 
+# Note: Use full forms with periods to avoid 'mr' matching 'mrs'
+MALE_INDICATORS = {'officer', 'sergeant', 'detective', 'mr.', 'sir', 
                    'officer jenkins', 'officer rodriguez', 'sergeant williams'}
-FEMALE_INDICATORS = {'ms', 'mrs', 'miss', 'madam', 'dr. amanda', 
+# Female indicators - check these BEFORE male to avoid 'mr' matching 'mrs'
+FEMALE_INDICATORS = {'ms.', 'mrs.', 'mrs', 'ms', 'miss', 'madam', 'dr. amanda', 
                      'patricia', 'sarah', 'amanda', 'jennifer'}
+
+# Common male first names for gender detection 
+MALE_FIRST_NAMES = {'marcus', 'michael', 'james', 'john', 'robert', 'david', 
+                    'william', 'richard', 'joseph', 'thomas', 'charles', 'daniel'}
+
+# Common female first names for gender detection  
+FEMALE_FIRST_NAMES = {'patricia', 'sarah', 'amanda', 'jennifer', 'mary', 'linda',
+                      'elizabeth', 'barbara', 'susan', 'jessica', 'karen', 'nancy'}
+
+
+def _get_actor_gender(actor: str) -> str:
+    """
+    Determine the gender of an actor for pronoun replacement.
+    
+    Returns:
+        'male', 'female', or 'neutral'
+    """
+    if not actor:
+        return 'neutral'
+    
+    actor_lower = actor.lower()
+    
+    # Check female indicators FIRST (to avoid 'mr' matching 'mrs')
+    for indicator in FEMALE_INDICATORS:
+        if indicator in actor_lower:
+            return 'female'
+    
+    # Check male indicators
+    for indicator in MALE_INDICATORS:
+        if indicator in actor_lower:
+            return 'male'
+    
+    # Check first name in multi-word names (e.g., "Marcus Johnson" → "marcus")
+    words = actor.split()
+    if words:
+        first_name = words[0].lower()
+        if first_name in MALE_FIRST_NAMES:
+            return 'male'
+        if first_name in FEMALE_FIRST_NAMES:
+            return 'female'
+    
+    # Default to neutral if unknown
+    return 'neutral'
 
 
 @dataclass
@@ -206,11 +251,45 @@ def extract_sentence_events(text: str, entities: List[str] = None) -> List[Extra
                     actor = ' '.join(t.text for t in actor_tokens)
                     break
             
-            # If no explicit subject, check sentence start
+            # If no explicit subject, try alternative strategies
             if not actor:
+                # Strategy 1a: For conjunct verbs, inherit full subject from head verb
+                # "Chen came ... and called 911" → called's subject is Chen
+                if verb_token.dep_ == 'conj':
+                    head_verb = verb_token.head
+                    for child in head_verb.children:
+                        if child.dep_ in ('nsubj', 'nsubjpass'):
+                            actor_tokens = sorted(child.subtree, key=lambda t: t.i)
+                            actor = ' '.join(t.text for t in actor_tokens)
+                            break
+            
+            if not actor:
+                # Strategy 1b: For xcomp (open clausal complement) and similar,
+                # inherit just the subject pronoun/noun (not full subtree)
+                # "He started recording" → recording's subject is "He" (not "He started")
+                if verb_token.dep_ in ('xcomp', 'ccomp', 'advcl'):
+                    head_verb = verb_token.head
+                    for child in head_verb.children:
+                        if child.dep_ in ('nsubj', 'nsubjpass'):
+                            actor = child.text
+                            break
+            
+            if not actor:
+                # Strategy 2: Take full proper noun compound at sentence start
+                # "Mrs. Patricia Chen came" → full name, not just "Mrs."
                 first_token = sent[0]
                 if first_token.pos_ in ('PROPN', 'NOUN', 'PRON'):
-                    actor = first_token.text
+                    # Collect the full compound
+                    compound_tokens = [first_token]
+                    for i, tok in enumerate(sent[1:], start=1):
+                        if tok.pos_ == 'PROPN' and tok.dep_ in ('compound', 'flat', 'flat:name') or tok.i == first_token.head.i:
+                            compound_tokens.append(tok)
+                        elif tok.head.i < tok.i and tok.head.pos_ == 'PROPN':
+                            # Include if it's part of the same name chain
+                            compound_tokens.append(tok)
+                        else:
+                            break
+                    actor = ' '.join(t.text for t in compound_tokens)
             
             if not actor:
                 continue
@@ -220,9 +299,11 @@ def extract_sentence_events(text: str, entities: List[str] = None) -> List[Extra
             import re
             if len(actor) > 30 or ' who ' in actor.lower() or ' named ' in actor.lower():
                 # Try to extract a proper name pattern
-                name_match = re.search(r'(?:Mrs?\.|Ms\.|Dr\.)?\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)', actor)
+                # Group(1) captures just the name without the title prefix
+                name_match = re.search(r'(?:Mrs?\.?\s*|Ms\.?\s*|Dr\.?\s*)?([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)', actor)
                 if name_match:
-                    extracted_name = name_match.group(0).strip()
+                    # Use group(1) to get just the name, not the title
+                    extracted_name = name_match.group(1).strip()
                     # Prefer the clean name
                     actor = extracted_name
             # Resolve pronouns
@@ -260,23 +341,69 @@ def extract_sentence_events(text: str, entities: List[str] = None) -> List[Extra
                     elif any(name in actor_lower for name in ('patricia', 'sarah', 'amanda', 'jennifer', 'mrs', 'ms')):
                         last_female_entity = actor
             
-            # Extract target (direct object or prepositional object)
+            # Extract target (direct object and/or prepositional object)
             target = None
-            for child in verb_token.children:
-                if child.dep_ == 'dobj':
-                    target_tokens = sorted(child.subtree, key=lambda t: t.i)
-                    target = ' '.join(t.text for t in target_tokens)
-                    break
-                elif child.dep_ == 'prep':
-                    # Get full PP
-                    pp_tokens = sorted(child.subtree, key=lambda t: t.i)
-                    target = ' '.join(t.text for t in pp_tokens)
+            dobj_target = None
+            prep_target = None
             
-            # Get particles for phrasal verbs
+            for child in verb_token.children:
+                if child.dep_ == 'dobj' and not dobj_target:
+                    target_tokens = sorted(child.subtree, key=lambda t: t.i)
+                    dobj_target = ' '.join(t.text for t in target_tokens)
+                elif child.dep_ == 'prep' and not prep_target:
+                    # Skip comparative preps like "like a maniac"
+                    if child.text.lower() in ('like', 'as'):
+                        continue
+                    # Get full PP (take the FIRST meaningful prep)
+                    pp_tokens = sorted(child.subtree, key=lambda t: t.i)
+                    prep_target = ' '.join(t.text for t in pp_tokens)
+            
+            # Combine dobj and prep for patterns like "put handcuffs on me"
+            if dobj_target and prep_target:
+                target = f"{dobj_target} {prep_target}"
+            elif dobj_target:
+                target = dobj_target
+            elif prep_target:
+                target = prep_target
+            
+            # Get particles for phrasal verbs AND their complements
+            # "jumped out of the car" → verb="jumped out of", target="the car"
             verb_with_particle = verb_token.text
+            phrasal_target = None
+            
             for child in verb_token.children:
                 if child.dep_ == 'prt':
+                    # Found a particle (e.g., "out")
                     verb_with_particle = f"{verb_token.text} {child.text}"
+                    
+                    # Look for preposition following the particle (e.g., "of")
+                    for prt_child in child.children:
+                        if prt_child.dep_ == 'prep':
+                            verb_with_particle = f"{verb_token.text} {child.text} {prt_child.text}"
+                            # Get the target of the preposition
+                            for prep_obj in prt_child.children:
+                                if prep_obj.dep_ == 'pobj':
+                                    pobj_tokens = sorted(prep_obj.subtree, key=lambda t: t.i)
+                                    phrasal_target = ' '.join(t.text for t in pobj_tokens)
+                                    break
+                    
+                    # Also check sentence-level for "verb particle prep object" pattern
+                    # Sometimes spaCy attaches prep to the verb, not the particle
+                    if not phrasal_target:
+                        for verb_child in verb_token.children:
+                            if verb_child.dep_ == 'prep' and verb_child.i > child.i:
+                                # Prep comes after particle, likely belongs to phrasal verb
+                                verb_with_particle = f"{verb_token.text} {child.text} {verb_child.text}"
+                                for prep_obj in verb_child.children:
+                                    if prep_obj.dep_ == 'pobj':
+                                        pobj_tokens = sorted(prep_obj.subtree, key=lambda t: t.i)
+                                        phrasal_target = ' '.join(t.text for t in pobj_tokens)
+                                        break
+            
+            # Use phrasal target if found - prefer it over the full PP target
+            # to avoid duplication like "came out onto onto her porch"
+            if phrasal_target:
+                target = phrasal_target
             
             # Resolve pronouns in target too
             if target:
@@ -326,12 +453,27 @@ def get_enhanced_events(text: str, entities: List[str] = None) -> List[Dict]:
         'having', 'being', 'working', 'living', 'wanting', 'needing',
     }
     
+    # Speech verbs belong in QUOTES section, not OBSERVED EVENTS
+    SPEECH_VERBS = {
+        'yell', 'yelled', 'yelling',
+        'scream', 'screamed', 'screaming', 
+        'shout', 'shouted', 'shouting',
+        'say', 'said', 'saying',
+        'tell', 'told', 'telling',
+        'ask', 'asked', 'asking',
+        'whisper', 'whispered', 'whispering',
+        'threaten', 'threatened', 'threatening',
+        'laugh', 'laughed', 'laughing',  # Reaction, not action
+        'mock', 'mocked', 'mocking',      # Characterization of speech
+    }
+    
     # Subjective phrases to remove
     SUBJECTIVE_PHRASES = [
         'like a maniac', 'like a criminal', 'like an animal',
         'brutally', 'viciously', 'violently', 'aggressively', 
         'deliberately', 'intentionally', 'clearly', 'obviously',
         'without any legal justification', 'for no reason',
+        'with excessive force', 'with force',
     ]
     
     # Past tense conversions for common verbs
@@ -377,8 +519,13 @@ def get_enhanced_events(text: str, entities: List[str] = None) -> List[Dict]:
         if verb_lower in NON_EVENT_VERBS:
             continue
         
+        # QUALITY FILTER 6.5: Skip speech verbs (belong in QUOTES section)
+        if verb_lower in SPEECH_VERBS:
+            continue
+        
         # QUALITY FILTER 7: Skip generic verbs without meaningful targets
-        generic_verbs = {'said', 'asked', 'told', 'tell'}
+        # Note: Most speech verbs already filtered above
+        generic_verbs = {'explain', 'explained', 'respond', 'responded'}
         if verb_lower in generic_verbs and not target:
             continue
         
@@ -395,7 +542,9 @@ def get_enhanced_events(text: str, entities: List[str] = None) -> List[Dict]:
             
             # Clean up redundant possessives like "Marcus Johnson's phone" when actor is Marcus Johnson  
             if actor in target:
-                target = target.replace(f"{actor}'s ", "his " if 'Officer' in actor or 'Sergeant' in actor else "their ")
+                gender = _get_actor_gender(actor)
+                pronoun = "his " if gender == 'male' else ("her " if gender == 'female' else "their ")
+                target = target.replace(f"{actor}'s ", pronoun)
         
         # QUALITY FILTER 10: Remove subjective language
         for phrase in SUBJECTIVE_PHRASES:
