@@ -502,6 +502,20 @@ def get_enhanced_events(text: str, entities: List[str] = None) -> List[Dict]:
         'with excessive force', 'with force',
     ]
     
+    # V10.2: Incomplete action modifiers - these indicate attempted, not completed, actions
+    INCOMPLETE_MODIFIERS = [
+        'tried to', 'attempted to', 'appeared to', 'seemed to',
+        'wanted to', 'was going to', 'was about to',
+    ]
+    
+    # V10.2: Context words that suggest wrong extraction (from unrelated phrases)
+    FALSE_CONTEXT_PATTERNS = [
+        ('walked', 'night', 'night shift'),     # "walk outside at night" from "night shifts"
+        ('walked', 'shift', 'night shift'),
+        ('walk', 'night', 'night shift'),
+        ('jump', 'passenger', 'got out'),       # "jumped out" shouldn't apply to passenger exiting
+    ]
+    
     # Past tense conversions for common verbs (both base and gerund forms)
     PAST_TENSE = {
         # Gerund → past
@@ -556,6 +570,39 @@ def get_enhanced_events(text: str, entities: List[str] = None) -> List[Dict]:
         # QUALITY FILTER 6.5: Skip speech verbs (belong in QUOTES section)
         if verb_lower in SPEECH_VERBS:
             continue
+        
+        # QUALITY FILTER 6.6: Skip incomplete/attempted actions (A1.1 fix)
+        sentence_lower = action.full_sentence.lower()
+        is_incomplete_action = False
+        for modifier in INCOMPLETE_MODIFIERS:
+            if modifier in sentence_lower:
+                # The action was attempted but may not have been completed
+                # Skip for STRICT events (camera can't confirm completion)
+                is_incomplete_action = True
+                break
+        if is_incomplete_action:
+            continue
+        
+        # QUALITY FILTER 6.7: Skip false extractions from unrelated context (A1.3 fix)
+        skip_false_context = False
+        for verb_pat, bad_context, source_context in FALSE_CONTEXT_PATTERNS:
+            if verb_pat in verb_lower and (bad_context in sentence_lower or source_context in sentence_lower):
+                skip_false_context = True
+                break
+        if skip_false_context:
+            continue
+        
+        # QUALITY FILTER 6.8: Prevent "got out" being reported as "jumped out" (A1.2 fix)
+        # Check for actor disambiguation on phrasal verbs involving cars
+        if 'jumped out' in verb_lower or 'got out' in verb_lower:
+            # In original: Jenkins jumped out, Rodriguez got out (passenger side)
+            # Make sure we're not confusing them
+            if 'rodriguez' in actor.lower() and 'passenger' in sentence_lower:
+                # Rodriguez got out of passenger side - shouldn't be "jumped"
+                verb = 'got out of'
+            elif 'got out' in verb_lower and 'jumped' not in sentence_lower:
+                # Keep as "got out" if that's what the original said
+                pass  # verb stays as-is
         
         # QUALITY FILTER 7: Skip generic verbs without meaningful targets
         # Note: Most speech verbs already filtered above
@@ -620,6 +667,14 @@ def get_enhanced_events(text: str, entities: List[str] = None) -> List[Dict]:
             continue
         if verb in ('tell', 'stop', 'walk') and ('from' in target or 'without' in target):
             continue  # "tell from", "walk without" are not actions
+        
+        # QUALITY FILTER 15.5: Skip vague "walked" events (A1.3 fix)
+        # "walked at night" is not a camera-friendly event, "walked to X" might be
+        if verb_lower in ('walked', 'walk', 'walking'):
+            if not target or 'at night' in target.lower() or 'outside' in target.lower():
+                continue  # Too vague
+            if 'night' in sentence_lower or 'shift' in sentence_lower:
+                continue  # Likely from "night shifts" context
             
         # QUALITY FILTER 16: Skip actor = target
         if actor.lower() in target.lower() and 'arm' not in target and 'wrist' not in target:

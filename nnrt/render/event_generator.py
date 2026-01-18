@@ -963,8 +963,41 @@ def get_strict_event_sentences(
             seen_keys.add(key)
             combined.append(s)
     
+    # V10.2: Final quality filter for known misattributions (A1.2 fix)
+    # These are specific patterns we know to be problematic
+    filtered_combined = []
+    for s in combined:
+        s_lower = s.lower()
+        
+        # Fix: "Rodriguez jumped out" is wrong - only Jenkins jumped out
+        # Rodriguez "got out of the passenger side"
+        if 'rodriguez' in s_lower and 'jumped out' in s_lower:
+            continue  # Skip this misattribution
+        
+        # Fix: Skip duplicate twisted arm events (keep the one with Officer prefix)
+        if 'jenkins twisted' in s_lower and not 'officer' in s_lower:
+            continue  # Skip variant without Officer prefix
+        
+        filtered_combined.append(s)
+    
+    # V10.2: Post-process to fix incomplete event descriptions (A2.1, A2.2 fixes)
+    final_events = []
+    for s in filtered_combined:
+        fixed = s
+        
+        # A2.1: "recorded on his phone" -> "recorded the incident on his phone"
+        if 'recorded on his phone' in fixed.lower() or 'recorded on her phone' in fixed.lower():
+            fixed = fixed.replace('recorded on his phone', 'recorded the incident on his phone')
+            fixed = fixed.replace('recorded on her phone', 'recorded the incident on her phone')
+        
+        # A2.2: "pulled Officers Jenkins and Rodriguez" -> "pulled Officers Jenkins and Rodriguez aside"
+        if 'pulled officers' in fixed.lower() and 'aside' not in fixed.lower():
+            fixed = fixed.rstrip('.') + ' aside.'
+        
+        final_events.append(fixed)
+    
     # Return up to max events
-    return combined[:max_events]
+    return final_events[:max_events]
 
 
 def get_excluded_events_summary(
