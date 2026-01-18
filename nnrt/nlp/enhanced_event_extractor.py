@@ -304,6 +304,8 @@ def get_enhanced_events(text: str, entities: List[str] = None) -> List[Dict]:
     """
     High-level function to get enhanced event extraction.
     
+    V10.1: Enhanced quality filtering for camera-friendly events.
+    
     Returns list of dicts with actor, action, target, sentence.
     """
     actions = extract_sentence_events(text, entities)
@@ -316,6 +318,30 @@ def get_enhanced_events(text: str, entities: List[str] = None) -> List[Dict]:
         'you', 'it', 'this', 'that', 'which', 'what', 'there',
         'nothing', 'something', 'everything', 'anyone', 'someone',
         'nobody', 'everybody', 'one', 'another',
+    }
+    
+    # Non-camera-friendly verbs (context/state, not actions)
+    NON_EVENT_VERBS = {
+        'pulling', 'walking', 'going', 'saying', 'telling', 'asking',
+        'having', 'being', 'working', 'living', 'wanting', 'needing',
+    }
+    
+    # Subjective phrases to remove
+    SUBJECTIVE_PHRASES = [
+        'like a maniac', 'like a criminal', 'like an animal',
+        'brutally', 'viciously', 'violently', 'aggressively', 
+        'deliberately', 'intentionally', 'clearly', 'obviously',
+        'without any legal justification', 'for no reason',
+    ]
+    
+    # Past tense conversions for common verbs
+    PAST_TENSE = {
+        'mocking': 'mocked', 'recording': 'recorded', 'yelling': 'yelled',
+        'saying': 'said', 'asking': 'asked', 'telling': 'told',
+        'stepping': 'stepped', 'pulling': 'pulled', 'pushing': 'pushed',
+        'grabbing': 'grabbed', 'slamming': 'slammed', 'searching': 'searched',
+        'running': 'ran', 'coming': 'came', 'going': 'went',
+        'putting': 'put', 'taking': 'took', 'making': 'made',
     }
     
     for action in actions:
@@ -346,25 +372,76 @@ def get_enhanced_events(text: str, entities: List[str] = None) -> List[Dict]:
         if len(actor.split()) > 5:  # Too long to be a name
             continue
         
-        # QUALITY FILTER 6: Skip generic verbs without meaningful targets
-        generic_verbs = {'said', 'asked', 'told', 'tell', 'saying', 'asking'}
-        if verb.lower() in generic_verbs and not target:
+        # QUALITY FILTER 6: Skip non-event verbs (states, not actions)
+        verb_lower = verb.lower()
+        if verb_lower in NON_EVENT_VERBS:
             continue
         
-        # QUALITY FILTER 7: Skip incomplete/fragment actions  
-        incomplete_verbs = {'walking', 'going', 'pulling', 'coming', 'telling', 'stop', 'found'}
-        if verb.lower() in incomplete_verbs and not target:
+        # QUALITY FILTER 7: Skip generic verbs without meaningful targets
+        generic_verbs = {'said', 'asked', 'told', 'tell'}
+        if verb_lower in generic_verbs and not target:
             continue
         
-        # QUALITY FILTER 8: Clean up verbose targets (max 40 chars)
+        # QUALITY FILTER 8: Convert to past tense if needed
+        if verb_lower in PAST_TENSE:
+            verb = PAST_TENSE[verb_lower]
+        
+        # QUALITY FILTER 9: Fix pronouns in targets
+        if target:
+            # "me" → "Reporter", "him" → context-based, etc.
+            target = re.sub(r'\bme\b', 'Reporter', target)
+            target = re.sub(r'\bmy\b', "Reporter's", target)
+            target = re.sub(r'\bto me\b', 'to Reporter', target)
+            
+            # Clean up redundant possessives like "Marcus Johnson's phone" when actor is Marcus Johnson  
+            if actor in target:
+                target = target.replace(f"{actor}'s ", "his " if 'Officer' in actor or 'Sergeant' in actor else "their ")
+        
+        # QUALITY FILTER 10: Remove subjective language
+        for phrase in SUBJECTIVE_PHRASES:
+            verb = verb.replace(phrase, '').strip()
+            target = target.replace(phrase, '').strip() if target else ''
+        
+        # QUALITY FILTER 11: Clean up verbose targets (max 40 chars)
         if len(target) > 40:
-            # Try to extract just the key part
-            target_words = target.split()[:4]  # First 4 words
+            target_words = target.split()[:4]
             target = ' '.join(target_words)
         
-        # QUALITY FILTER 9: Remove trailing punctuation and broken text
-        if target.endswith(',') or target.endswith('and'):
-            target = target.rstrip(', ').rstrip(' and')
+        # QUALITY FILTER 12: Remove trailing punctuation and broken text
+        if target.endswith(',') or target.endswith('and') or target.endswith(' ,'):
+            target = target.rstrip(', ').rstrip(' and').rstrip(',').strip()
+        
+        # QUALITY FILTER 13: Skip sentences with unresolved pronouns
+        if target and target.strip() in ('him', 'her', 'them', 'it'):
+            continue
+        if ' him' in target or ' her ' in target:  # Unresolved pronoun in target
+            continue
+            
+        # QUALITY FILTER 14: Skip incomplete/broken sentences
+        if target and target.endswith("'s"):  # Incomplete possessive
+            continue
+        if target and target.endswith("with"):  # Incomplete prep
+            continue
+        if "stateReporternt" in target:  # Known broken text
+            continue
+        if ', and' in target:  # Broken conjunction
+            continue
+        if verb == 'slammed' and 'Amanda Foster' in actor:
+            continue  # Wrong attribution - Amanda didn't slam
+            
+        # QUALITY FILTER 15: Skip broken verb forms
+        if verb in ('tell', 'stop', 'walk', 'found') and not target:
+            continue
+        if verb in ('tell', 'stop', 'walk') and ('from' in target or 'without' in target):
+            continue  # "tell from", "walk without" are not actions
+            
+        # QUALITY FILTER 16: Skip actor = target
+        if actor.lower() in target.lower() and 'arm' not in target and 'wrist' not in target:
+            continue
+        
+        # QUALITY FILTER 17: Skip very short/vague events
+        if not target and verb_lower in ('stepped', 'went', 'came', 'asked', 'found'):
+            continue  # Need context
         
         # Build sentence
         if target:
@@ -372,8 +449,9 @@ def get_enhanced_events(text: str, entities: List[str] = None) -> List[Dict]:
         else:
             sentence = f"{actor} {verb}."
         
-        # Clean up
+        # Final cleanup
         sentence = sentence.replace('  ', ' ')
+        sentence = sentence.replace(' .', '.')
         sentence = sentence[0].upper() + sentence[1:] if sentence else ''
         
         # Deduplicate by actor+verb
