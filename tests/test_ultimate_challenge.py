@@ -178,18 +178,22 @@ class TestMustPassCriteria:
             assert quote in output, f"Quote not preserved: '{quote}'"
     
     def test_intent_words_removed(self, result):
-        """Intent attribution words are removed."""
-        output = result.rendered_text.lower()
+        """Intent attribution words are removed from neutralized prose."""
+        # V7: Check only the RAW NEUTRALIZED NARRATIVE section
+        # V2 structured output includes original text in sections like REPORTER INFERENCES
+        full_output = result.rendered_text.lower()
+        
+        if "raw neutralized narrative" in full_output:
+            raw_idx = full_output.find("raw neutralized narrative")
+            output = full_output[raw_idx:]
+        else:
+            output = full_output
         
         # These intent words should ALWAYS be removed (no context requirement)
         always_remove = ["intentionally", "deliberately", "obviously", "purposely"]
         
         for word in always_remove:
             assert word not in output, f"Intent word not removed: '{word}'"
-        
-        # Note: "clearly" is context-dependent - only removed near intent words
-        # like "wanted", "intended", "meant", "tried". Not removed in 
-        # "clearly didn't believe" which expresses doubt, not intent.
 
 
 # =============================================================================
@@ -333,13 +337,20 @@ class TestStretchCriteria:
             print(f"  - {d.code}: {d.message[:50]}...")
     
     def test_inflammatory_removed(self, result):
-        """Inflammatory language is removed or neutralized."""
-        output = result.rendered_text.lower()
+        """Inflammatory language is removed or neutralized from prose."""
+        # V7: Check only the RAW NEUTRALIZED NARRATIVE section
+        full_output = result.rendered_text.lower()
+        
+        if "raw neutralized narrative" in full_output:
+            raw_idx = full_output.find("raw neutralized narrative")
+            output = full_output[raw_idx:]
+        else:
+            output = full_output
         
         inflammatory = ["brutal", "viciously", "vicious", "ruthlessly"]
         found = [word for word in inflammatory if word in output]
         
-        print(f"\nInflammatory words found: {found}")
+        print(f"\nInflammatory words found in prose: {found}")
         
         # Ideally none should be present
         assert len(found) == 0, f"Inflammatory words not removed: {found}"

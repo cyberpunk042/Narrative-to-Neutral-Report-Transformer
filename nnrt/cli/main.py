@@ -38,6 +38,11 @@ from nnrt.passes.p48_classify_evidence import classify_evidence
 from nnrt.passes.p27_epistemic_tag import tag_epistemic
 from nnrt.passes.p27b_attribute_statements import attribute_statements
 from nnrt.passes.p72_safety_scrub import safety_scrub
+from nnrt.passes.p35_classify_events import classify_events
+from nnrt.passes.p36_resolve_quotes import resolve_quotes  # V7/Stage 1
+from nnrt.passes.p38_extract_items import extract_items     # V7/Stage 1
+from nnrt.passes.p55_select import select as select_atoms
+from nnrt.passes.p90_render_structured import render_structured
 
 
 def setup_default_pipeline(engine: Engine, profile: str = "law_enforcement") -> None:
@@ -67,6 +72,9 @@ def setup_default_pipeline(engine: Engine, profile: str = "law_enforcement") -> 
             extract_identifiers,
             extract_entities,     # Phase 4: Entity Extraction
             extract_events,       # Phase 4: Event Extraction
+            classify_events,      # V7/Stage 0: Event Classification
+            resolve_quotes,       # V7/Stage 1: Quote speaker resolution
+            extract_items,        # V7/Stage 1: Items extraction
             build_ir,
             resolve_coreference,  # v3: Link pronouns to entities (for chains)
             resolve_actors,       # V5: Replace pronouns with entity names
@@ -74,8 +82,10 @@ def setup_default_pipeline(engine: Engine, profile: str = "law_enforcement") -> 
             group_statements,     # v3: Cluster related statements
             classify_evidence,    # v3: Classify evidence types
             evaluate_policy,
+            select_atoms,         # V7/Stage 2: Select atoms for output sections
             augment_ir,
             render,
+            render_structured,    # V7/Stage 3: Render structured output from SelectionResult
             safety_scrub,         # V4 ALPHA: Final safety scrub of rendered text
             cleanup_punctuation,  # Fix punctuation artifacts
             package,
@@ -172,6 +182,9 @@ def setup_structured_only_pipeline(engine: Engine, profile: str = "law_enforceme
             extract_identifiers,
             extract_entities,
             extract_events,
+            classify_events,       # V7/Stage 1: Classify events (camera-friendly, follow-up, etc.)
+            resolve_quotes,        # V7/Stage 1: Quote speaker resolution
+            extract_items,         # V7/Stage 1: Items extraction
             build_ir,
             resolve_coreference,   # V5: Link pronouns to entities (for chains)
             resolve_actors,        # V5: Replace pronouns with entity names
@@ -179,8 +192,10 @@ def setup_structured_only_pipeline(engine: Engine, profile: str = "law_enforceme
             group_statements,      # V5: Semantic grouping
             classify_evidence,     # V5: Evidence classification
             evaluate_policy,
+            select_atoms,          # V7/Stage 2: Select atoms for output sections
             augment_ir,
-            render,                # YES - render neutral output
+            render,                # YES - render neutral output (prose)
+            render_structured,     # V7/Stage 3: Render structured report using SelectionResult
             safety_scrub,          # V7: Article agreement + cleanup
             cleanup_punctuation,   # YES - fix punctuation
             package,               # YES - package output
@@ -250,6 +265,13 @@ def main() -> int:
         "--no-prose",
         action="store_true",
         help="Skip prose rendering, output structured data only (faster).",
+    )
+    transform_parser.add_argument(
+        "--mode",
+        type=str,
+        choices=["strict", "full", "timeline", "events", "recompose"],
+        default="strict",
+        help="Selection mode: strict (default, camera-friendly only), full (all), timeline, events, recompose",
     )
     
     # Logging configuration
@@ -330,7 +352,12 @@ def run_transform(args: argparse.Namespace) -> int:
         os.environ["NNRT_USE_LLM"] = "1"
 
     # Run transformation
-    request = TransformRequest(text=text)
+    # Pass selection mode through request metadata
+    selection_mode = getattr(args, 'mode', 'strict')
+    request = TransformRequest(
+        text=text,
+        metadata={'selection_mode': selection_mode}
+    )
     result = engine.transform(request, pipeline_id)
 
     # Format output

@@ -3,12 +3,16 @@ Integration Tests for V4 Observation Split
 
 Tests the actual build_structured_output and format_structured_output functions
 with real AtomicStatement objects to ensure correct bucket population and rendering.
+
+V10: Updated to use SelectionResult. Many tests now verify the pipeline integration
+rather than inline classification in the renderer.
 """
 
 import pytest
 from dataclasses import dataclass, field
 from typing import Optional
 from enum import Enum
+from nnrt.selection.models import SelectionResult
 
 
 # ============================================================================
@@ -43,9 +47,14 @@ class AtomicStatement:
     attributed_text: Optional[str] = None
     extracted_claim: Optional[str] = None
 
-
+@pytest.mark.skip(reason="V10: These tests verify legacy inline classification removed in Stage 3")
 class TestFormatStructuredOutputIntegration:
-    """Integration tests for format_structured_output with real data."""
+    """Integration tests for format_structured_output with real data.
+    
+    V10: SKIPPED - These tests verified the inline classification logic in the renderer
+    which was removed in Stage 3. Selection is now done by p55_select pass.
+    See tests/test_selection.py for the new selection tests.
+    """
     
     def test_direct_events_appear_in_observed_events_section(self):
         """direct_event statements should appear in OBSERVED EVENTS or NARRATIVE EXCERPTS."""
@@ -201,9 +210,12 @@ class TestPipelineIntegration:
             f"attribute_statements should be in default pipeline. Passes: {pass_names}"
 
 
+@pytest.mark.skip(reason="V10: Tests legacy inline camera-friendly filtering removed in Stage 3")
 class TestCameraFriendlyFilterIntegration:
-    """Integration tests for camera-friendly filtering."""
+    """Integration tests for camera-friendly filtering.
     
+    V10: SKIPPED - Classification now happens in p35_classify_events.
+    """
     def test_all_interpretive_words_filtered(self):
         """All defined interpretive words should cause exclusion."""
         from nnrt.render.structured import format_structured_output

@@ -1,0 +1,184 @@
+# Physical Force Context Detection Rules
+# V7 / Stage 4: Rules for detecting physical force context in segments
+#
+# These rules set segment contexts that inform other passes.
+# Migrated from: nnrt/passes/p25_annotate_context.py PHYSICAL_FORCE_PATTERNS
+#
+# Tags: context, force, physical, incident
+
+category: context_detection
+description: "Detect physical force context for segment annotation"
+priority_range: [200, 250]
+
+rules:
+  # =========================================================================
+  # PHYSICAL FORCE DETECTION
+  # =========================================================================
+  # These patterns indicate physical force was used/experienced.
+  # Sets context: ["physical_force", "incident"]
+  
+  - id: ctx_force_grabbed
+    category: context
+    priority: 220
+    description: "Detect grabbing/seizing actions"
+    tags: ["force_context", "physical", "contact"]
+    match:
+      type: phrase
+      patterns:
+        - "grabbed"
+        - "grabbed me"
+        - "grabbed my"
+        - "seized"
+        - "seized me"
+    action: context
+    classification:
+      field: contexts
+      value: ["physical_force", "incident"]
+      reason: "grabbing_action_detected"
+      confidence: 0.9
+  
+  - id: ctx_force_pushed
+    category: context
+    priority: 220
+    description: "Detect pushing/shoving actions"
+    tags: ["force_context", "physical", "contact"]
+    match:
+      type: phrase
+      patterns:
+        - "pushed"
+        - "pushed me"
+        - "shoved"
+        - "shoved me"
+    action: context
+    classification:
+      field: contexts
+      value: ["physical_force", "incident"]
+      reason: "pushing_action_detected"
+      confidence: 0.9
+  
+  - id: ctx_force_slammed
+    category: context
+    priority: 220
+    description: "Detect slamming/throwing actions"
+    tags: ["force_context", "physical", "high_severity"]
+    match:
+      type: phrase
+      patterns:
+        - "slammed"
+        - "slammed me"
+        - "threw me"
+        - "thrown"
+    action: context
+    classification:
+      field: contexts
+      value: ["physical_force", "incident"]
+      reason: "slamming_action_detected"
+      confidence: 0.95
+  
+  - id: ctx_force_struck
+    category: context
+    priority: 220
+    description: "Detect striking/hitting actions"
+    tags: ["force_context", "physical", "high_severity"]
+    match:
+      type: phrase
+      patterns:
+        - "struck"
+        - "struck me"
+        - "hit me"
+        - "hit him"
+        - "hit her"
+        - "punched"
+        - "kicked"
+    action: context
+    classification:
+      field: contexts
+      value: ["physical_force", "incident"]
+      reason: "striking_action_detected"
+      confidence: 0.95
+  
+  - id: ctx_force_restrained
+    category: context
+    priority: 220
+    description: "Detect restraint actions"
+    tags: ["force_context", "physical", "restraint"]
+    match:
+      type: phrase
+      patterns:
+        - "cuffed"
+        - "handcuffed"
+        - "restrained"
+        - "pinned"
+        - "held down"
+        - "put in cuffs"
+    action: context
+    classification:
+      field: contexts
+      value: ["physical_force", "incident", "restraint"]
+      reason: "restraint_action_detected"
+      confidence: 0.9
+  
+  # =========================================================================
+  # WEAPON/EQUIPMENT CONTEXT
+  # =========================================================================
+  
+  - id: ctx_force_taser
+    category: context
+    priority: 230
+    description: "Detect taser/electrical weapon use"
+    tags: ["force_context", "weapon", "high_severity"]
+    match:
+      type: phrase
+      patterns:
+        - "tased"
+        - "tasered"
+        - "taser"
+        - "stun gun"
+        - "shocked me"
+    action: context
+    classification:
+      field: contexts
+      value: ["physical_force", "incident", "weapon_use"]
+      reason: "taser_detected"
+      confidence: 0.95
+  
+  - id: ctx_force_pepper_spray
+    category: context
+    priority: 230
+    description: "Detect pepper spray or chemical use"
+    tags: ["force_context", "weapon", "high_severity"]
+    match:
+      type: phrase
+      patterns:
+        - "pepper spray"
+        - "mace"
+        - "sprayed"
+        - "chemical"
+    action: context
+    classification:
+      field: contexts
+      value: ["physical_force", "incident", "chemical_use"]
+      reason: "pepper_spray_detected"
+      confidence: 0.9
+  
+  - id: ctx_force_firearm
+    category: context
+    priority: 240
+    description: "Detect firearm involvement"
+    tags: ["force_context", "weapon", "critical"]
+    match:
+      type: phrase
+      patterns:
+        - "gun"
+        - "firearm"
+        - "weapon"
+        - "shot"
+        - "shooting"
+        - "pointed gun"
+        - "drew weapon"
+    action: context
+    classification:
+      field: contexts
+      value: ["physical_force", "incident", "firearm"]
+      reason: "firearm_detected"
+      confidence: 0.95

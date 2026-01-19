@@ -60,9 +60,20 @@ class TestHardCasesLevel1:
         request = TransformRequest(text=text)
         result = engine.transform(request)
         
-        output = result.rendered_text.lower()
+        # V7: Extract only the RAW NEUTRALIZED NARRATIVE section
+        # V2 structured output includes original text in sections like REPORTER INFERENCES
+        # which is intentional - only the prose should be checked for neutralization
+        full_output = result.rendered_text.lower()
         
-        # Check expected removals
+        if "raw neutralized narrative" in full_output:
+            # Extract the prose section (after RAW NEUTRALIZED NARRATIVE header)
+            raw_idx = full_output.find("raw neutralized narrative")
+            output = full_output[raw_idx:]
+        else:
+            # Fallback for V1 output
+            output = full_output
+        
+        # Check expected removals in neutralized prose
         assert "intentionally" not in output, "Should remove 'intentionally'"
         assert "deliberately" not in output, "Should remove 'deliberately'"
         assert "obviously" not in output, "Should remove 'obviously'"
@@ -175,9 +186,16 @@ class TestHardCasesLevel7:
         request = TransformRequest(text=text)
         result = engine.transform(request)
         
-        output = result.rendered_text.lower()
+        # V7: Extract only the RAW NEUTRALIZED NARRATIVE section
+        full_output = result.rendered_text.lower()
         
-        # Inflammatory terms should be removed/transformed
+        if "raw neutralized narrative" in full_output:
+            raw_idx = full_output.find("raw neutralized narrative")
+            output = full_output[raw_idx:]
+        else:
+            output = full_output
+        
+        # Inflammatory terms should be removed/transformed in prose
         inflammatory = ["brutal", "viciously", "ruthlessly"]
         for term in inflammatory:
             # Either removed or transformed

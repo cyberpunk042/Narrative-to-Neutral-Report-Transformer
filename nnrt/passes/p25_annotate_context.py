@@ -12,6 +12,9 @@ This pass analyzes segments and annotates them with context classifications:
 
 These context annotations enable downstream passes (especially render)
 to make context-aware decisions WITHOUT re-analyzing the text.
+
+V7 / Stage 4: Primary context detection (CHARGE, FORCE, INJURY, TIMELINE)
+is now handled by PolicyEngine YAML rules in _context/ directory.
 """
 
 import re
@@ -21,15 +24,22 @@ from nnrt.core.context import TransformContext
 from nnrt.core.logging import get_pass_logger
 from nnrt.ir.enums import SegmentContext, UncertaintyType
 from nnrt.ir.schema_v0_1 import UncertaintyMarker
+from nnrt.policy.engine import get_policy_engine
 
 PASS_NAME = "p25_annotate_context"
 log = get_pass_logger(PASS_NAME)
 
+# V7 / Stage 4: Use YAML rules for primary context detection
+USE_YAML_RULES = True
+
 
 # ============================================================================
-# Context Detection Patterns
+# DEPRECATED: Context Detection Patterns
+# V7 / Stage 4: These patterns are now in _context/*.yaml files.
+# They remain here for backwards compatibility but will be removed.
 # ============================================================================
 
+# DEPRECATED: Use _context/charge_context.yaml instead
 # Charge/accusation language
 CHARGE_PATTERNS = [
     r"\bcharged?\s+(me\s+)?with\b",
@@ -38,6 +48,7 @@ CHARGE_PATTERNS = [
     r"\bcharg(e|es|ing)\s+of\b",
 ]
 
+# DEPRECATED: Use _context/force_context.yaml instead
 # Physical force descriptors
 PHYSICAL_FORCE_PATTERNS = [
     r"\b(grabbed|yanked|pulled|pushed|shoved|threw|slammed|tackled)\b",
@@ -55,6 +66,7 @@ PHYSICAL_ATTEMPT_PATTERNS = [
     r"\bcouldn'?t\s+(breathe|move|speak|see)\b",
 ]
 
+# DEPRECATED: Use _context/injury_context.yaml instead
 # Injury descriptions
 INJURY_PATTERNS = [
     r"\b(bleed|bleeding|blood|bruise|bruises|bruising)\b",
@@ -64,6 +76,7 @@ INJURY_PATTERNS = [
     r"\b(nerve\s+damage|permanent|surgery)\b",
 ]
 
+# DEPRECATED: Use _context/timeline_context.yaml instead
 # Timeline/temporal markers
 TIMELINE_PATTERNS = [
     r"\b\d{1,2}:\d{2}\s*(AM|PM|am|pm)?\b",
@@ -204,44 +217,42 @@ def annotate_context(ctx: TransformContext) -> TransformContext:
     
     This pass does NOT transform text. It only adds metadata
     that downstream passes can use to make decisions.
+    
+    V7 / Stage 4: Uses PolicyEngine YAML rules for primary context detection.
     """
     log.verbose("starting_annotation", segments=len(ctx.segments))
     
     total_annotations = 0
     context_counts = {}
     
+    # V7 / Stage 4: Get PolicyEngine for YAML-based context detection
+    engine = get_policy_engine() if USE_YAML_RULES else None
+    
     for segment in ctx.segments:
         text = segment.text
         text_lower = text.lower()
         contexts: list[str] = []
         
-        # Check for charge/accusation context
-        if _matches_any(text_lower, CHARGE_PATTERNS):
-            contexts.append(SegmentContext.CHARGE_DESCRIPTION.value)
+        # V7 / Stage 4: Use YAML rules or legacy patterns for primary contexts
+        if USE_YAML_RULES and engine:
+            contexts = _detect_contexts_yaml(text, engine)
+        else:
+            contexts = _detect_contexts_legacy(text_lower)
         
-        # Check for physical force
-        if _matches_any(text_lower, PHYSICAL_FORCE_PATTERNS):
-            contexts.append(SegmentContext.PHYSICAL_FORCE.value)
-        
-        # Check for physical attempt (NOT intent attribution)
+        # Check for physical attempt (NOT intent attribution) - not in YAML yet
         if _matches_any(text_lower, PHYSICAL_ATTEMPT_PATTERNS):
-            contexts.append(SegmentContext.PHYSICAL_ATTEMPT.value)
+            if SegmentContext.PHYSICAL_ATTEMPT.value not in contexts:
+                contexts.append(SegmentContext.PHYSICAL_ATTEMPT.value)
         
-        # Check for injury description
-        if _matches_any(text_lower, INJURY_PATTERNS):
-            contexts.append(SegmentContext.INJURY_DESCRIPTION.value)
-        
-        # Check for timeline markers
-        if _matches_any(text_lower, TIMELINE_PATTERNS):
-            contexts.append(SegmentContext.TIMELINE.value)
-        
-        # Check for credibility assertions
+        # Check for credibility assertions - not in YAML yet 
         if _matches_any(text_lower, CREDIBILITY_PATTERNS):
-            contexts.append(SegmentContext.CREDIBILITY_ASSERTION.value)
+            if SegmentContext.CREDIBILITY_ASSERTION.value not in contexts:
+                contexts.append(SegmentContext.CREDIBILITY_ASSERTION.value)
         
-        # Check for official report language
+        # Check for official report language - not in YAML yet
         if _matches_any(text_lower, OFFICIAL_REPORT_PATTERNS):
-            contexts.append(SegmentContext.OFFICIAL_REPORT.value)
+            if SegmentContext.OFFICIAL_REPORT.value not in contexts:
+                contexts.append(SegmentContext.OFFICIAL_REPORT.value)
         
         # Detect direct quotes (straight and curly)
         quote_count = (
@@ -526,3 +537,75 @@ def _matches_any(text: str, patterns: list[str]) -> bool:
         if re.search(pattern, text, re.IGNORECASE):
             return True
     return False
+
+
+# ============================================================================
+# V7 / Stage 4: YAML-based and Legacy Context Detection
+# ============================================================================
+
+def _detect_contexts_yaml(text: str, engine) -> list[str]:
+    """
+    V7 / Stage 4: Detect contexts using PolicyEngine YAML rules.
+    
+    Uses apply_context_rules() which reads from _context/*.yaml files.
+    Maps YAML context values to SegmentContext enum values.
+    """
+    contexts: list[str] = []
+    
+    # Get contexts from PolicyEngine
+    yaml_contexts = engine.apply_context_rules(text)
+    
+    # Map YAML context names to SegmentContext values
+    context_map = {
+        "physical_force": SegmentContext.PHYSICAL_FORCE.value,
+        "incident": None,  # Ignore - too generic
+        "weapon_use": SegmentContext.PHYSICAL_FORCE.value,  # Map to force
+        "restraint": SegmentContext.PHYSICAL_FORCE.value,   # Map to force
+        "chemical_use": SegmentContext.PHYSICAL_FORCE.value,  # Map to force
+        "firearm": SegmentContext.PHYSICAL_FORCE.value,     # Map to force
+        "injury_description": SegmentContext.INJURY_DESCRIPTION.value,
+        "severe_injury": SegmentContext.INJURY_DESCRIPTION.value,
+        "medical_treatment": SegmentContext.INJURY_DESCRIPTION.value,
+        "timeline": SegmentContext.TIMELINE.value,
+        "temporal": SegmentContext.TIMELINE.value,
+        "duration": SegmentContext.TIMELINE.value,
+        "charge_description": SegmentContext.CHARGE_DESCRIPTION.value,
+        "legal": None,  # Ignore - too generic
+        "arrest": SegmentContext.CHARGE_DESCRIPTION.value,
+        "custody": SegmentContext.CHARGE_DESCRIPTION.value,
+    }
+    
+    # Map and deduplicate
+    for yaml_ctx in yaml_contexts:
+        mapped = context_map.get(yaml_ctx)
+        if mapped and mapped not in contexts:
+            contexts.append(mapped)
+    
+    return contexts
+
+
+def _detect_contexts_legacy(text_lower: str) -> list[str]:
+    """
+    DEPRECATED: Legacy context detection using Python patterns.
+    
+    This function will be removed once YAML rules are fully validated.
+    """
+    contexts: list[str] = []
+    
+    # Check for charge/accusation context
+    if _matches_any(text_lower, CHARGE_PATTERNS):
+        contexts.append(SegmentContext.CHARGE_DESCRIPTION.value)
+    
+    # Check for physical force
+    if _matches_any(text_lower, PHYSICAL_FORCE_PATTERNS):
+        contexts.append(SegmentContext.PHYSICAL_FORCE.value)
+    
+    # Check for injury description
+    if _matches_any(text_lower, INJURY_PATTERNS):
+        contexts.append(SegmentContext.INJURY_DESCRIPTION.value)
+    
+    # Check for timeline markers
+    if _matches_any(text_lower, TIMELINE_PATTERNS):
+        contexts.append(SegmentContext.TIMELINE.value)
+    
+    return contexts

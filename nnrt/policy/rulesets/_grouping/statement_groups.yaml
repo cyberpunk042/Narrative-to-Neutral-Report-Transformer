@@ -1,0 +1,444 @@
+# Statement Grouping Rules
+# V7 / Stage 4: Rules for classifying statements into semantic groups
+#
+# These rules assign statements to groups like ENCOUNTER, MEDICAL, WITNESS, etc.
+# Migrated from: nnrt/passes/p46_group_statements.py patterns
+
+category: grouping
+description: "Classify statements into semantic groups"
+priority_range: [400, 500]
+
+rules:
+  # =========================================================================
+  # MEDICAL GROUP
+  # High priority - clear indicators of medical treatment
+  # =========================================================================
+  
+  - id: grp_medical_hospital
+    category: grouping
+    priority: 480
+    description: "Assign to MEDICAL group for hospital mentions"
+    tags: ["statement_group", "medical", "treatment"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(hospital|emergency room|er|clinic|urgent care)\\b"
+    action: group
+    classification:
+      field: statement_group
+      value: "medical"
+      reason: "hospital_detected"
+      confidence: 0.95
+  
+  - id: grp_medical_provider
+    category: grouping
+    priority: 475
+    description: "Assign to MEDICAL group for provider mentions"
+    tags: ["statement_group", "medical", "provider"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(doctor|physician|nurse|paramedic|emt)\\b"
+        - "\\bdr\\.\\s+\\w+"
+    action: group
+    classification:
+      field: statement_group
+      value: "medical"
+      reason: "medical_provider_detected"
+      confidence: 0.9
+  
+  - id: grp_medical_treatment
+    category: grouping
+    priority: 470
+    description: "Assign to MEDICAL group for treatment verbs"
+    tags: ["statement_group", "medical", "treatment"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(treated|examined|diagnosed|documented)\\b"
+        - "\\b(x-ray|ct scan|mri|medical record)\\b"
+    action: group
+    classification:
+      field: statement_group
+      value: "medical"
+      reason: "medical_treatment_detected"
+      confidence: 0.9
+  
+  - id: grp_medical_injury
+    category: grouping
+    priority: 465
+    description: "Assign to MEDICAL group for injury mentions"
+    tags: ["statement_group", "medical", "injury"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(injury|injuries|wound|bruise|fracture)\\b"
+        - "\\b(pain|hurt|bleeding|swelling)\\b"
+    action: group
+    classification:
+      field: statement_group
+      value: "medical"
+      reason: "injury_mentioned"
+      confidence: 0.85
+  
+  # =========================================================================
+  # OFFICIAL GROUP  
+  # Administrative/legal language
+  # =========================================================================
+  
+  - id: grp_official_complaint
+    category: grouping
+    priority: 470
+    description: "Assign to OFFICIAL group for complaint/report language"
+    tags: ["statement_group", "official", "administrative"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(complaint|report|investigation)\\b"
+        - "\\b(filed|submitted|reported)\\b"
+    action: group
+    classification:
+      field: statement_group
+      value: "official"
+      reason: "official_process_detected"
+      confidence: 0.9
+  
+  - id: grp_official_ia
+    category: grouping
+    priority: 475
+    description: "Assign to OFFICIAL group for IA/department mentions"
+    tags: ["statement_group", "official", "oversight"]
+    domain: law_enforcement
+    match:
+      type: regex
+      patterns:
+        - "\\b(internal affairs|police department)\\b"
+        - "\\bI\\.?A\\.?\\b"
+    action: group
+    classification:
+      field: statement_group
+      value: "official"
+      reason: "oversight_detected"
+      confidence: 0.95
+  
+  - id: grp_official_records
+    category: grouping
+    priority: 465
+    description: "Assign to OFFICIAL group for record numbers"
+    tags: ["statement_group", "official", "records"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(case number|badge number|report number)\\b"
+        - "\\b(within policy|procedure)\\b"
+    action: group
+    classification:
+      field: statement_group
+      value: "official"
+      reason: "official_record_detected"
+      confidence: 0.9
+  
+  - id: grp_official_legal
+    category: grouping
+    priority: 470
+    description: "Assign to OFFICIAL group for legal process"
+    tags: ["statement_group", "official", "legal"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(hearing|trial|court|judge)\\b"
+    action: group
+    classification:
+      field: statement_group
+      value: "official"
+      reason: "legal_process_detected"
+      confidence: 0.9
+  
+  # =========================================================================
+  # EMOTIONAL GROUP
+  # Psychological impact
+  # =========================================================================
+  
+  - id: grp_emotional_fear
+    category: grouping
+    priority: 460
+    description: "Assign to EMOTIONAL group for fear/terror"
+    tags: ["statement_group", "emotional", "fear"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(terrified|scared|afraid|fear)\\b"
+    action: group
+    classification:
+      field: statement_group
+      value: "emotional"
+      reason: "fear_expressed"
+      confidence: 0.9
+  
+  - id: grp_emotional_anger
+    category: grouping
+    priority: 460
+    description: "Assign to EMOTIONAL group for anger/frustration"
+    tags: ["statement_group", "emotional", "anger"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(angry|frustrated|humiliated|embarrassed)\\b"
+    action: group
+    classification:
+      field: statement_group
+      value: "emotional"
+      reason: "anger_expressed"
+      confidence: 0.85
+  
+  - id: grp_emotional_trauma
+    category: grouping
+    priority: 465
+    description: "Assign to EMOTIONAL group for trauma indicators"
+    tags: ["statement_group", "emotional", "trauma"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(anxious|anxiety|panic|ptsd)\\b"
+        - "\\b(traumat|shock|distress)\\b"
+        - "\\b(couldn't sleep|nightmares|flashbacks)\\b"
+    action: group
+    classification:
+      field: statement_group
+      value: "emotional"
+      reason: "trauma_indicated"
+      confidence: 0.9
+  
+  - id: grp_emotional_crying
+    category: grouping
+    priority: 455
+    description: "Assign to EMOTIONAL group for crying/screaming"
+    tags: ["statement_group", "emotional", "distress"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(crying|screamed|sobbed)\\b"
+    action: group
+    classification:
+      field: statement_group
+      value: "emotional"
+      reason: "emotional_distress_detected"
+      confidence: 0.85
+  
+  # =========================================================================
+  # WITNESS GROUP
+  # Third-party observations
+  # =========================================================================
+  
+  - id: grp_witness_bystander
+    category: grouping
+    priority: 460
+    description: "Assign to WITNESS group for bystander mentions"
+    tags: ["statement_group", "witness", "bystander"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(witness|bystander|onlooker)\\b"
+    action: group
+    classification:
+      field: statement_group
+      value: "witness_account"
+      reason: "witness_mentioned"
+      confidence: 0.9
+  
+  - id: grp_witness_observed
+    category: grouping
+    priority: 455
+    description: "Assign to WITNESS group for observation verbs"
+    tags: ["statement_group", "witness", "observation"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(saw|watched|observed|noticed)\\s+(the|what|him|her|them)\\b"
+    action: group
+    classification:
+      field: statement_group
+      value: "witness_account"
+      reason: "observation_detected"
+      confidence: 0.85
+  
+  - id: grp_witness_recording
+    category: grouping
+    priority: 465
+    description: "Assign to WITNESS group for recording/video"
+    tags: ["statement_group", "witness", "evidence"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(recording|filmed|videotaped|photographed)\\b"
+    action: group
+    classification:
+      field: statement_group
+      value: "witness_account"
+      reason: "recording_detected"
+      confidence: 0.9
+  
+  # =========================================================================
+  # BACKGROUND GROUP
+  # Context before incident
+  # =========================================================================
+  
+  - id: grp_background_before
+    category: grouping
+    priority: 450
+    description: "Assign to BACKGROUND group for temporal context"
+    tags: ["statement_group", "background", "temporal"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(before|prior to|earlier that)\\b"
+    action: group
+    classification:
+      field: statement_group
+      value: "background"
+      reason: "pre_incident_context"
+      confidence: 0.8
+  
+  - id: grp_background_activity
+    category: grouping
+    priority: 445
+    description: "Assign to BACKGROUND group for prior activity"
+    tags: ["statement_group", "background", "activity"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(was walking|was driving|was standing)\\b"
+        - "\\b(on my way|heading)\\b"
+    action: group
+    classification:
+      field: statement_group
+      value: "background"
+      reason: "prior_activity_detected"
+      confidence: 0.75
+  
+  # =========================================================================
+  # AFTERMATH GROUP
+  # Events after incident
+  # =========================================================================
+  
+  - id: grp_aftermath_released
+    category: grouping
+    priority: 450
+    description: "Assign to AFTERMATH group for release"
+    tags: ["statement_group", "aftermath", "release"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(released|let go|freed)\\b"
+    action: group
+    classification:
+      field: statement_group
+      value: "aftermath"
+      reason: "release_detected"
+      confidence: 0.9
+  
+  - id: grp_aftermath_later
+    category: grouping
+    priority: 445
+    description: "Assign to AFTERMATH group for subsequent events"
+    tags: ["statement_group", "aftermath", "subsequent"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(the next day|days later|weeks later|months later)\\b"
+        - "\\b(after that|subsequently|eventually)\\b"
+    action: group
+    classification:
+      field: statement_group
+      value: "aftermath"
+      reason: "subsequent_event_detected"
+      confidence: 0.85
+  
+  - id: grp_aftermath_ongoing
+    category: grouping
+    priority: 440
+    description: "Assign to AFTERMATH group for ongoing effects"
+    tags: ["statement_group", "aftermath", "ongoing"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(still|continue to|ongoing)\\b"
+    action: group
+    classification:
+      field: statement_group
+      value: "aftermath"
+      reason: "ongoing_effect_detected"
+      confidence: 0.75
+  
+  # =========================================================================
+  # ENCOUNTER GROUP (Default for physical actions)
+  # Lower priority - matches if others don't
+  # =========================================================================
+  
+  - id: grp_encounter_physical
+    category: grouping
+    priority: 430
+    description: "Assign to ENCOUNTER group for physical actions"
+    tags: ["statement_group", "encounter", "physical"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(grabbed|pushed|shoved|hit|struck|punched|kicked)\\b"
+        - "\\b(pulled|dragged|threw|slammed)\\b"
+        - "\\b(choked|tased|sprayed|shot)\\b"
+    action: group
+    classification:
+      field: statement_group
+      value: "encounter"
+      reason: "physical_action_detected"
+      confidence: 0.85
+  
+  - id: grp_encounter_arrest
+    category: grouping
+    priority: 435
+    description: "Assign to ENCOUNTER group for arrest/restraint"
+    tags: ["statement_group", "encounter", "arrest"]
+    domain: law_enforcement
+    match:
+      type: regex
+      patterns:
+        - "\\b(arrested|handcuffed|detained|restrained)\\b"
+    action: group
+    classification:
+      field: statement_group
+      value: "encounter"
+      reason: "arrest_action_detected"
+      confidence: 0.9
+  
+  - id: grp_encounter_approach
+    category: grouping
+    priority: 425
+    description: "Assign to ENCOUNTER group for approach/stop"
+    tags: ["statement_group", "encounter", "initial"]
+    domain: law_enforcement
+    match:
+      type: regex
+      patterns:
+        - "\\b(approached|confronted|stopped)\\b"
+    action: group
+    classification:
+      field: statement_group
+      value: "encounter"
+      reason: "initial_contact_detected"
+      confidence: 0.8
+  
+  - id: grp_encounter_force
+    category: grouping
+    priority: 440
+    description: "Assign to ENCOUNTER group for force mentions"
+    tags: ["statement_group", "encounter", "force"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(force|assault|attack)\\b"
+    action: group
+    classification:
+      field: statement_group
+      value: "encounter"
+      reason: "force_mentioned"
+      confidence: 0.85

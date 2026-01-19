@@ -55,85 +55,156 @@ This document provides a high-level roadmap for the architectural refactoring of
 
 ## Stage Breakdown
 
-### Stage 0: Foundation — Atom Schema Enhancement
+### Stage 0: Foundation — Atom Schema Enhancement ✅ COMPLETE
 **Document**: `.agent/milestones/stage_0_atom_schema.md`
 
 Enhance the IR schema so that all classification metadata has a home on the atoms themselves. Classification should be computed in the pipeline and stored, not computed at render-time.
 
 **Scope**:
-- Review all atom types (AtomicStatement, Entity, Event, TimelineEntry, SpeechAct)
-- Identify fields that are currently computed at render-time
-- Add missing classification fields to IR schema
-- Create migration plan for populating new fields
+- Review all atom types (AtomicStatement, Entity, Event, TimelineEntry, SpeechAct) ✅
+- Identify fields that are currently computed at render-time ✅
+- Add missing classification fields to IR schema ✅
+- Create migration plan for populating new fields ✅
+- **Populate Entity classification fields in p32** ✅ (2026-01-18)
+- **Populate SpeechAct classification fields in p40** ✅ (2026-01-18)
+- **Populate TimelineEntry classification fields in p44** ✅ (2026-01-18)
+
+**Completed 2026-01-18**: 
+- Added 40+ classification fields across Event, Entity, SpeechAct, TimelineEntry, and StatementGroup atoms
+- **All atom types now have classification field population**:
+  - Entity: is_valid_actor, is_named, gender, domain_role (in p32_extract_entities)
+  - SpeechAct: speaker_resolved, is_quarantined, etc. (in p40_build_ir)
+  - TimelineEntry: pronouns_resolved, display_quality (in p44_timeline)
+  - Event: is_camera_friendly, is_fragment, etc. (in p35_classify_events)
 
 ---
 
-### Stage 1: Classification Layer Unification
+### Stage 1: Classification Layer Unification ✅ COMPLETE
 **Document**: `.agent/milestones/stage_1_classification.md`
 
 Move all classification logic from the renderer and scattered passes into a unified classification layer in the pipeline. Extend the Policy Engine to support classification rules alongside transformation rules.
 
 **Scope**:
-- Inventory all classification logic currently in renderer
-- Inventory all classification patterns in pipeline passes (p27, p32, p48, etc.)
-- Design extended PolicyEngine with classification rule type
-- Migrate classification logic to pipeline passes
-- Store classification results on atoms
+- Inventory all classification logic currently in renderer ✅
+- Inventory all classification patterns in pipeline passes ✅
+- Design extended PolicyEngine with classification rule type ✅
+- Migrate classification logic to pipeline passes ✅
+- Store classification results on atoms ✅
+
+**Completed 2026-01-18**:
+- Extended RuleAction with CLASSIFY, DISQUALIFY, DETECT, STRIP
+- Created p35_classify_events pass using PolicyEngine rules
+- Created _classification/camera_friendly.yaml and neutralization.yaml
+- Event generator now uses pre-computed is_camera_friendly
+- Renderer functions marked DEPRECATED (V8 fallback retained)
 
 ---
 
 ### Stage 2: Selection Layer Creation
-**Document**: `.agent/milestones/stage_2_selection.md`
+**Document**: `.agent/milestones/stage_2_selection.md` ✅ COMPLETE
 
 Create a new Selection layer that sits between Classification and Rendering. This layer chooses which atoms to include in output based on the selected output mode.
 
-**Scope**:
-- Define output modes (strict, full, events-only, timeline-only, recomposition)
-- Design selection predicates for each mode
-- Create selection pass or component
-- Move selection logic from renderer to this layer
+**Completed**:
+- ✅ `SelectionMode` enum (STRICT, FULL, TIMELINE, EVENTS_ONLY, RECOMPOSITION)
+- ✅ `SelectionResult` dataclass with event/entity/quote/timeline routing
+- ✅ `p55_select` pass wired into pipeline after evaluate_policy
+- ✅ TransformContext.selection_result + helper methods
+- ✅ CLI mode configuration: `--mode strict|full|timeline|events|recompose`
+- ✅ Unit tests: tests/test_selection.py (24 tests)
+- ✅ All 602 tests pass
+
+**Deferred to Stage 3**:
+- [ ] Renderer reads from SelectionResult instead of inline logic
+
+**Key Design Decisions**:
+- Selection stores IDs, not copies (atoms remain in original lists)
+- Renderer fallback to inline logic during migration
+- STRICT mode = current behavior (camera-friendly only)
 
 ---
 
 ### Stage 3: Renderer Simplification
-**Document**: `.agent/milestones/stage_3_renderer.md`
+**Document**: `.agent/milestones/stage_3_renderer.md` ✅ CORE COMPLETE
 
-Strip the renderer down to formatting-only. It should receive pre-classified, pre-selected atoms and simply format them for display. No classification. No selection. No business logic.
+Strip the renderer down to **formatting-only**. It should receive pre-classified, pre-selected atoms and simply format them for display. No classification. No selection. No business logic.
 
-**Scope**:
-- Remove classification logic from structured.py
-- Remove selection logic from structured.py
-- Keep only formatting/display logic
-- Create multiple renderer modes (report, JSON, etc.)
-- Target: ~500 lines instead of ~2000
+**Completed**:
+1. ✅ All 7 sections have SelectionResult paths
+2. ✅ `p90_render_structured` pass created
+3. ✅ `structured_only` pipeline uses new pass
+4. ✅ Deprecated code marked with comments
+5. ✅ All 602 tests pass
+6. ✅ `format_structured_output` accepts `selection_result` directly (2026-01-18)
+7. ✅ Web server updated to use `build_selection_from_result()` (2026-01-18)
+8. ✅ `nnrt/selection/utils.py` created with helper function
+9. ✅ All legacy blocks marked DEPRECATED with TODO comments
+
+**Remaining (optional cleanup)**:
+- Remove legacy code blocks (~1500 lines) once confident in new path
+- Reduce structured.py from ~2365 to ~800 lines (estimated)
+
+**Architecture**:
+```
+Pipeline: ... → p55_select → ... → p90_render_structured → ...
+                   ↓                       ↓
+            SelectionResult    →    format_structured_output(selection_result=sr)
+                                           ↓
+                                   Uses new path if selection_result provided
+```
+
+**Web Server Path**:
+```
+TransformResult → build_selection_from_result() → SelectionResult → format_structured_output()
+```
 
 ---
 
 ### Stage 4: Rule System Unification
-**Document**: `.agent/milestones/stage_4_rules.md`
+**Document**: `.agent/milestones/stage_4_rules.md` ✅ CORE COMPLETE
 
-Unify all rule types under the Policy Engine. Consolidate duplicated patterns. Define a single schema for all rules (transformation, classification, validation, extraction).
+Unify all rule types under the Policy Engine. Consolidate duplicated patterns scattered across Python files into YAML configurations.
 
-**Scope**:
-- Extend PolicyEngine with new rule types
-- Define unified rule schema
-- Migrate scattered patterns to YAML configs
-- Consolidate duplicates between files
-- Create rule composition system
+**Complete**:
+- ✅ Schema extension (Phase 1)
+- ✅ PolicyEngine action handlers (Phase 2)
+- ✅ **67 rules in YAML** (Phase 3)
+- ✅ p25_annotate_context using YAML rules
+- ✅ p46_group_statements using YAML rules
+- ✅ Legacy patterns marked DEPRECATED
+
+**YAML Files**:
+- `_context/`: 32 rules (force, injury, timeline, charge)
+- `_extraction/`: 11 rules (entity roles)
+- `_grouping/`: 24 rules (statement groups)
+
+**Optional Remaining**:
+- p32_extract_entities migration
+- Schema validation
 
 ---
 
 ### Stage 5: Domain System Completion
-**Document**: `.agent/milestones/stage_5_domains.md`
+**Document**: `.agent/milestones/stage_5_domains.md` ✅ PHASE 4 COMPLETE
 
 Complete the domain system so that each domain is a self-contained configuration with vocabulary, extraction patterns, classification rules, and transformation rules. Enable clean domain composition.
 
-**Scope**:
-- Design complete domain schema
-- Extend law_enforcement.yaml with full vocabulary
-- Create domain composition mechanism
-- Add domain auto-detection (future)
-- Template for adding new domains
+**Completed**:
+1. ✅ Phase 1: Domain Schema
+   - `nnrt/domain/schema.py` - Pydantic models
+   - `nnrt/domain/loader.py` - Load, cache, merge
+2. ✅ Phase 2: Migrate Existing Rules
+   - `nnrt/domain/configs/base.yaml` - Universal rules (37 transformations)
+   - Migrated rules from `_categories/` files
+3. ✅ Phase 3: Domain Composition
+   - `law_enforcement.yaml` extends `base`
+   - 50 rules (37 base + 13 domain-specific)
+4. ✅ Phase 4: Integration
+   - `nnrt/domain/integration.py` - Bridge to PolicyEngine
+   - Domain→PolicyRuleset conversion working
+
+**Remaining (optional)**:
+- Phase 5: Documentation & domain template command
 
 ---
 

@@ -39,15 +39,22 @@ from collections import defaultdict
 from nnrt.core.context import TransformContext
 from nnrt.ir.schema_v0_1 import StatementGroup, Entity
 from nnrt.ir.enums import GroupType, EntityRole, StatementType
+from nnrt.policy.engine import get_policy_engine
 
 log = structlog.get_logger("nnrt.p46_group_statements")
 
 PASS_NAME = "p46_group_statements"
 
+# V7 / Stage 4: Use YAML rules for classification (set to True to enable)
+USE_YAML_RULES = True
+
 # ============================================================================
-# Keyword Patterns for Group Classification
+# DEPRECATED: Keyword Patterns for Group Classification
+# V7 / Stage 4: These patterns are now in _grouping/statement_groups.yaml
+# They remain here for backwards compatibility but will be removed.
 # ============================================================================
 
+# DEPRECATED: Use _grouping/statement_groups.yaml instead
 # ENCOUNTER: Physical actions, confrontation
 ENCOUNTER_PATTERNS = [
     r'\b(grabbed|pushed|shoved|hit|struck|punched|kicked)',
@@ -58,6 +65,7 @@ ENCOUNTER_PATTERNS = [
     r'\b(force|assault|attack)',
 ]
 
+# DEPRECATED: Use _grouping/statement_groups.yaml instead
 # MEDICAL: Treatment, injuries, hospitals
 MEDICAL_PATTERNS = [
     r'\b(hospital|emergency room|clinic|urgent care)',
@@ -69,6 +77,7 @@ MEDICAL_PATTERNS = [
     r'\bdr\.\s+\w+',  # Dr. Name
 ]
 
+# DEPRECATED: Use _grouping/statement_groups.yaml instead
 # WITNESS: Third-party observations
 WITNESS_PATTERNS = [
     r'\b(witness|bystander|onlooker)',
@@ -77,6 +86,7 @@ WITNESS_PATTERNS = [
     r'\b(told|said|reported|stated)\s+(that|he|she|they)',
 ]
 
+# DEPRECATED: Use _grouping/statement_groups.yaml instead
 # OFFICIAL: Administrative, legal
 OFFICIAL_PATTERNS = [
     r'\b(complaint|report|investigation)',
@@ -88,6 +98,7 @@ OFFICIAL_PATTERNS = [
     r'\b(letter|notice|notification)',
 ]
 
+# DEPRECATED: Use _grouping/statement_groups.yaml instead
 # EMOTIONAL: Psychological impact
 EMOTIONAL_PATTERNS = [
     r'\b(terrified|scared|afraid|fear)',
@@ -98,6 +109,7 @@ EMOTIONAL_PATTERNS = [
     r'\b(crying|screamed|sobbed)',
 ]
 
+# DEPRECATED: Use _grouping/statement_groups.yaml instead
 # BACKGROUND: Context before incident
 BACKGROUND_PATTERNS = [
     r'\b(before|prior to|earlier that)',
@@ -105,6 +117,7 @@ BACKGROUND_PATTERNS = [
     r'\b(on my way|heading)',
 ]
 
+# DEPRECATED: Use _grouping/statement_groups.yaml instead
 # AFTERMATH: Events after incident
 AFTERMATH_PATTERNS = [
     r'\b(released|let go|freed)',
@@ -227,12 +240,64 @@ def group_statements(ctx: TransformContext) -> TransformContext:
 def _classify_statement(stmt, entities: list[Entity]) -> GroupType:
     """
     Classify a statement into a group type based on content and context.
-    """
-    text = stmt.text.lower() if hasattr(stmt, 'text') else ""
     
+    V7 / Stage 4: Uses PolicyEngine YAML rules if USE_YAML_RULES is True.
+    """
     # Check statement type first (QUOTE is preserved)
     if hasattr(stmt, 'type_hint') and stmt.type_hint == StatementType.QUOTE:
         return GroupType.QUOTE
+    
+    # V7 / Stage 4: Use YAML rules for classification
+    if USE_YAML_RULES:
+        return _classify_statement_yaml(stmt, entities)
+    
+    # Legacy: Use Python patterns
+    return _classify_statement_legacy(stmt, entities)
+
+
+def _classify_statement_yaml(stmt, entities: list[Entity]) -> GroupType:
+    """
+    V7 / Stage 4: Classify using PolicyEngine YAML rules.
+    
+    Uses apply_group_rules() which reads from _grouping/statement_groups.yaml.
+    """
+    text = stmt.text if hasattr(stmt, 'text') else ""
+    
+    # Try PolicyEngine classification
+    engine = get_policy_engine()
+    group_name = engine.apply_group_rules(text)
+    
+    if group_name:
+        # Map YAML group names to GroupType enum
+        group_map = {
+            "encounter": GroupType.ENCOUNTER,
+            "medical": GroupType.MEDICAL,
+            "official": GroupType.OFFICIAL,
+            "emotional": GroupType.EMOTIONAL,
+            "witness_account": GroupType.WITNESS_ACCOUNT,
+            "background": GroupType.BACKGROUND,
+            "aftermath": GroupType.AFTERMATH,
+        }
+        return group_map.get(group_name, GroupType.ENCOUNTER)
+    
+    # Fallback: Check witness entity mentions (entity-based, not pattern-based)
+    text_lower = text.lower()
+    for entity in entities:
+        if entity.role == EntityRole.WITNESS:
+            if entity.label and entity.label.lower() in text_lower:
+                return GroupType.WITNESS_ACCOUNT
+    
+    # Default: ENCOUNTER (most common for incident narratives)
+    return GroupType.ENCOUNTER
+
+
+def _classify_statement_legacy(stmt, entities: list[Entity]) -> GroupType:
+    """
+    DEPRECATED: Legacy classification using Python patterns.
+    
+    This function will be removed once YAML rules are fully validated.
+    """
+    text = stmt.text.lower() if hasattr(stmt, 'text') else ""
     
     # Check for pattern matches (priority order)
     

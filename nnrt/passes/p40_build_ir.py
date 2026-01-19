@@ -158,6 +158,13 @@ def build_ir(ctx: TransformContext) -> TransformContext:
                         speech_verb=speech_verb,
                         is_nested=is_nested,
                         raw_text=segment.text[:200],  # Store original for context
+                        # V7 / Stage 0: Classification fields
+                        speaker_resolved=speaker_id is not None or speaker_label == "Reporter",
+                        speaker_resolution_confidence=0.85 if speaker_id else (0.7 if speaker_label else 0.0),
+                        speaker_resolution_method="entity_match" if speaker_id else ("first_person" if speaker_label == "Reporter" else None),
+                        speaker_validation="valid" if speaker_id else ("pronoun_only" if speaker_label else "unknown"),
+                        is_quarantined=speaker_label is None or speaker_label.strip() == "",
+                        quarantine_reason="no_speaker_attribution" if (speaker_label is None or speaker_label.strip() == "") else None,
                     )
                     speech_acts.append(speech_act)
                     speech_act_counter += 1

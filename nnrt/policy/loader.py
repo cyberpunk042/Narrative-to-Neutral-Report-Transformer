@@ -12,6 +12,7 @@ from typing import Optional
 import yaml
 
 from nnrt.policy.models import (
+    ClassificationOutput,
     MatchType,
     PolicyRule,
     PolicyRuleset,
@@ -224,6 +225,17 @@ def parse_rule(data: dict) -> Optional[PolicyRule]:
                 segment_pattern=cond_data.get("segment_pattern"),
             )
         
+        # V7 / Stage 1: Parse classification if present
+        classification = None
+        if "classification" in data:
+            class_data = data["classification"]
+            classification = ClassificationOutput(
+                field=class_data.get("field", "is_camera_friendly"),
+                value=class_data.get("value"),
+                reason=class_data.get("reason"),
+                confidence=class_data.get("confidence", 0.9),
+            )
+        
         return PolicyRule(
             id=data["id"],
             category=data.get("category", "uncategorized"),
@@ -235,7 +247,12 @@ def parse_rule(data: dict) -> Optional[PolicyRule]:
             reframe_template=data.get("reframe_template"),
             diagnostic=diagnostic,
             condition=condition,
+            classification=classification,
             enabled=data.get("enabled", True),
+            # V7 / Stage 4: Composition and domain support
+            domain=data.get("domain"),
+            tags=data.get("tags", []),
+            extends=data.get("extends"),
         )
     except (KeyError, ValueError) as e:
         # Log warning and skip invalid rule

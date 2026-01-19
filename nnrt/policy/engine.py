@@ -286,6 +286,13 @@ class PolicyEngine:
         # STEP 2.5: Consume spans - prevent overlapping matches
         # Sort by priority (high first), then by length (long first for ties)
         # When multiple rules match overlapping text, highest priority wins
+        #
+        # V7: Classification rules (DETECT, CLASSIFY, DISQUALIFY) don't consume spans
+        # because they don't modify text - they just read it for classification.
+        # Only text-modifying rules (REMOVE, REPLACE, REFRAME, STRIP) consume spans.
+        
+        CLASSIFICATION_ACTIONS = {RuleAction.DETECT, RuleAction.CLASSIFY, RuleAction.DISQUALIFY}
+        
         sorted_by_priority = sorted(
             unprotected_matches,
             key=lambda m: (-m.rule.priority, -(m.end - m.start))
@@ -295,7 +302,12 @@ class PolicyEngine:
         non_overlapping_matches: list[RuleMatch] = []
         
         for match in sorted_by_priority:
-            # Check if ANY character in this match is already consumed
+            # Classification rules don't consume spans (they just read for classification)
+            if match.rule.action in CLASSIFICATION_ACTIONS:
+                non_overlapping_matches.append(match)
+                continue
+            
+            # For text-modifying rules, check if span is already consumed
             match_chars = set(range(match.start, match.end))
             if match_chars & consumed_chars:
                 # Overlap detected - skip this lower-priority match
@@ -445,6 +457,10 @@ class PolicyEngine:
         rule = match.rule
         
         if rule.action == RuleAction.REMOVE:
+            return ""
+        elif rule.action == RuleAction.STRIP:
+            # STRIP is like REMOVE for text transformation
+            # (removes the matched word to neutralize text)
             return ""
         elif rule.action == RuleAction.REPLACE:
             return rule.replacement or ""
@@ -626,6 +642,291 @@ class PolicyEngine:
             decisions.append(decision)
         
         return decisions
+
+    # =========================================================================
+    # V7 / Stage 1: Classification Methods
+    # =========================================================================
+    
+    def apply_classification_rules(
+        self,
+        text: str,
+        atom_type: str = "event",
+    ) -> list[dict]:
+        """
+        Apply classification rules and return classification results.
+        
+        Does NOT modify atoms directly - returns a list of classification
+        results that the caller can apply to atom fields.
+        
+        Args:
+            text: Text to classify (e.g., event.description)
+            atom_type: Type of atom being classified ("event", "entity", "quote")
+            
+        Returns:
+            List of dicts with:
+            - field: Which field to set
+            - value: What value to set
+            - reason: Why this classification
+            - confidence: How confident
+            - source: Which rule triggered this
+        """
+        results: list[dict] = []
+        
+        # Find all classification rule matches
+        for rule in self.ruleset.get_rules_sorted():
+            if rule.action not in [RuleAction.CLASSIFY, RuleAction.DISQUALIFY, RuleAction.DETECT]:
+                continue
+            
+            if not rule.classification:
+                continue  # Classification rules need a classification output
+            
+            rule_matches = self._match_rule(rule, text)
+            
+            for match in rule_matches:
+                classification = rule.classification
+                
+                # Build reason from template
+                reason = classification.reason or ""
+                if "{matched}" in reason:
+                    reason = reason.replace("{matched}", match.matched_text)
+                
+                result = {
+                    "field": classification.field,
+                    "value": classification.value,
+                    "reason": reason or f"matched:{match.matched_text}",
+                    "confidence": classification.confidence,
+                    "source": rule.id,
+                    "matched_text": match.matched_text,
+                }
+                
+                # For DISQUALIFY, force is_camera_friendly to False
+                if rule.action == RuleAction.DISQUALIFY:
+                    result["field"] = "is_camera_friendly"
+                    result["value"] = False
+                
+                # For DETECT, force value to True
+                if rule.action == RuleAction.DETECT:
+                    result["value"] = True
+                
+                results.append(result)
+        
+        return results
+    
+    def apply_strip_rules(self, text: str) -> str:
+        """
+        Apply STRIP rules to neutralize text.
+        
+        STRIP rules remove words/phrases but keep the sentence intact.
+        Used for creating neutralized_description from description.
+        
+        Args:
+            text: Text to neutralize
+            
+        Returns:
+            Neutralized text with stripped words removed
+        """
+        result = text
+        
+        # Collect all STRIP rule matches
+        strip_matches: list[tuple[int, int, str]] = []  # (start, end, rule_id)
+        
+        for rule in self.ruleset.get_rules_sorted():
+            if rule.action != RuleAction.STRIP:
+                continue
+            
+            rule_matches = self._match_rule(rule, result)
+            for match in rule_matches:
+                strip_matches.append((match.start, match.end, rule.id))
+        
+        if not strip_matches:
+            return text  # No changes
+        
+        # Sort by position descending (apply from end to preserve positions)
+        strip_matches.sort(key=lambda x: x[0], reverse=True)
+        
+        for start, end, rule_id in strip_matches:
+            # Remove the matched text
+            before = result[:start]
+            after = result[end:]
+            
+            # Clean up: remove double spaces, adjust spacing
+            combined = before + after
+            # Remove double spaces
+            while "  " in combined:
+                combined = combined.replace("  ", " ")
+            
+            result = combined.strip()
+        
+        return result
+    
+    # =========================================================================
+    # V7 / Stage 4: Context, Grouping, and Extraction Actions
+    # =========================================================================
+    # These methods enable pattern migration from Python to YAML.
+    # Each method returns results that the caller can apply to segments/atoms.
+    # =========================================================================
+    
+    def apply_context_rules(self, text: str, domain: Optional[str] = None) -> list[str]:
+        """
+        Apply CONTEXT rules to detect segment contexts.
+        
+        Context rules detect patterns that indicate segment type/nature,
+        replacing hardcoded Python patterns like PHYSICAL_FORCE_PATTERNS.
+        
+        Args:
+            text: Text to analyze
+            domain: Optional domain to filter rules
+            
+        Returns:
+            List of context values to add to segment.contexts
+        """
+        contexts: list[str] = []
+        
+        for rule in self.ruleset.get_rules_sorted():
+            if rule.action != RuleAction.CONTEXT:
+                continue
+            
+            # Filter by domain if specified
+            if domain and rule.domain and rule.domain != domain:
+                continue
+            
+            if not rule.classification:
+                continue
+            
+            rule_matches = self._match_rule(rule, text)
+            
+            if rule_matches:
+                # Get context values from classification
+                value = rule.classification.value
+                if isinstance(value, list):
+                    contexts.extend(value)
+                elif isinstance(value, str):
+                    contexts.append(value)
+        
+        # Deduplicate while preserving order
+        seen = set()
+        result = []
+        for ctx in contexts:
+            if ctx not in seen:
+                seen.add(ctx)
+                result.append(ctx)
+        
+        return result
+    
+    def apply_group_rules(self, text: str, domain: Optional[str] = None) -> Optional[str]:
+        """
+        Apply GROUP rules to determine statement group.
+        
+        Group rules classify statements into semantic groups,
+        replacing hardcoded Python patterns like ENCOUNTER_PATTERNS.
+        
+        Args:
+            text: Text to analyze
+            domain: Optional domain to filter rules
+            
+        Returns:
+            Group name if matched, None otherwise.
+            Returns highest-priority match only.
+        """
+        for rule in self.ruleset.get_rules_sorted():
+            if rule.action != RuleAction.GROUP:
+                continue
+            
+            # Filter by domain if specified
+            if domain and rule.domain and rule.domain != domain:
+                continue
+            
+            if not rule.classification:
+                continue
+            
+            rule_matches = self._match_rule(rule, text)
+            
+            if rule_matches:
+                # Return the first (highest priority) group match
+                return rule.classification.value
+        
+        return None
+    
+    def apply_extract_rules(self, text: str, domain: Optional[str] = None) -> list[dict]:
+        """
+        Apply EXTRACT rules to populate extraction fields.
+        
+        Extract rules detect patterns that indicate entity roles,
+        temporal expressions, etc., replacing hardcoded Python patterns
+        like MEDICAL_ROLE_PATTERNS.
+        
+        Args:
+            text: Text to analyze
+            domain: Optional domain to filter rules
+            
+        Returns:
+            List of extraction results with:
+            - field: Which field to populate
+            - value: What value to set
+            - confidence: How confident
+            - source: Which rule triggered this
+            - matched_text: What text matched
+        """
+        results: list[dict] = []
+        
+        for rule in self.ruleset.get_rules_sorted():
+            if rule.action != RuleAction.EXTRACT:
+                continue
+            
+            # Filter by domain if specified
+            if domain and rule.domain and rule.domain != domain:
+                continue
+            
+            if not rule.classification:
+                continue
+            
+            rule_matches = self._match_rule(rule, text)
+            
+            for match in rule_matches:
+                classification = rule.classification
+                
+                # Build reason from template
+                reason = classification.reason or ""
+                if "{matched}" in reason:
+                    reason = reason.replace("{matched}", match.matched_text)
+                
+                results.append({
+                    "field": classification.field,
+                    "value": classification.value,
+                    "confidence": classification.confidence,
+                    "source": rule.id,
+                    "matched_text": match.matched_text,
+                    "reason": reason or f"matched:{match.matched_text}",
+                })
+        
+        return results
+    
+    def get_rules_by_tag(self, tag: str) -> list[PolicyRule]:
+        """Get all rules with a specific tag."""
+        return self.ruleset.get_rules_by_tag(tag)
+    
+    def get_rules_by_domain(self, domain: str) -> list[PolicyRule]:
+        """Get all rules for a specific domain."""
+        return self.ruleset.get_rules_by_domain(domain)
+    
+    def get_classification_rules(self) -> list[PolicyRule]:
+        """Get all classification rules (CLASSIFY, DISQUALIFY, DETECT, STRIP)."""
+        return [
+            r for r in self.ruleset.get_rules_sorted()
+            if r.action in [RuleAction.CLASSIFY, RuleAction.DISQUALIFY, RuleAction.DETECT, RuleAction.STRIP]
+        ]
+    
+    def get_context_rules(self) -> list[PolicyRule]:
+        """Get all CONTEXT rules."""
+        return [r for r in self.ruleset.get_rules_sorted() if r.action == RuleAction.CONTEXT]
+    
+    def get_group_rules(self) -> list[PolicyRule]:
+        """Get all GROUP rules."""
+        return [r for r in self.ruleset.get_rules_sorted() if r.action == RuleAction.GROUP]
+    
+    def get_extract_rules(self) -> list[PolicyRule]:
+        """Get all EXTRACT rules."""
+        return [r for r in self.ruleset.get_rules_sorted() if r.action == RuleAction.EXTRACT]
 
 
 # Default engine instance and profile configuration

@@ -86,15 +86,27 @@ class TestGoldenCases:
         request = TransformRequest(text=text)
         result = engine.transform(request)
         
+        # V7: For 'must not contain' rules, check only the RAW NEUTRALIZED NARRATIVE section
+        # V2 structured output includes original text in sections like REPORTER INFERENCES
+        full_output = result.rendered_text
+        full_output_lower = full_output.lower()
+        
+        if "raw neutralized narrative" in full_output_lower:
+            raw_idx = full_output_lower.find("raw neutralized narrative")
+            prose_output = full_output[raw_idx:]
+        else:
+            prose_output = full_output
+        
         for rule in validation_rules:
             # Parse rule syntax
             if "must not contain" in rule.lower():
                 match = re.search(r"'([^']+)'", rule)
                 if match:
                     forbidden = match.group(1)
-                    assert forbidden not in result.rendered_text, (
+                    # V7: Check only prose section for forbidden content
+                    assert forbidden not in prose_output, (
                         f"Rule violated: {rule}\n"
-                        f"Output contains: {result.rendered_text}"
+                        f"Prose output contains forbidden content"
                     )
             elif "must contain" in rule.lower():
                 match = re.search(r"'([^']+)'", rule)

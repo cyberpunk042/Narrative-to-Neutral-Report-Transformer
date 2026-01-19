@@ -1,0 +1,120 @@
+# Charge Context Detection Rules
+# V7 / Stage 4: Rules for detecting charge/accusation language in segments
+#
+# These rules set segment contexts for legal charge content.
+# Migrated from: nnrt/passes/p25_annotate_context.py CHARGE_PATTERNS
+
+category: context_detection
+description: "Detect charge/accusation context for segment annotation"
+priority_range: [200, 250]
+
+rules:
+  # =========================================================================
+  # CHARGE/ACCUSATION DETECTION
+  # =========================================================================
+  
+  - id: ctx_charge_charged_with
+    category: context
+    priority: 225
+    description: "Detect 'charged with' language"
+    tags: ["charge_context", "legal", "accusation"]
+    match:
+      type: regex
+      patterns:
+        - "\\bcharged?\\s+(me\\s+)?with\\b"
+    action: context
+    classification:
+      field: contexts
+      value: ["charge_description", "legal"]
+      reason: "charged_with_detected"
+      confidence: 0.95
+  
+  - id: ctx_charge_accused_of
+    category: context
+    priority: 225
+    description: "Detect 'accused of' language"
+    tags: ["charge_context", "legal", "accusation"]
+    match:
+      type: regex
+      patterns:
+        - "\\baccused?\\s+(me\\s+)?of\\b"
+    action: context
+    classification:
+      field: contexts
+      value: ["charge_description", "legal"]
+      reason: "accused_of_detected"
+      confidence: 0.95
+  
+  - id: ctx_charge_arrested_for
+    category: context
+    priority: 225
+    description: "Detect 'arrested for' language"
+    tags: ["charge_context", "legal", "arrest"]
+    match:
+      type: regex
+      patterns:
+        - "\\barrested?\\s+(me\\s+)?for\\b"
+    action: context
+    classification:
+      field: contexts
+      value: ["charge_description", "legal", "arrest"]
+      reason: "arrested_for_detected"
+      confidence: 0.95
+  
+  - id: ctx_charge_charges_of
+    category: context
+    priority: 220
+    description: "Detect 'charges of' language"
+    tags: ["charge_context", "legal", "formal"]
+    match:
+      type: regex
+      patterns:
+        - "\\bcharg(e|es|ing)\\s+of\\b"
+    action: context
+    classification:
+      field: contexts
+      value: ["charge_description", "legal"]
+      reason: "charges_of_detected"
+      confidence: 0.9
+  
+  # =========================================================================
+  # BOOKING/PROCESSING CONTEXT
+  # =========================================================================
+  
+  - id: ctx_charge_booking
+    category: context
+    priority: 220
+    description: "Detect booking/processing language"
+    tags: ["charge_context", "legal", "processing"]
+    match:
+      type: phrase
+      patterns:
+        - "booked"
+        - "processed"
+        - "taken into custody"
+        - "placed under arrest"
+    action: context
+    classification:
+      field: contexts
+      value: ["charge_description", "legal", "custody"]
+      reason: "booking_detected"
+      confidence: 0.9
+  
+  - id: ctx_charge_citation
+    category: context
+    priority: 215
+    description: "Detect citation/ticket language"
+    tags: ["charge_context", "legal", "citation"]
+    match:
+      type: phrase
+      patterns:
+        - "citation"
+        - "ticket"
+        - "summons"
+        - "written up"
+    action: context
+    classification:
+      field: contexts
+      value: ["charge_description", "legal"]
+      reason: "citation_detected"
+      confidence: 0.85

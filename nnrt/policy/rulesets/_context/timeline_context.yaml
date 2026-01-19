@@ -1,0 +1,166 @@
+# Timeline Context Detection Rules
+# V7 / Stage 4: Rules for detecting temporal markers in segments
+#
+# These rules set segment contexts for timeline/temporal content.
+# Migrated from: nnrt/passes/p25_annotate_context.py TIMELINE_PATTERNS
+
+category: context_detection
+description: "Detect timeline/temporal context for segment annotation"
+priority_range: [200, 250]
+
+rules:
+  # =========================================================================
+  # SPECIFIC TIME DETECTION
+  # =========================================================================
+  
+  - id: ctx_timeline_clock_time
+    category: context
+    priority: 225
+    description: "Detect clock times (3:30, 3:30 PM)"
+    tags: ["timeline_context", "temporal", "specific"]
+    match:
+      type: regex
+      patterns:
+        - "\\b\\d{1,2}:\\d{2}\\s*(AM|PM|am|pm)?\\b"
+    action: context
+    classification:
+      field: contexts
+      value: ["timeline", "temporal"]
+      reason: "clock_time_detected"
+      confidence: 0.95
+  
+  - id: ctx_timeline_hour_only
+    category: context
+    priority: 220
+    description: "Detect hour-only times (3 PM, 11 AM)"
+    tags: ["timeline_context", "temporal", "specific"]
+    match:
+      type: regex
+      patterns:
+        - "\\b\\d{1,2}\\s*(AM|PM|am|pm)\\b"
+    action: context
+    classification:
+      field: contexts
+      value: ["timeline", "temporal"]
+      reason: "hour_time_detected"
+      confidence: 0.9
+  
+  - id: ctx_timeline_military
+    category: context
+    priority: 225
+    description: "Detect military time (1400 hours)"
+    tags: ["timeline_context", "temporal", "official"]
+    match:
+      type: regex
+      patterns:
+        - "\\b\\d{4}\\s*hours?\\b"
+    action: context
+    classification:
+      field: contexts
+      value: ["timeline", "temporal", "official_report"]
+      reason: "military_time_detected"
+      confidence: 0.95
+  
+  # =========================================================================
+  # TEMPORAL SEQUENCE MARKERS
+  # =========================================================================
+  
+  - id: ctx_timeline_sequence_before_after
+    category: context
+    priority: 210
+    description: "Detect before/after sequence markers"
+    tags: ["timeline_context", "temporal", "sequence"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(before|after|prior to|following)\\b"
+    action: context
+    classification:
+      field: contexts
+      value: ["timeline"]
+      reason: "sequence_marker_detected"
+      confidence: 0.8
+  
+  - id: ctx_timeline_sequence_then
+    category: context
+    priority: 210
+    description: "Detect then/during sequence markers"
+    tags: ["timeline_context", "temporal", "sequence"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(then|during|while|when)\\b"
+    action: context
+    classification:
+      field: contexts
+      value: ["timeline"]
+      reason: "sequence_marker_detected"
+      confidence: 0.75
+  
+  - id: ctx_timeline_order
+    category: context
+    priority: 215
+    description: "Detect ordering markers (first, next, finally)"
+    tags: ["timeline_context", "temporal", "sequence"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(first|next|finally|eventually|ultimately)\\b"
+    action: context
+    classification:
+      field: contexts
+      value: ["timeline"]
+      reason: "order_marker_detected"
+      confidence: 0.8
+  
+  - id: ctx_timeline_immediately
+    category: context
+    priority: 215
+    description: "Detect immediate timing markers"
+    tags: ["timeline_context", "temporal", "immediate"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(immediately|instantly|suddenly|right away)\\b"
+    action: context
+    classification:
+      field: contexts
+      value: ["timeline"]
+      reason: "immediate_marker_detected"
+      confidence: 0.85
+  
+  # =========================================================================
+  # DURATION DETECTION
+  # =========================================================================
+  
+  - id: ctx_timeline_duration
+    category: context
+    priority: 220
+    description: "Detect duration expressions (5 minutes, 2 hours)"
+    tags: ["timeline_context", "temporal", "duration"]
+    match:
+      type: regex
+      patterns:
+        - "\\b\\d+\\s*(second|minute|hour|day|week|month)s?\\b"
+    action: context
+    classification:
+      field: contexts
+      value: ["timeline", "duration"]
+      reason: "duration_detected"
+      confidence: 0.9
+  
+  - id: ctx_timeline_about_duration
+    category: context
+    priority: 215
+    description: "Detect approximate durations (about 5 minutes)"
+    tags: ["timeline_context", "temporal", "duration", "approximate"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(about|around|approximately)\\s+\\d+\\s*(second|minute|hour)s?\\b"
+    action: context
+    classification:
+      field: contexts
+      value: ["timeline", "duration"]
+      reason: "approximate_duration_detected"
+      confidence: 0.85

@@ -1,0 +1,182 @@
+# Neutralization Rules (STRIP action)
+# V7 / Stage 1: Rules that strip interpretive words from descriptions
+#
+# These rules are applied to create neutralized_description from description.
+# STRIP action removes the matched word/phrase but keeps the sentence intact.
+#
+# Example:
+#   "Officer brutally slammed him" -> "Officer slammed him"
+
+category: neutralization
+description: "Rules for stripping interpretive language to neutralize text"
+priority_range: [70, 90]
+
+rules:
+  # =========================================================================
+  # STRIP rules - Remove words but keep sentence
+  # =========================================================================
+  
+  # --- Interpretive Adverbs ---
+  
+  - id: neut_adverb_brutal
+    category: neutralization
+    priority: 85
+    description: "Strip 'brutally' adverb"
+    match:
+      type: keyword
+      patterns:
+        - "brutally"
+        - "viciously"
+        - "savagely"
+    action: strip
+  
+  - id: neut_adverb_manner
+    category: neutralization
+    priority: 85
+    description: "Strip aggressive manner adverbs"
+    match:
+      type: keyword
+      patterns:
+        - "aggressively"
+        - "menacingly"
+        - "violently"
+        - "forcefully"
+    action: strip
+  
+  - id: neut_adverb_intent
+    category: neutralization
+    priority: 85
+    description: "Strip intent adverbs"
+    match:
+      type: keyword
+      patterns:
+        - "deliberately"
+        - "intentionally"
+        - "purposely"
+        - "knowingly"
+    action: strip
+  
+  - id: neut_adverb_certainty
+    category: neutralization
+    priority: 85
+    description: "Strip certainty adverbs"
+    match:
+      type: keyword
+      patterns:
+        - "obviously"
+        - "clearly"
+        - "absolutely"
+        - "completely"
+        - "totally"
+        - "definitely"
+        - "certainly"
+    action: strip
+  
+  - id: neut_adverb_emotional
+    category: neutralization
+    priority: 85
+    description: "Strip emotional manner adverbs (V1 migration)"
+    match:
+      type: keyword
+      patterns:
+        - "innocently"
+        - "distressingly"
+        - "horrifyingly"
+        - "terrifyingly"
+    action: strip
+  
+  # --- Interpretive Adjectives ---
+  
+  - id: neut_adjective_brutal
+    category: neutralization
+    priority: 84
+    description: "Strip brutal adjectives"
+    match:
+      type: keyword
+      patterns:
+        - "brutal"
+        - "vicious"
+        - "savage"
+    action: strip
+  
+  - id: neut_adjective_extreme
+    category: neutralization
+    priority: 84
+    description: "Strip extreme characterization adjectives"
+    match:
+      type: keyword
+      patterns:
+        - "psychotic"
+        - "horrifying"
+        - "horrific"
+        - "terrifying"
+        - "shocking"
+        - "excessive"
+        - "menacing"
+        - "manic"
+        - "maniacal"
+        - "distressing"
+    action: strip
+  
+  - id: neut_adjective_moral
+    category: neutralization
+    priority: 84
+    description: "Strip moral judgment adjectives"
+    match:
+      type: keyword
+      patterns:
+        - "innocent"
+        - "guilty"
+    action: strip
+  
+  # --- Interpretive Phrases ---
+  
+  - id: neut_phrase_maniac
+    category: neutralization
+    priority: 82
+    description: "Strip 'like a maniac' type phrases"
+    match:
+      type: phrase
+      patterns:
+        - "like a maniac"
+        - "like a criminal"
+        - "like an animal"
+    action: strip
+  
+  - id: neut_phrase_reason
+    category: neutralization
+    priority: 82
+    description: "Strip 'for no reason' type phrases"
+    match:
+      type: phrase
+      patterns:
+        - "for no reason"
+        - "for absolutely no reason"
+        - "without any reason"
+        - "for no apparent reason"
+    action: strip
+  
+  - id: neut_phrase_force
+    category: neutralization
+    priority: 82
+    description: "Strip 'with excessive force' type phrases"
+    match:
+      type: phrase
+      patterns:
+        - "with excessive force"
+        - "with unnecessary force"
+        - "without provocation"
+        - "without warning"
+    action: strip
+  
+  - id: neut_phrase_suddenly
+    category: neutralization
+    priority: 80
+    description: "Strip dramatic temporal phrases"
+    match:
+      type: phrase
+      patterns:
+        - "out of nowhere"
+        - "all of a sudden"
+        - "suddenly and violently"
+    action: strip

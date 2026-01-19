@@ -1,0 +1,234 @@
+# Entity Role Extraction Rules
+# V7 / Stage 4: Rules for detecting entity roles from text
+#
+# These rules populate entity role fields based on pattern matching.
+# Migrated from: nnrt/passes/p32_extract_entities.py role patterns
+
+category: extraction
+description: "Extract entity roles from text patterns"
+priority_range: [300, 350]
+
+rules:
+  # =========================================================================
+  # MEDICAL PROVIDER ROLES
+  # =========================================================================
+  
+  - id: ext_role_doctor
+    category: extraction
+    priority: 330
+    description: "Extract doctor/physician role from title"
+    tags: ["entity_role", "medical", "provider"]
+    match:
+      type: phrase
+      patterns:
+        - "dr."
+        - "dr "
+        - "doctor"
+        - "physician"
+    action: extract
+    classification:
+      field: entity_role
+      value: "medical_provider"
+      reason: "doctor_title_detected"
+      confidence: 0.95
+  
+  - id: ext_role_nurse
+    category: extraction
+    priority: 330
+    description: "Extract nurse role from title"
+    tags: ["entity_role", "medical", "provider"]
+    match:
+      type: regex
+      patterns:
+        - "\\bnurse\\b"
+        - "\\bR\\.?N\\.?\\b"
+        - "\\bLPN\\b"
+    action: extract
+    classification:
+      field: entity_role
+      value: "medical_provider"
+      reason: "nurse_title_detected"
+      confidence: 0.9
+  
+  - id: ext_role_emt
+    category: extraction
+    priority: 330
+    description: "Extract EMT/paramedic role"
+    tags: ["entity_role", "medical", "emergency"]
+    match:
+      type: phrase
+      patterns:
+        - "emt"
+        - "paramedic"
+        - "first responder"
+    action: extract
+    classification:
+      field: entity_role
+      value: "medical_provider"
+      reason: "emt_detected"
+      confidence: 0.9
+  
+  - id: ext_role_therapist
+    category: extraction
+    priority: 325
+    description: "Extract therapist/mental health role"
+    tags: ["entity_role", "medical", "mental_health"]
+    match:
+      type: phrase
+      patterns:
+        - "therapist"
+        - "psychiatrist"
+        - "psychologist"
+        - "counselor"
+    action: extract
+    classification:
+      field: entity_role
+      value: "medical_provider"
+      reason: "therapist_detected"
+      confidence: 0.9
+  
+  # =========================================================================
+  # LEGAL ROLES
+  # =========================================================================
+  
+  - id: ext_role_attorney
+    category: extraction
+    priority: 330
+    description: "Extract attorney/lawyer role"
+    tags: ["entity_role", "legal", "counsel"]
+    match:
+      type: phrase
+      patterns:
+        - "attorney"
+        - "lawyer"
+        - "counsel"
+        - "public defender"
+    action: extract
+    classification:
+      field: entity_role
+      value: "legal_representative"
+      reason: "attorney_detected"
+      confidence: 0.95
+  
+  - id: ext_role_judge
+    category: extraction
+    priority: 335
+    description: "Extract judge role"
+    tags: ["entity_role", "legal", "judiciary"]
+    match:
+      type: phrase
+      patterns:
+        - "judge"
+        - "magistrate"
+        - "justice"
+        - "your honor"
+    action: extract
+    classification:
+      field: entity_role
+      value: "judiciary"
+      reason: "judge_detected"
+      confidence: 0.95
+  
+  # =========================================================================
+  # LAW ENFORCEMENT ROLES
+  # =========================================================================
+  
+  - id: ext_role_officer
+    category: extraction
+    priority: 325
+    description: "Extract officer role"
+    tags: ["entity_role", "law_enforcement", "patrol"]
+    domain: law_enforcement
+    match:
+      type: phrase
+      patterns:
+        - "officer"
+        - "police officer"
+        - "cop"
+    action: extract
+    classification:
+      field: entity_role
+      value: "subject"
+      reason: "officer_detected"
+      confidence: 0.85
+  
+  - id: ext_role_detective
+    category: extraction
+    priority: 330
+    description: "Extract detective/investigator role"
+    tags: ["entity_role", "law_enforcement", "investigator"]
+    domain: law_enforcement
+    match:
+      type: phrase
+      patterns:
+        - "detective"
+        - "investigator"
+        - "inspector"
+    action: extract
+    classification:
+      field: entity_role
+      value: "investigator"
+      reason: "detective_detected"
+      confidence: 0.9
+  
+  - id: ext_role_supervisor
+    category: extraction
+    priority: 335
+    description: "Extract supervisor/rank role"
+    tags: ["entity_role", "law_enforcement", "supervisor"]
+    domain: law_enforcement
+    match:
+      type: phrase
+      patterns:
+        - "sergeant"
+        - "lieutenant"
+        - "captain"
+        - "commander"
+        - "chief"
+    action: extract
+    classification:
+      field: entity_role
+      value: "supervisor"
+      reason: "supervisor_rank_detected"
+      confidence: 0.9
+  
+  - id: ext_role_internal_affairs
+    category: extraction
+    priority: 340
+    description: "Extract internal affairs role"
+    tags: ["entity_role", "law_enforcement", "oversight"]
+    domain: law_enforcement
+    match:
+      type: regex
+      patterns:
+        - "\\binternal affairs\\b"
+        - "\\bI\\.?A\\.?\\b"
+        - "\\bprofessional standards\\b"
+    action: extract
+    classification:
+      field: entity_role
+      value: "investigator"
+      reason: "internal_affairs_detected"
+      confidence: 0.95
+  
+  # =========================================================================
+  # WITNESS ROLES
+  # =========================================================================
+  
+  - id: ext_role_witness
+    category: extraction
+    priority: 320
+    description: "Extract witness role"
+    tags: ["entity_role", "witness", "testimony"]
+    match:
+      type: phrase
+      patterns:
+        - "witness"
+        - "bystander"
+        - "onlooker"
+    action: extract
+    classification:
+      field: entity_role
+      value: "witness"
+      reason: "witness_mentioned"
+      confidence: 0.85

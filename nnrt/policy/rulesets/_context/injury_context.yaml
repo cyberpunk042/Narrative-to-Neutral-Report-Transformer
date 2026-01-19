@@ -1,0 +1,170 @@
+# Injury Context Detection Rules
+# V7 / Stage 4: Rules for detecting injury descriptions in segments
+#
+# These rules set segment contexts for injury-related content.
+# Migrated from: nnrt/passes/p25_annotate_context.py INJURY_PATTERNS
+
+category: context_detection
+description: "Detect injury description context for segment annotation"
+priority_range: [200, 250]
+
+rules:
+  # =========================================================================
+  # VISIBLE INJURY DETECTION
+  # =========================================================================
+  
+  - id: ctx_injury_bleeding
+    category: context
+    priority: 220
+    description: "Detect bleeding/blood mentions"
+    tags: ["injury_context", "visible", "medical"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(bleed|bleeding|blood)\\b"
+    action: context
+    classification:
+      field: contexts
+      value: ["injury_description", "incident"]
+      reason: "bleeding_detected"
+      confidence: 0.95
+  
+  - id: ctx_injury_bruise
+    category: context
+    priority: 220
+    description: "Detect bruising mentions"
+    tags: ["injury_context", "visible", "physical"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(bruise|bruises|bruising|bruised)\\b"
+    action: context
+    classification:
+      field: contexts
+      value: ["injury_description", "incident"]
+      reason: "bruising_detected"
+      confidence: 0.9
+  
+  - id: ctx_injury_broken
+    category: context
+    priority: 225
+    description: "Detect fractures/breaks"
+    tags: ["injury_context", "severe", "medical"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(broken|fractured|cracked)\\b"
+    action: context
+    classification:
+      field: contexts
+      value: ["injury_description", "incident", "severe_injury"]
+      reason: "fracture_detected"
+      confidence: 0.95
+  
+  - id: ctx_injury_swelling
+    category: context
+    priority: 220
+    description: "Detect swelling mentions"
+    tags: ["injury_context", "visible", "physical"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(swollen|swelling)\\b"
+    action: context
+    classification:
+      field: contexts
+      value: ["injury_description", "incident"]
+      reason: "swelling_detected"
+      confidence: 0.9
+  
+  # =========================================================================
+  # PAIN/HURT DETECTION
+  # =========================================================================
+  
+  - id: ctx_injury_pain
+    category: context
+    priority: 215
+    description: "Detect pain/hurt mentions"
+    tags: ["injury_context", "subjective", "physical"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(pain|painful|hurts|hurt|aching)\\b"
+    action: context
+    classification:
+      field: contexts
+      value: ["injury_description"]
+      reason: "pain_mentioned"
+      confidence: 0.85
+  
+  - id: ctx_injury_general
+    category: context
+    priority: 215
+    description: "Detect general injury mentions"
+    tags: ["injury_context", "medical"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(injury|injuries|injured|wound|wounds|wounded)\\b"
+    action: context
+    classification:
+      field: contexts
+      value: ["injury_description", "incident"]
+      reason: "injury_mentioned"
+      confidence: 0.9
+  
+  # =========================================================================
+  # MEDICAL TREATMENT CONTEXT
+  # =========================================================================
+  
+  - id: ctx_injury_hospital
+    category: context
+    priority: 225
+    description: "Detect hospital/ER mentions"
+    tags: ["injury_context", "medical", "treatment"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(hospital|ER|emergency room|emergency department)\\b"
+    action: context
+    classification:
+      field: contexts
+      value: ["injury_description", "medical_treatment"]
+      reason: "hospital_detected"
+      confidence: 0.9
+  
+  - id: ctx_injury_medical
+    category: context
+    priority: 220
+    description: "Detect medical care mentions"
+    tags: ["injury_context", "medical", "treatment"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(doctor|medical|ambulance|paramedic)\\b"
+    action: context
+    classification:
+      field: contexts
+      value: ["injury_description", "medical_treatment"]
+      reason: "medical_care_detected"
+      confidence: 0.85
+  
+  # =========================================================================
+  # SEVERE/PERMANENT INJURY
+  # =========================================================================
+  
+  - id: ctx_injury_permanent
+    category: context
+    priority: 230
+    description: "Detect permanent injury mentions"
+    tags: ["injury_context", "severe", "permanent"]
+    match:
+      type: regex
+      patterns:
+        - "\\b(permanent|nerve damage|surgery|chronic)\\b"
+    action: context
+    classification:
+      field: contexts
+      value: ["injury_description", "incident", "severe_injury"]
+      reason: "permanent_injury_detected"
+      confidence: 0.95

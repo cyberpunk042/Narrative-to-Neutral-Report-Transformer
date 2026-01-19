@@ -12,6 +12,9 @@ from nnrt.passes.p30_extract_identifiers import extract_identifiers
 from nnrt.passes.p32_extract_entities import extract_entities
 from nnrt.passes.p33_resolve_text_coref import resolve_text_coreference  # V9: Early coref
 from nnrt.passes.p34_extract_events import extract_events
+from nnrt.passes.p35_classify_events import classify_events  # V7: Event classification
+from nnrt.passes.p36_resolve_quotes import resolve_quotes  # V7: Quote speaker resolution
+from nnrt.passes.p38_extract_items import extract_items  # V7: Items extraction
 from nnrt.passes.p40_build_ir import build_ir
 from nnrt.passes.p42_coreference import resolve_coreference
 from nnrt.passes.p43_resolve_actors import resolve_actors
@@ -35,6 +38,9 @@ __all__ = [
     "extract_entities",
     "resolve_text_coreference",  # V9: Early coref
     "extract_events",
+    "classify_events",  # V7: Event classification
+    "resolve_quotes",  # V7: Quote speaker resolution
+    "extract_items",  # V7: Items extraction
     "build_ir",
     "resolve_coreference",
     "resolve_actors",

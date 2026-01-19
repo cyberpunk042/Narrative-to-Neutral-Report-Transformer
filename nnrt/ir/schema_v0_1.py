@@ -165,6 +165,66 @@ class Entity(BaseModel):
     # V6: Direct badge linkage for officers
     badge_number: Optional[str] = Field(None, description="Badge number if officer")
 
+    # =========================================================================
+    # V7 / Stage 0: Classification Fields
+    # These fields are populated by p32_extract_entities
+    # =========================================================================
+    
+    # --- Actor Validation ---
+    
+    is_valid_actor: bool = Field(
+        True,
+        description="Whether this can serve as an actor in events (not 'it', 'this', etc.)"
+    )
+    invalid_actor_reason: Optional[str] = Field(
+        None,
+        description="Why not a valid actor if is_valid_actor=False"
+    )
+    
+    # --- Name Detection (with confidence) ---
+    
+    is_named: bool = Field(
+        False,
+        description="Whether entity has a proper name (Officer Jenkins vs 'he')"
+    )
+    is_named_confidence: float = Field(
+        0.0,
+        ge=0.0, le=1.0,
+        description="Confidence that this is a real proper name (spaCy can be wrong)"
+    )
+    name_detection_source: Optional[str] = Field(
+        None,
+        description="How name was detected: 'spacy_ner', 'title_pattern', 'context'"
+    )
+    
+    # --- Gender (for pronoun resolution) ---
+    
+    gender: Optional[str] = Field(
+        None,  # None = unknown, not assumed
+        description="Inferred gender for pronoun resolution: 'male', 'female', 'neutral'"
+    )
+    gender_confidence: float = Field(
+        0.0,
+        ge=0.0, le=1.0,
+        description="Confidence in gender inference"
+    )
+    gender_source: Optional[str] = Field(
+        None,
+        description="How gender was inferred: 'title', 'first_name', 'pronoun_context'"
+    )
+    
+    # --- Domain Classification ---
+    
+    domain_role: Optional[str] = Field(
+        None,
+        description="Domain-specific role (e.g., 'subject_officer', 'medical_provider')"
+    )
+    domain_role_confidence: float = Field(
+        0.0,
+        ge=0.0, le=1.0,
+        description="Confidence in domain role assignment"
+    )
+
 
 class Event(BaseModel):
     """A discrete occurrence in the narrative."""
@@ -192,6 +252,96 @@ class Event(BaseModel):
     is_uncertain: bool = Field(False, description="Explicitly uncertain")
     requires_context: bool = Field(False, description="References external context")
 
+    # =========================================================================
+    # V7 / Stage 0: Classification Fields
+    # These fields are populated by p35_classify_events and p54_neutralize
+    # =========================================================================
+    
+    # --- Camera-Friendly Classification ---
+    # (Core field + confidence + reason + source for traceability)
+    
+    is_camera_friendly: bool = Field(
+        False, 
+        description="Whether this event is observable and can appear in OBSERVED EVENTS"
+    )
+    camera_friendly_confidence: float = Field(
+        0.0,
+        ge=0.0, le=1.0,
+        description="Confidence in the camera-friendly classification"
+    )
+    camera_friendly_reason: Optional[str] = Field(
+        None,
+        description="Why classified this way (e.g., 'conjunction_start:but', 'no_valid_actor', 'passed_all_rules')"
+    )
+    camera_friendly_source: Optional[str] = Field(
+        None,
+        description="Which pass/component made this decision (e.g., 'p35_classify_events', 'fallback')"
+    )
+    
+    # --- Event Category Flags ---
+    
+    is_follow_up: bool = Field(
+        False,
+        description="Whether this is a post-incident follow-up action (filing report, etc.)"
+    )
+    is_fragment: bool = Field(
+        False,
+        description="Whether this is an incomplete/fragment event (starts with conjunction, etc.)"
+    )
+    is_source_derived: bool = Field(
+        False,
+        description="Whether this is source-derived content (research, comparison, conclusion)"
+    )
+    
+    # --- Content Flags ---
+    
+    contains_quote: bool = Field(
+        False,
+        description="Whether event description contains embedded quotes"
+    )
+    contains_interpretive: bool = Field(
+        False,
+        description="Whether event contains interpretive/legal language"
+    )
+    interpretive_terms_found: list[str] = Field(
+        default_factory=list,
+        description="Which interpretive terms were detected"
+    )
+    
+    # --- Neutralization ---
+    
+    neutralized_description: Optional[str] = Field(
+        None,
+        description="Description with interpretive words stripped (None if not neutralized or unchanged)"
+    )
+    neutralization_applied: bool = Field(
+        False,
+        description="Whether neutralization was applied"
+    )
+    
+    # --- Actor Resolution Status ---
+    
+    actor_resolved: bool = Field(
+        False,
+        description="Whether actor pronouns have been resolved to names"
+    )
+    actor_resolution_method: Optional[str] = Field(
+        None,
+        description="How actor was resolved: 'direct', 'coreference', 'context', 'unresolved'"
+    )
+    
+    # --- Quality Assessment ---
+    
+    quality_score: float = Field(
+        0.5,
+        ge=0.0, le=1.0,
+        description="Overall quality score for selection (0=low, 1=high)"
+    )
+    quality_factors: list[str] = Field(
+        default_factory=list,
+        description="Factors that contributed to quality score"
+    )
+
 
 class SpeechAct(BaseModel):
     """
@@ -214,6 +364,42 @@ class SpeechAct(BaseModel):
     speech_verb: str = Field("said", description="Verb: said, yelled, asked, threatened")
     is_nested: bool = Field(False, description="Quote within a quote")
     raw_text: Optional[str] = Field(None, description="Original text including quotes")
+
+    # =========================================================================
+    # V7 / Stage 0: Classification Fields
+    # These fields are populated by p36_resolve_quotes
+    # =========================================================================
+    
+    # --- Speaker Resolution Status ---
+    
+    speaker_resolved: bool = Field(
+        False,
+        description="Whether speaker has been resolved to a named entity"
+    )
+    speaker_resolution_confidence: float = Field(
+        0.0,
+        ge=0.0, le=1.0,
+        description="Confidence in speaker resolution"
+    )
+    speaker_resolution_method: Optional[str] = Field(
+        None,
+        description="How resolved: 'pattern', 'context', 'coreference', 'default'"
+    )
+    speaker_validation: Optional[str] = Field(
+        None,
+        description="Validation status: 'valid', 'pronoun_only', 'unknown'"
+    )
+    
+    # --- Quarantine Status ---
+    
+    is_quarantined: bool = Field(
+        False,
+        description="Whether this quote is quarantined (unresolved speaker)"
+    )
+    quarantine_reason: Optional[str] = Field(
+        None,
+        description="Reason for quarantine if applicable"
+    )
 
 
 class UncertaintyMarker(BaseModel):
@@ -350,6 +536,20 @@ class StatementGroup(BaseModel):
         0.5,
         ge=0.0, le=1.0,
         description="How well-documented this group is (0=weak, 1=documented)"
+    )
+
+    # =========================================================================
+    # V7 / Stage 0: Classification Fields
+    # =========================================================================
+    
+    quality_score: float = Field(
+        0.5,
+        ge=0.0, le=1.0,
+        description="Overall quality score for selection (0=low, 1=high)"
+    )
+    display_quality: str = Field(
+        "normal",
+        description="Quality tier for selection: 'high', 'normal', 'low', 'fragment'"
     )
 
 
@@ -569,6 +769,29 @@ class TimelineEntry(BaseModel):
         0.5,
         ge=0.0, le=1.0,
         description="Confidence in temporal placement"
+    )
+
+    # =========================================================================
+    # V7 / Stage 0: Classification Fields
+    # These fields are populated by p43_resolve_actors
+    # =========================================================================
+    
+    # --- Pronoun Resolution Status ---
+    
+    pronouns_resolved: bool = Field(
+        False,
+        description="Whether pronouns in this entry have been resolved"
+    )
+    resolved_description: Optional[str] = Field(
+        None,
+        description="Description with pronouns replaced by names"
+    )
+    
+    # --- Display Quality ---
+    
+    display_quality: str = Field(
+        "normal",
+        description="Quality tier for selection: 'high', 'normal', 'low', 'fragment'"
     )
 
 

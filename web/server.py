@@ -29,7 +29,6 @@ from nnrt.core.context import TransformRequest
 from nnrt.core.engine import Engine
 from nnrt.cli.main import setup_default_pipeline, setup_raw_pipeline, setup_structured_only_pipeline
 from nnrt.output.structured import build_structured_output
-from nnrt.render.structured import format_structured_output
 
 app = Flask(__name__, static_folder='static', static_url_path='')
 CORS(app)
@@ -140,20 +139,9 @@ def transform():
         
         # Generate the appropriate output format based on mode
         if mode == 'structured':
-            # Structured mode: Generate official report format
-            rendered_output = format_structured_output(
-                rendered_text=result.rendered_text or '',
-                atomic_statements=result.atomic_statements,
-                entities=result.entities,
-                events=result.events,
-                identifiers=result.identifiers,
-                metadata={'mode': mode, 'pipeline': pipeline_id},
-                # V6: Timeline and gap data
-                timeline=result.timeline,
-                time_gaps=result.time_gaps,
-                # V9: Segments for event generator
-                segments=result.segments,
-            )
+            # Structured mode: Pipeline already includes p90_render_structured
+            # which produces structured output - just use result.rendered_text
+            rendered_output = result.rendered_text
         elif mode == 'raw':
             # Raw mode: Simple neutralization with disclaimer
             disclaimer = "═" * 70 + "\n"
@@ -461,19 +449,9 @@ def transform_stream():
             # Generate the appropriate output format based on mode
             pipeline_id = result_holder.get('pipeline_id', 'default')
             if mode == 'structured':
-                rendered_output = format_structured_output(
-                    rendered_text=result.rendered_text or '',
-                    atomic_statements=result.atomic_statements,
-                    entities=result.entities,
-                    events=result.events,
-                    identifiers=result.identifiers,
-                    metadata={'mode': mode, 'pipeline': pipeline_id},
-                    # V6: Timeline and gap data
-                    timeline=result.timeline,
-                    time_gaps=result.time_gaps,
-                    # V9: Segments for event generator
-                    segments=result.segments,
-                )
+                # Pipeline already includes p90_render_structured
+                # which produces structured output - just use result.rendered_text
+                rendered_output = result.rendered_text
             elif mode == 'raw':
                 disclaimer = "═" * 70 + "\n"
                 disclaimer += "                    RAW MODE (v1 Pipeline)\n"

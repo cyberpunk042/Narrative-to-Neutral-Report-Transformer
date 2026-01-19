@@ -1,0 +1,299 @@
+# Base Domain Configuration
+# Stage 5 Complete Domain System
+# 
+# Universal rules that apply to ALL domains.
+# Domain-specific configurations should extend this.
+
+domain:
+  id: base
+  name: "Base Domain"
+  version: "1.0"
+  description: "Universal neutralization rules for all domains"
+
+# ============================================================================
+# VOCABULARY
+# ============================================================================
+# Universal vocabulary - specific domains add their own
+vocabulary:
+  actors: {}
+  actions: {}
+  locations: {}
+  
+  modifiers:
+    deliberately:
+      synonyms:
+        - "purposefully"
+        - "purposely"
+        - "intentionally"
+        - "on purpose"
+      neutral_form: ""  # Remove - implies intent
+    
+    clearly:
+      synonyms:
+        - "obviously"
+        - "evidently"
+        - "plainly"
+      neutral_form: ""  # Remove - interpretive
+    
+    innocent:
+      synonyms:
+        - "innocent person"
+        - "innocent victim"
+        - "innocent citizen"
+      neutral_form: "person"
+
+# ============================================================================
+# ENTITY ROLES
+# ============================================================================
+entity_roles:
+  - role: REPORTER
+    patterns:
+      - "I"
+    keywords:
+      - "reporter"
+      - "complainant"
+    participation: incident
+    is_primary: true
+
+# ============================================================================
+# CLASSIFICATION
+# ============================================================================
+classification:
+  camera_friendly:
+    required:
+      - has_named_actor
+      - has_physical_action
+    disqualifying:
+      - contains_internal_state
+      - contains_intent_attribution
+      - contains_characterization
+  
+  follow_up:
+    actor_roles: []
+    time_contexts:
+      - "later"
+      - "afterward"
+      - "subsequently"
+
+# ============================================================================
+# TRANSFORMATIONS - Universal Neutralizations
+# ============================================================================
+transformations:
+  # =========================================================================
+  # INFLAMMATORY LANGUAGE
+  # =========================================================================
+  - id: base_terrorize
+    match: ["terrorize"]
+    replace: "affect"
+    priority: 82
+  
+  - id: base_terrorizing
+    match: ["terrorizing"]
+    replace: "affecting"
+    priority: 82
+  
+  - id: base_terrorized
+    match: ["terrorized"]
+    replace: "affected"
+    priority: 82
+  
+  - id: base_corrupt
+    match: ["corrupt", "corrupted", "corruption"]
+    replace: "-- described as corrupt --"
+    priority: 82
+  
+  - id: base_impunity
+    match: ["with impunity"]
+    remove: true
+    priority: 81
+  
+  - id: base_whitewash
+    match: ["whitewash", "whitewashed"]
+    replace: "internal review"
+    priority: 81
+  
+  - id: base_coverup
+    match: ["cover-up", "coverup", "covered up"]
+    replace: "disputed process"
+    priority: 81
+  
+  - id: base_psychotic
+    match: ["psychotic", "psycho", "insane", "crazy"]
+    remove: true
+    priority: 80
+  
+  - id: base_brutal
+    match: ["brutal", "vicious", "ruthless"]
+    remove: true
+    priority: 80
+  
+  - id: base_manner_adverbs
+    match: ["viciously", "ruthlessly", "savagely", "mercilessly", "brutally"]
+    remove: true
+    priority: 80
+  
+  - id: base_innocent_victim
+    match: ["innocent person", "innocent victim", "innocent citizen", "innocent people"]
+    replace: "person"
+    priority: 79
+  
+  # =========================================================================
+  # LOADED VERBS
+  # =========================================================================
+  - id: base_screamed
+    match: ["screamed"]
+    replace: "spoke loudly"
+    priority: 78
+  
+  - id: base_screaming
+    match: ["screaming"]
+    replace: "speaking loudly"
+    priority: 78
+  
+  - id: base_yelled
+    match: ["yelled"]
+    replace: "spoke loudly"
+    priority: 77
+  
+  - id: base_yelling
+    match: ["yelling"]
+    replace: "speaking loudly"
+    priority: 77
+  
+  - id: base_slammed
+    match: ["slammed"]
+    replace: "pushed"
+    priority: 78
+  
+  - id: base_thrown
+    match: ["threw", "thrown"]
+    replace: "moved"
+    priority: 78
+  
+  - id: base_threatened
+    match: ["threatened"]
+    replace: "-- made statements described as threatening --"
+    priority: 77
+  
+  - id: base_laughed_face
+    match: ["laughed in my face", "laughed at me"]
+    replace: "laughed"
+    priority: 76
+  
+  - id: base_menacing
+    match: ["whispered menacingly", "said menacingly"]
+    replace: "said quietly"
+    priority: 77
+  
+  # =========================================================================
+  # INTENT ATTRIBUTION
+  # =========================================================================
+  - id: base_wanted_hurt
+    match: ["wanted to hurt", "wanted to harm"]
+    replace: "-- reporter infers intent to harm --"
+    priority: 91
+  
+  - id: base_wanted_kill
+    match: ["wanted to kill", "wanted to attack"]
+    replace: "-- reporter infers intent to harm --"
+    priority: 91
+  
+  - id: base_wanted_inflict
+    match: ["wanted to inflict", "wanted to damage", "wanted to injure", "wanted to punish"]
+    replace: "-- reporter infers intent to cause harm --"
+    priority: 91
+  
+  - id: base_wanted_to
+    match: ["wanted to", "meant to"]
+    replace: "appeared to"
+    priority: 90
+  
+  - id: base_tried_to
+    match: ["tried to"]
+    replace: "appeared to"
+    priority: 90
+  
+  - id: base_intended
+    match: ["intended to"]
+    replace: "appeared to intend to"
+    priority: 90
+  
+  - id: base_conspiring
+    match: ["conspiring", "plotting", "scheming"]
+    replace: "discussing"
+    priority: 89
+  
+  - id: base_enjoying
+    match: ["enjoying"]
+    replace: "-- described as appearing to enjoy --"
+    priority: 89
+  
+  - id: base_mocking
+    match: ["mocking", "taunting", "ridiculing"]
+    replace: "speaking dismissively at"
+    priority: 89
+  
+  - id: base_deliberately
+    match: ["deliberately", "purposefully", "purposely"]
+    remove: true
+    priority: 88
+  
+  - id: base_intentionally
+    match: ["intentionally", "on purpose"]
+    remove: true
+    priority: 88
+  
+  # =========================================================================
+  # LEGAL CONCLUSIONS
+  # =========================================================================
+  - id: base_committed_crime
+    match: ["committed a crime", "was a crime", "is a crime"]
+    replace: "-- characterized as criminal --"
+    priority: 86
+  
+  - id: base_murder
+    match: ["murder"]
+    replace: "-- described as murder --"
+    priority: 87
+    context: ["not_legal_charge"]
+  
+  - id: base_assault
+    match: ["assault"]
+    replace: "-- described as assault --"
+    priority: 86
+    context: ["not_legal_charge"]
+  
+  # =========================================================================
+  # INTERPRETATION / MIND READING
+  # =========================================================================
+  - id: base_knew_that
+    match: ["knew that", "knew I"]
+    replace: "appeared to know"
+    priority: 88
+  
+  - id: base_thought_process
+    match: ["was thinking", "must have thought"]
+    replace: "-- reporter infers thought process --"
+    priority: 88
+  
+  - id: base_could_tell
+    match: ["could tell he", "could tell she", "could tell they"]
+    replace: "-- reporter infers --"
+    priority: 87
+
+# ============================================================================
+# DIAGNOSTICS
+# ============================================================================
+diagnostics:
+  flags: []
+
+# ============================================================================
+# METADATA
+# ============================================================================
+metadata:
+  typical_actors:
+    - REPORTER
+  typical_locations: []
+  typical_timeline:
+    - incident
+    - aftermath

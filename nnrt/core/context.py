@@ -115,6 +115,46 @@ class TransformContext:
     # V6: Invariant check results for reporting
     invariant_results: list = field(default_factory=list)
     
+    # =========================================================================
+    # V7 / Stage 2: Selection Layer
+    # =========================================================================
+    # Selection result stores which atoms are selected for which output sections
+    # Populated by p55_select pass, read by renderer
+    selection_result: Any = None  # Optional[SelectionResult] - lazy import to avoid circular
+    
+    # =========================================================================
+    # Selection Helpers
+    # =========================================================================
+    
+    def get_event_by_id(self, event_id: str):
+        """Get an event by ID."""
+        for event in self.events:
+            if event.id == event_id:
+                return event
+        return None
+    
+    def get_entity_by_id(self, entity_id: str):
+        """Get an entity by ID."""
+        for entity in self.entities:
+            if entity.id == entity_id:
+                return entity
+        return None
+    
+    def get_speech_act_by_id(self, speech_act_id: str):
+        """Get a speech act by ID."""
+        for speech_act in self.speech_acts:
+            if speech_act.id == speech_act_id:
+                return speech_act
+        return None
+    
+    def get_timeline_entry_by_id(self, entry_id: str):
+        """Get a timeline entry by ID."""
+        for entry in self.timeline:
+            if entry.id == entry_id:
+                return entry
+        return None
+    
+    
     def quarantine_content(self, bucket: str, content, failures: list) -> None:
         """
         Add content to quarantine bucket.

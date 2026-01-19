@@ -35,9 +35,18 @@ def cleanup_punctuation(ctx: TransformContext) -> TransformContext:
     # Track changes for diagnostics
     changes_made = []
     
-    # 1. Fix multiple spaces
+    # 1. Fix multiple internal spaces (but preserve leading indentation)
+    # Process line-by-line to keep indentation intact
     if "  " in text:
-        text = re.sub(r'  +', ' ', text)
+        fixed_lines = []
+        for line in text.split('\n'):
+            # Preserve leading whitespace
+            stripped = line.lstrip()
+            leading = line[:len(line) - len(stripped)]
+            # Collapse multiple internal spaces to single space
+            fixed_content = re.sub(r'  +', ' ', stripped)
+            fixed_lines.append(leading + fixed_content)
+        text = '\n'.join(fixed_lines)
         changes_made.append("multiple_spaces")
     
     # 2. Fix dangling comma after articles (e.g., "the, psychotic")
@@ -49,8 +58,9 @@ def cleanup_punctuation(ctx: TransformContext) -> TransformContext:
     
     # 3. Fix dangling comma at start of sentence/clause
     # Pattern: comma at start or after period/semicolon
-    if re.search(r'(?:^|[.;!?])\s*,\s*', text):
-        text = re.sub(r'(?:^|([.;!?]))\s*,\s*', r'\1 ', text)
+    # NOTE: Use [^\S\n] to match whitespace EXCEPT newlines
+    if re.search(r'(?:^|[.;!?])[^\S\n]*,[^\S\n]*', text):
+        text = re.sub(r'(?:^|([.;!?]))[^\S\n]*,[^\S\n]*', r'\1 ', text)
         changes_made.append("comma_at_start")
     
     # 4. Fix double punctuation (e.g., ",.." or ",,")
@@ -59,9 +69,10 @@ def cleanup_punctuation(ctx: TransformContext) -> TransformContext:
         text = re.sub(r'([.,!?;:])[.,!?;:]+', r'\1', text)
         changes_made.append("double_punctuation")
     
-    # 5. Fix space before punctuation
-    if re.search(r'\s+[.,!?;:]', text):
-        text = re.sub(r'\s+([.,!?;:])', r'\1', text)
+    # 5. Fix space before punctuation (but NOT newlines)
+    # NOTE: Use [^\S\n] to match only horizontal whitespace
+    if re.search(r'[^\S\n]+[.,!?;:]', text):
+        text = re.sub(r'[^\S\n]+([.,!?;:])', r'\1', text)
         changes_made.append("space_before_punctuation")
     
     # 6. Fix comma followed by period (e.g., ",.")
@@ -70,13 +81,15 @@ def cleanup_punctuation(ctx: TransformContext) -> TransformContext:
         changes_made.append("comma_period_collision")
     
     # 7. Fix orphaned commas (comma with only whitespace around it)
-    if re.search(r'\s,\s', text):
-        text = re.sub(r'\s,\s', ' ', text)
+    # NOTE: Use [^\S\n] to match whitespace EXCEPT newlines
+    if re.search(r'[^\S\n],[^\S\n]', text):
+        text = re.sub(r'[^\S\n],[^\S\n]', ' ', text)
         changes_made.append("orphaned_comma")
     
     # 8. Normalize sentence spacing (ensure single space after periods)
-    if re.search(r'[.!?]\s{2,}', text):
-        text = re.sub(r'([.!?])\s{2,}', r'\1 ', text)
+    # NOTE: Use [^\S\n] to match whitespace EXCEPT newlines (preserve line structure)
+    if re.search(r'[.!?][^\S\n]{2,}', text):
+        text = re.sub(r'([.!?])[^\S\n]{2,}', r'\1 ', text)
         changes_made.append("sentence_spacing")
     # 9. Fix article agreement: "a" before vowel should be "an"
     if re.search(r'\ba\s+[aeiouAEIOU]', text):

@@ -133,6 +133,30 @@ HEDGING_MARKERS = [
     r"\bappeared?\s+to\b",
 ]
 
+# ============================================================================
+# V7 / Stage 1: Medical Content Routing (from V1 lines 1125-1134)
+# ============================================================================
+
+# Medical provider terms
+MEDICAL_PROVIDERS = {
+    'dr.', 'dr ', 'doctor', 'nurse', 'emt', 'paramedic', 
+    'physician', 'therapist', 'surgeon', 'medic',
+}
+
+# Medical action verbs
+MEDICAL_VERBS = {
+    'documented', 'diagnosed', 'noted', 'observed', 'confirmed',
+    'treated', 'examined', 'assessed', 'determined', 'concluded',
+}
+
+
+def _is_medical_provider_content(text: str) -> bool:
+    """Check if content is from a medical provider (should go to MEDICAL_FINDINGS)."""
+    text_lower = text.lower()
+    has_provider = any(p in text_lower for p in MEDICAL_PROVIDERS)
+    has_verb = any(v in text_lower for v in MEDICAL_VERBS)
+    return has_provider and has_verb
+
 
 def classify_atomic(ctx: TransformContext) -> TransformContext:
     """
@@ -194,6 +218,16 @@ def _classify_statement(text: str, doc) -> tuple[StatementType, float, list[str]
     # =========================================================================
     if _has_quotation(text):
         return StatementType.QUOTE, 1.0, ["quoted_content"]
+    
+    # =========================================================================
+    # V7 / Stage 1: Medical Content Routing
+    # =========================================================================
+    # Medical provider content (Dr., Nurse documented/diagnosed) gets
+    # classified as MEDICAL_FINDING so it routes to the correct section.
+    # =========================================================================
+    if _is_medical_provider_content(text):
+        # Use OBSERVATION with a flag for medical routing
+        return StatementType.OBSERVATION, 0.9, ["medical_provider_content"]
     
     # =========================================================================
     # Priority 2: INTERPRETATION - intent attribution

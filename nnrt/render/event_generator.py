@@ -703,6 +703,40 @@ def generate_strict_events(
         # V9: Prefer resolved_text (with pronouns resolved) if available
         original_text = seg.resolved_text or seg.text if seg else ev.description
         
+        # =====================================================================
+        # V10 / Stage 1: Use pre-computed classification if available
+        # If p35_classify_events has already classified this event, use that.
+        # This avoids duplicating classification logic here.
+        # =====================================================================
+        
+        # Check if pre-computed classification exists and is meaningful
+        # (camera_friendly_source set means p35 ran with real logic, not just defaults)
+        has_precomputed = (
+            hasattr(ev, 'camera_friendly_source') and 
+            ev.camera_friendly_source == 'p35_classify_events' and 
+            hasattr(ev, 'camera_friendly_reason') and
+            ev.camera_friendly_reason != 'awaiting_stage1_classification'
+        )
+        
+        if has_precomputed and not ev.is_camera_friendly:
+            # Event was pre-disqualified by p35 - use that reason
+            results.append(GeneratedEvent(
+                sentence="",
+                actor=ev.actor_label or "",
+                verb=ev.action_verb or "",
+                target=ev.target_object,
+                confidence=ev.camera_friendly_confidence,
+                source_segment=seg_id or "",
+                original_text=original_text[:80] if original_text else "",
+                exclusion_reason=f"pre_classified:{ev.camera_friendly_reason}",
+            ))
+            continue
+        
+        # =====================================================================
+        # Fallback: Legacy inline classification (for backward compatibility)
+        # This runs if p35 hasn't populated classification yet
+        # =====================================================================
+        
         # 1. Validate actor
         actor = ev.actor_label
         is_valid, actor_reason = is_valid_actor(actor)

@@ -22,6 +22,22 @@ includes:
   - _categories/loaded_verbs.yaml
   - _categories/interpretation.yaml
   
+  # V7 / Stage 1: Classification rules (for p35_classify_events)
+  - _classification/camera_friendly.yaml
+  - _classification/neutralization.yaml
+  
+  # V7 / Stage 4: Context detection rules
+  - _context/force_context.yaml
+  - _context/injury_context.yaml
+  - _context/timeline_context.yaml
+  - _context/charge_context.yaml
+  
+  # V7 / Stage 4: Extraction rules
+  - _extraction/entity_roles.yaml
+  
+  # V7 / Stage 4: Statement grouping rules
+  - _grouping/statement_groups.yaml
+  
   # Domain-specific
   - domains/law_enforcement.yaml
 

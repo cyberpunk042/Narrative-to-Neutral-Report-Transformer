@@ -306,9 +306,9 @@ def _clean_artifacts(text: str) -> str:
     """Clean up artifacts from scrubbing."""
     result = text
     
-    # Remove double spaces
-    while "  " in result:
-        result = result.replace("  ", " ")
+    # NOTE: Removed global double-space replacement here.
+    # It was destroying leading indentation (e.g., "  • bullet" -> " • bullet").
+    # Internal double spaces are handled in the line-by-line processing below.
     
     # Remove orphaned punctuation
     result = result.replace(" .", ".").replace(" ,", ",")
@@ -356,8 +356,26 @@ def _clean_artifacts(text: str) -> str:
     # Remove leftover broken attributions (empty or whitespace only)
     result = re.sub(r'--\s+--', '', result)
     
-    # Trim extra whitespace
-    result = ' '.join(result.split())
+    # Trim extra whitespace on each line, but PRESERVE newlines AND leading indentation
+    # The old code used ' '.join(result.split()) which destroys all newlines
+    # Then we used ' '.join(line.split()) which destroys leading indentation
+    lines = result.split('\n')
+    cleaned_lines = []
+    for line in lines:
+        # Preserve leading whitespace (indentation/centering)
+        stripped = line.lstrip()
+        if not stripped:
+            # Empty or whitespace-only line
+            cleaned_lines.append('')
+        else:
+            leading_ws = line[:len(line) - len(stripped)]
+            # Collapse multiple internal spaces to single space, but keep leading
+            cleaned_content = ' '.join(stripped.split())
+            cleaned_lines.append(leading_ws + cleaned_content)
+    result = '\n'.join(cleaned_lines)
+    
+    # Remove excessive blank lines (more than 2 in a row)
+    result = re.sub(r'\n{3,}', '\n\n', result)
     result = result.strip()
     
     return result

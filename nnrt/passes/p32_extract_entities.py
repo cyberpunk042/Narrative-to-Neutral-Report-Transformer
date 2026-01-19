@@ -339,6 +339,9 @@ def extract_entities(ctx: TransformContext) -> TransformContext:
     # V6: Link badge numbers to officers
     entities = _link_badges_to_officers(entities, ctx.identifiers, source_text)
     
+    # V7 / Stage 0: Populate Entity classification fields
+    _populate_entity_classification_fields(entities)
+    
     ctx.entities = entities
     
     # Count by role
@@ -617,6 +620,149 @@ def _refine_entity_roles(entities: List[Entity], source_text: str) -> List[Entit
         )
     
     return entities
+
+
+# =============================================================================
+# V7 / Stage 0: Entity Classification Field Population
+# =============================================================================
+
+# Gender inference patterns
+MALE_TITLES = {"mr", "mr.", "sir", "gentleman", "man", "guy", "dude", "boy", "father", "dad", "husband", "brother", "son"}
+FEMALE_TITLES = {"mrs", "mrs.", "ms", "ms.", "miss", "ma'am", "madam", "lady", "woman", "girl", "mother", "mom", "wife", "sister", "daughter"}
+MALE_FIRST_NAMES = {"james", "john", "michael", "david", "william", "robert", "joseph", "charles", "thomas", "daniel", "matthew", "anthony", "mark", "steven", "paul", "andrew", "joshua", "kevin", "brian", "ryan", "eric", "jason", "jose", "juan"}
+FEMALE_FIRST_NAMES = {"mary", "jennifer", "linda", "elizabeth", "susan", "jessica", "sarah", "karen", "nancy", "lisa", "margaret", "betty", "sandra", "ashley", "dorothy", "kimberly", "emily", "donna", "michelle", "carol", "amanda", "melissa", "deborah", "stephanie", "rebecca", "laura", "helen", "sharon", "cynthia", "angela", "maria", "anna", "ruth", "brenda", "pamela", "nicole", "kathleen", "samantha"}
+
+
+def _populate_entity_classification_fields(entities: List[Entity]) -> None:
+    """
+    V7 / Stage 0: Populate Entity classification fields.
+    
+    This function sets the classification fields defined in schema_v0_1.py:
+    - is_valid_actor, invalid_actor_reason
+    - is_named, is_named_confidence, name_detection_source
+    - gender, gender_confidence, gender_source
+    - domain_role, domain_role_confidence
+    
+    This was planned for Stage 0 to enable Stage 2 selection.
+    """
+    classified_count = 0
+    
+    for entity in entities:
+        # Skip if no label
+        if not entity.label:
+            continue
+        
+        label_lower = entity.label.lower().strip()
+        words = label_lower.split()
+        first_word = words[0] if words else ""
+        
+        # =====================================================================
+        # 1. is_valid_actor: Can this entity serve as an actor in events?
+        # =====================================================================
+        is_valid, category = _is_valid_entity(entity.label)
+        entity.is_valid_actor = is_valid
+        if not is_valid:
+            entity.invalid_actor_reason = "bare_title_number_or_descriptor"
+        elif category == "contextual":
+            entity.invalid_actor_reason = "contextual_reference"
+        
+        # =====================================================================
+        # 2. is_named: Does this entity have a proper name?
+        # =====================================================================
+        # Check for titled name pattern: "Officer Jenkins", "Dr. Smith"
+        if len(words) >= 2 and first_word in BARE_TITLES:
+            # Has title + more (likely a name)
+            entity.is_named = True
+            entity.is_named_confidence = 0.85
+            entity.name_detection_source = "title_pattern"
+        elif category == "contextual":
+            # Contextual references are not named
+            entity.is_named = False
+            entity.is_named_confidence = 0.9
+            entity.name_detection_source = "contextual"
+        elif entity.label == "Reporter":
+            # Reporter is named but special
+            entity.is_named = False
+            entity.is_named_confidence = 0.95
+            entity.name_detection_source = "special_reporter"
+        elif entity.label == "Individual (Unidentified)":
+            entity.is_named = False
+            entity.is_named_confidence = 0.95
+            entity.name_detection_source = "unresolved_pronoun"
+        else:
+            # Check if looks like a proper name (capitalized, no bare title)
+            has_capital = any(c.isupper() for c in entity.label)
+            not_bare_title = first_word not in BARE_TITLES
+            if has_capital and not_bare_title:
+                entity.is_named = True
+                entity.is_named_confidence = 0.7
+                entity.name_detection_source = "spacy_ner"
+            else:
+                entity.is_named = False
+                entity.is_named_confidence = 0.6
+                entity.name_detection_source = "unknown"
+        
+        # =====================================================================
+        # 3. gender: Infer gender for pronoun resolution
+        # =====================================================================
+        gender_detected = None
+        gender_confidence = 0.0
+        gender_source = None
+        
+        # Check titles
+        if first_word in MALE_TITLES:
+            gender_detected = "male"
+            gender_confidence = 0.9
+            gender_source = "title"
+        elif first_word in FEMALE_TITLES:
+            gender_detected = "female"
+            gender_confidence = 0.9
+            gender_source = "title"
+        else:
+            # Check first names (after title if present)
+            name_word = words[1] if len(words) >= 2 and first_word in BARE_TITLES else first_word
+            name_word_lower = name_word.lower()
+            
+            if name_word_lower in MALE_FIRST_NAMES:
+                gender_detected = "male"
+                gender_confidence = 0.75
+                gender_source = "first_name"
+            elif name_word_lower in FEMALE_FIRST_NAMES:
+                gender_detected = "female"
+                gender_confidence = 0.75
+                gender_source = "first_name"
+        
+        if gender_detected:
+            entity.gender = gender_detected
+            entity.gender_confidence = gender_confidence
+            entity.gender_source = gender_source
+        
+        # =====================================================================
+        # 4. domain_role: Map EntityRole to domain-specific role string
+        # =====================================================================
+        role_map = {
+            EntityRole.SUBJECT_OFFICER: ("subject_officer", 0.9),
+            EntityRole.SUPERVISOR: ("supervisor_officer", 0.9),
+            EntityRole.INVESTIGATOR: ("investigator", 0.9),
+            EntityRole.MEDICAL_PROVIDER: ("medical_provider", 0.9),
+            EntityRole.LEGAL_COUNSEL: ("legal_counsel", 0.9),
+            EntityRole.REPORTER: ("reporter", 0.95),
+            EntityRole.WITNESS: ("witness", 0.8),
+            EntityRole.WITNESS_CIVILIAN: ("witness_civilian", 0.85),
+            EntityRole.WITNESS_OFFICIAL: ("witness_official", 0.85),
+            EntityRole.WORKPLACE_CONTACT: ("workplace_contact", 0.8),
+        }
+        
+        if entity.role in role_map:
+            entity.domain_role, entity.domain_role_confidence = role_map[entity.role]
+            classified_count += 1
+    
+    if classified_count:
+        log.info(
+            "v7_entity_classification",
+            entities_classified=classified_count,
+            total_entities=len(entities),
+        )
 
 
 def _seed_from_identifiers(

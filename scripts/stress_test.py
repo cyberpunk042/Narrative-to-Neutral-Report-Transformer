@@ -27,7 +27,6 @@ logging.getLogger("nnrt").setLevel(logging.ERROR)
 from nnrt.core.engine import Engine
 from nnrt.cli.main import setup_default_pipeline, setup_structured_only_pipeline
 from nnrt.core.context import TransformRequest
-from nnrt.render.structured import format_structured_output
 
 
 # =============================================================================
@@ -55,18 +54,9 @@ def run_stress_test():
     setup_default_pipeline(engine, profile="law_enforcement")
     result = engine.transform(TransformRequest(text=text), pipeline_id="default")
     
-    report = format_structured_output(
-        rendered_text=result.rendered_text,
-        atomic_statements=result.atomic_statements,
-        entities=result.entities,
-        events=result.events,
-        identifiers=result.identifiers,
-        # V6: Timeline data
-        timeline=result.timeline,
-        time_gaps=result.time_gaps,
-        # V9: Segments for event generator
-        segments=result.segments,
-    )
+    # Pipeline already includes p90_render_structured which produces structured output
+    # Just use result.rendered_text directly - DO NOT call renderer again
+    report = result.rendered_text or ""
     
     # =========================================================================
     # TEST 1: Epistemic Type Coverage (V5 Updated)

@@ -1,0 +1,291 @@
+# Camera-Friendly Classification Rules
+# V7 / Stage 1: Rules that classify events as camera-friendly or not
+#
+# These rules are applied by p35_classify_events to set:
+# - is_camera_friendly (bool)
+# - camera_friendly_reason (str)
+# - is_fragment (bool)
+# - is_follow_up (bool)
+# - is_source_derived (bool)
+# - contains_quote (bool)
+# - contains_interpretive (bool)
+
+category: camera_friendly
+description: "Rules for classifying camera-friendly events"
+priority_range: [100, 150]
+
+rules:
+  # =========================================================================
+  # DISQUALIFY rules - Set is_camera_friendly=False
+  # =========================================================================
+  
+  # --- Structural Disqualifiers (Fragments) ---
+  
+  - id: cf_conjunction_start
+    category: camera_friendly
+    priority: 150
+    description: "Disqualify events starting with conjunctions (fragments)"
+    match:
+      type: regex
+      patterns:
+        - "^(?i)(but|and|when|which|although|while|because|since|that|where|if|though|unless)\\b"
+    action: disqualify
+    classification:
+      field: is_camera_friendly
+      value: false
+      reason: "conjunction_start:{matched}"
+      confidence: 0.95
+  
+  - id: cf_verb_start
+    category: camera_friendly
+    priority: 149
+    description: "Disqualify events starting with verbs (missing actor)"
+    match:
+      type: regex
+      patterns:
+        - "^(?i)(twisted|grabbed|pushed|slammed|found|tried|stepped|saw|also|put|cut|screamed|yelled|shouted|told|called|ran|walked|went|came|left|arrived|started|began|stopped|continued|happened|witnessed|watched|heard|felt|noticed|realized|screeching|immediately)\\b"
+    action: disqualify
+    classification:
+      field: is_camera_friendly
+      value: false
+      reason: "verb_start_no_actor:{matched}"
+      confidence: 0.85
+  
+  # --- Content Disqualifiers ---
+  
+  - id: cf_embedded_quote
+    category: camera_friendly
+    priority: 140
+    description: "Disqualify events with embedded quotes (go to QUOTES section)"
+    match:
+      type: regex
+      patterns:
+        - '[""\""]'
+    action: disqualify
+    classification:
+      field: is_camera_friendly
+      value: false
+      reason: "contains_quote"
+      confidence: 0.9
+  
+  - id: cf_follow_up_hospital
+    category: camera_friendly
+    priority: 130
+    description: "Disqualify post-incident hospital visit (follow-up)"
+    match:
+      type: phrase
+      patterns:
+        - "went to the emergency"
+        - "went to the hospital"
+        - "took me to the hospital"
+    action: disqualify
+    classification:
+      field: is_camera_friendly
+      value: false
+      reason: "follow_up_event:hospital"
+      confidence: 0.9
+  
+  - id: cf_follow_up_complaint
+    category: camera_friendly
+    priority: 130
+    description: "Disqualify complaint filing (follow-up)"
+    match:
+      type: phrase
+      patterns:
+        - "filed a complaint"
+        - "filed a formal"
+        - "took my statement"
+    action: disqualify
+    classification:
+      field: is_camera_friendly
+      value: false
+      reason: "follow_up_event:complaint"
+      confidence: 0.9
+  
+  - id: cf_follow_up_temporal
+    category: camera_friendly
+    priority: 130
+    description: "Disqualify next-day events (follow-up)"
+    match:
+      type: phrase
+      patterns:
+        - "the next day"
+        - "afterward"
+        - "afterwards"
+        - "detective"
+    action: disqualify
+    classification:
+      field: is_camera_friendly
+      value: false
+      reason: "follow_up_event:temporal"
+      confidence: 0.85
+  
+  # --- Source-Derived Content Disqualifiers ---
+  
+  - id: cf_source_derived_research
+    category: camera_friendly
+    priority: 125
+    description: "Disqualify source-derived research content"
+    match:
+      type: phrase
+      patterns:
+        - "i have since learned"
+        - "i later learned"
+        - "i found out"
+        - "research shows"
+        - "according to"
+    action: disqualify
+    classification:
+      field: is_camera_friendly
+      value: false
+      reason: "source_derived:research"
+      confidence: 0.85
+  
+  - id: cf_source_derived_comparison
+    category: camera_friendly
+    priority: 125
+    description: "Disqualify source-derived comparison content"
+    match:
+      type: phrase
+      patterns:
+        - "similar cases"
+        - "other victims"
+        - "other people"
+        - "pattern of"
+        - "history of"
+    action: disqualify
+    classification:
+      field: is_camera_friendly
+      value: false
+      reason: "source_derived:comparison"
+      confidence: 0.8
+  
+  - id: cf_source_derived_conclusion
+    category: camera_friendly
+    priority: 125
+    description: "Disqualify source-derived conclusion content"
+    match:
+      type: phrase
+      patterns:
+        - "this proves"
+        - "this shows"
+        - "this demonstrates"
+        - "in my opinion"
+        - "i believe"
+    action: disqualify
+    classification:
+      field: is_camera_friendly
+      value: false
+      reason: "source_derived:conclusion"
+      confidence: 0.85
+  
+  # --- Interpretive Content Blockers ---
+  
+  - id: cf_interpretive_legal
+    category: camera_friendly
+    priority: 120
+    description: "Disqualify events with legal conclusions"
+    match:
+      type: keyword
+      patterns:
+        - "assault"
+        - "brutality"
+        - "torture"
+        - "violation"
+        - "misconduct"
+        - "illegal"
+        - "unlawful"
+        - "criminal"
+        - "guilty"
+        - "innocent"
+    action: disqualify
+    classification:
+      field: is_camera_friendly
+      value: false
+      reason: "interpretive_legal:{matched}"
+      confidence: 0.85
+  
+  - id: cf_interpretive_conspiracy
+    category: camera_friendly
+    priority: 120
+    description: "Disqualify events with conspiracy language"
+    match:
+      type: keyword
+      patterns:
+        - "cover-up"
+        - "conspiracy"
+        - "corrupt"
+        - "abuse"
+        - "terrorize"
+    action: disqualify
+    classification:
+      field: is_camera_friendly
+      value: false
+      reason: "interpretive_conspiracy:{matched}"
+      confidence: 0.85
+
+  # =========================================================================
+  # DETECT rules - Set boolean flags without disqualifying
+  # =========================================================================
+  
+  - id: cf_detect_interpretive_adverb
+    category: camera_friendly
+    priority: 100
+    description: "Detect interpretive adverbs (can be neutralized)"
+    match:
+      type: keyword
+      patterns:
+        - "brutally"
+        - "viciously"
+        - "aggressively"
+        - "menacingly"
+        - "savagely"
+        - "deliberately"
+        - "intentionally"
+    action: detect
+    classification:
+      field: contains_interpretive
+      value: true
+      confidence: 0.9
+  
+  - id: cf_detect_interpretive_adjective
+    category: camera_friendly
+    priority: 100
+    description: "Detect interpretive adjectives (can be neutralized)"
+    match:
+      type: keyword
+      patterns:
+        - "brutal"
+        - "vicious"
+        - "psychotic"
+        - "horrifying"
+        - "horrific"
+        - "terrifying"
+        - "shocking"
+        - "excessive"
+        - "menacing"
+    action: detect
+    classification:
+      field: contains_interpretive
+      value: true
+      confidence: 0.9
+  
+  - id: cf_detect_interpretive_phrase
+    category: camera_friendly
+    priority: 100
+    description: "Detect interpretive phrases (can be neutralized)"
+    match:
+      type: phrase
+      patterns:
+        - "like a maniac"
+        - "like a criminal"
+        - "for no reason"
+        - "for absolutely no reason"
+        - "without any reason"
+        - "with excessive force"
+        - "without provocation"
+    action: detect
+    classification:
+      field: contains_interpretive
+      value: true
+      confidence: 0.9

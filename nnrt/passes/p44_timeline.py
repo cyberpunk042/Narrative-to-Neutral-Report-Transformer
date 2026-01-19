@@ -89,6 +89,94 @@ DURING_PATTERNS = [
     r'\bmeanwhile\b',
 ]
 
+# ============================================================================
+# V7 / Stage 1: Timeline Neutralization Patterns (migrated from V1 lines 1715-1778)
+# ============================================================================
+
+# Skip entries with subjective/un-neutralized language
+SKIP_PATTERNS = [
+    r'\bthug\b', r'\bpsychotic\b', r'\bbrutal\b', r'\bmaniac\b',
+    r'\bviolent\b', r'\bviciously\b', r'\baggressively\b',
+    r'\bconspiring\b', r'\bcover.?up\b', r'\bcorrupt\b',
+    r'\btorture\b', r'\bterrorize\b', r'\bterrorized\b',
+    r'\binnocently\b', r'\bdeliberately\b', r'\bintentionally\b',
+    r'\bwhich proves\b', r'\bclearly\b', r'\bobviously\b',
+    r'\bassaulting\b', r'\battacked\b', r'\battack\b',
+    r'\bcriminal behavior\b', r'\btheir crimes\b', r'\billegal\b',
+    r'\bfabricated\b', r'\blie\b', r'\blied\b',
+    r'\binnocent person\b', r'\binnocent citizen\b',
+    r'\bwhitewash\b', r'\bracism\b', r'\bracist\b',
+    r'\bknow they always\b', r'\bprotect their own\b',
+]
+
+# Patterns to neutralize (pattern, replacement)
+NEUTRALIZE_PATTERNS = [
+    (r'\blike a maniac\b', ''),
+    (r'\blike a criminal\b', ''),
+    (r'\bfor no reason\b', ''),
+    (r'\bwithout any legal justification\b', ''),
+    (r'\bwith excessive force\b', 'with force'),
+    (r'\bbrutal(ly)?\b', ''),
+    (r'\bvicious(ly)?\b', ''),
+    (r'\bdeliberate(ly)?\b', ''),
+    (r'\bhorrifying\b', ''),
+    (r'\bterrified\b', 'frightened'),
+]
+
+# First-person pronoun normalization
+FIRST_PERSON_REPLACEMENTS = [
+    (r'\bI am\b', 'Reporter is'),
+    (r'\bI was\b', 'Reporter was'),
+    (r'\bI have\b', 'Reporter has'),
+    (r"\bI've\b", 'Reporter has'),
+    (r"\bI'm\b", 'Reporter is'),
+    (r'\bI\s+', 'Reporter '),
+    (r'\bme\b', 'Reporter'),
+    (r'^My\s+', "Reporter's "),
+    (r'\bmy\s+', "Reporter's "),
+    (r'\bmyself\b', 'Reporter'),
+]
+
+
+def _neutralize_timeline_text(text: str):
+    """
+    Neutralize timeline entry text.
+    
+    Returns (neutralized_text, should_skip).
+    If should_skip is True, the entry contains un-neutralizable content.
+    """
+    if not text:
+        return text, False
+    
+    # Check if entry should be skipped entirely
+    text_lower = text.lower()
+    for pattern in SKIP_PATTERNS:
+        if re.search(pattern, text_lower, re.IGNORECASE):
+            return text, True  # Skip this entry
+    
+    # Apply neutralization patterns
+    clean_text = text
+    for pattern, replacement in NEUTRALIZE_PATTERNS:
+        clean_text = re.sub(pattern, replacement, clean_text, flags=re.IGNORECASE)
+    
+    # Apply first-person normalization
+    for pattern, replacement in FIRST_PERSON_REPLACEMENTS:
+        if pattern.startswith('^'):
+            # Handle start-of-string pattern
+            clean_text = re.sub(pattern, replacement, clean_text)
+        else:
+            clean_text = re.sub(pattern, replacement, clean_text)
+    
+    # Fix awkward double-Reporter constructions
+    clean_text = re.sub(r"Reporter's Reporter", "Reporter's", clean_text)
+    clean_text = re.sub(r'Reporter Reporter', 'Reporter', clean_text)
+    clean_text = re.sub(r"Am Reporter\b", "Am I", clean_text)  # Keep question format
+    
+    # Remove double spaces
+    clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+    
+    return clean_text, False
+
 
 def build_timeline(ctx: TransformContext) -> TransformContext:
     """
@@ -227,6 +315,34 @@ def build_timeline(ctx: TransformContext) -> TransformContext:
         else:
             confidence = 0.5  # Just narrative order
         
+        # V7 / Stage 0: Check for unresolved pronouns in event description
+        event_desc = event.description.lower() if event.description else ""
+        has_pronouns = any(p in event_desc.split() for p in {'he', 'she', 'they', 'him', 'her', 'them', 'his', 'their'})
+        
+        # V7 / Stage 1: Neutralize the timeline description
+        neutralized_desc, should_skip = _neutralize_timeline_text(event.description)
+        
+        # V7 / Stage 0: Determine display quality
+        if should_skip:
+            display_qual = "fragment"  # Entry contains un-neutralizable content
+        elif absolute_time and confidence >= 0.9:
+            display_qual = "high"
+        elif relative_time or confidence >= 0.7:
+            display_qual = "normal"
+        elif has_pronouns:
+            display_qual = "low"
+        else:
+            display_qual = "normal"
+        
+        # V7 / Stage 1: Set resolved_description to neutralized text
+        # Only set if text was actually neutralized or has no pronouns
+        resolved_desc = None
+        if not should_skip:
+            if neutralized_desc != event.description:
+                resolved_desc = neutralized_desc  # Text was neutralized
+            elif not has_pronouns:
+                resolved_desc = event.description  # Original is already clean
+        
         entry = TimelineEntry(
             id=f"tl_{entry_counter:04d}",
             event_id=event.id,
@@ -235,6 +351,10 @@ def build_timeline(ctx: TransformContext) -> TransformContext:
             relative_time=relative_time,
             sequence_order=idx,  # Will be refined in Phase 4
             time_confidence=confidence,
+            # V7 / Stage 0+1: Classification fields
+            pronouns_resolved=not has_pronouns,
+            resolved_description=resolved_desc,
+            display_quality=display_qual,
         )
         timeline_entries.append(entry)
         entry_counter += 1

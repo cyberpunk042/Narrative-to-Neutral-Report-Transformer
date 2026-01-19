@@ -1,0 +1,487 @@
+# Law Enforcement Domain Configuration
+# Stage 5 Complete Domain System
+# 
+# This is the complete domain configuration for law enforcement narratives.
+# It extends the base domain with law enforcement-specific vocabulary and rules.
+
+domain:
+  id: law_enforcement
+  name: "Law Enforcement"
+  version: "2.0"
+  description: "Police encounters, use of force, arrests, and related incidents"
+  extends: base  # Inherit all base transformations
+
+# ============================================================================
+# VOCABULARY
+# ============================================================================
+vocabulary:
+  actors:
+    officer:
+      synonyms:
+        - "police officer"
+        - "patrolman"
+        - "peace officer"
+        - "law enforcement officer"
+      derogatory:
+        - "cop"
+        - "cops"
+        - "pig"
+        - "thug"
+        - "goon"
+        - "bully"
+      neutral_form: "officer"
+    
+    subject:
+      synonyms:
+        - "suspect"
+        - "perpetrator"
+        - "offender"
+        - "detainee"
+      derogatory:
+        - "criminal"
+        - "perp"
+        - "crook"
+      neutral_form: "individual"
+    
+    witness:
+      synonyms:
+        - "bystander"
+        - "observer"
+        - "onlooker"
+      neutral_form: "witness"
+    
+    partner:
+      synonyms:
+        - "backup officer"
+        - "fellow officer"
+      neutral_form: "partner officer"
+  
+  actions:
+    arrest:
+      synonyms:
+        - "apprehend"
+        - "take into custody"
+        - "collar"
+        - "bust"
+      neutral_form: "arrest"
+    
+    use_of_force:
+      synonyms:
+        - "force"
+        - "physical force"
+      derogatory:
+        - "brutality"
+        - "police brutality"
+        - "police violence"
+        - "violence"
+        - "attack"
+      neutral_form: "use of force"
+    
+    search:
+      synonyms:
+        - "frisk"
+        - "pat down"
+      derogatory:
+        - "fishing through"
+        - "rummaging through"
+        - "digging through"
+      neutral_form: "search"
+    
+    detain:
+      synonyms:
+        - "hold"
+        - "stop"
+        - "keep"
+      neutral_form: "detain"
+  
+  locations:
+    patrol_vehicle:
+      synonyms:
+        - "patrol car"
+        - "squad car"
+        - "cruiser"
+        - "police car"
+        - "cop car"
+      neutral_form: "patrol vehicle"
+    
+    precinct:
+      synonyms:
+        - "station"
+        - "police station"
+        - "station house"
+      neutral_form: "precinct"
+    
+    holding_cell:
+      synonyms:
+        - "cell"
+        - "lockup"
+        - "jail cell"
+      neutral_form: "holding area"
+  
+  modifiers:
+    violent:
+      synonyms:
+        - "aggressive"
+        - "forceful"
+      derogatory:
+        - "brutal"
+        - "savage"
+        - "vicious"
+      neutral_form: ""  # Remove entirely
+    
+    clearly:
+      synonyms:
+        - "obviously"
+        - "evidently"
+      neutral_form: ""  # Remove - interpretive
+    
+    no_reason:
+      synonyms:
+        - "for no reason"
+        - "for absolutely no reason"
+        - "without any reason"
+      neutral_form: "-- reporter states no cause was given --"
+
+# ============================================================================
+# ENTITY ROLES
+# ============================================================================
+entity_roles:
+  - role: SUBJECT_OFFICER
+    patterns:
+      - "Officer {name}"
+      - "Sergeant {name}"
+      - "Detective {name}"
+      - "Deputy {name}"
+      - "Lieutenant {name}"
+      - "Captain {name}"
+      - "Chief {name}"
+    keywords:
+      - "officer"
+      - "sergeant"
+      - "detective"
+      - "deputy"
+      - "lieutenant"
+      - "trooper"
+    badge_linkable: true
+    participation: incident
+    is_primary: false
+  
+  - role: REPORTER
+    patterns:
+      - "I"
+    keywords:
+      - "reporter"
+      - "complainant"
+      - "victim"
+    participation: incident
+    is_primary: true
+  
+  - role: WITNESS_CIVILIAN
+    patterns:
+      - "{name}"
+    keywords:
+      - "witness"
+      - "bystander"
+      - "friend"
+      - "neighbor"
+    participation: incident
+    is_primary: false
+  
+  - role: WITNESS_OFFICIAL
+    patterns:
+      - "{title} {name}"
+    keywords:
+      - "partner"
+      - "backup"
+    badge_linkable: true
+    participation: incident
+    is_primary: false
+  
+  - role: MEDICAL_PROVIDER
+    patterns:
+      - "Dr. {name}"
+      - "Doctor {name}"
+    keywords:
+      - "doctor"
+      - "physician"
+      - "EMT"
+      - "paramedic"
+      - "nurse"
+      - "medic"
+    participation: post_incident
+    is_primary: false
+  
+  - role: LEGAL_COUNSEL
+    patterns:
+      - "Attorney {name}"
+      - "Lawyer {name}"
+    keywords:
+      - "attorney"
+      - "lawyer"
+      - "counsel"
+      - "public defender"
+    participation: post_incident
+    is_primary: false
+  
+  - role: INVESTIGATOR
+    patterns:
+      - "Investigator {name}"
+      - "Detective {name}"
+    keywords:
+      - "investigator"
+      - "internal affairs"
+      - "IA"
+    participation: post_incident
+    is_primary: false
+  
+  - role: SUPERVISOR
+    patterns:
+      - "Sergeant {name}"
+      - "Lieutenant {name}"
+      - "Captain {name}"
+    keywords:
+      - "supervisor"
+      - "commanding officer"
+      - "superior"
+    badge_linkable: true
+    participation: incident
+    is_primary: false
+
+# ============================================================================
+# EVENT TYPES
+# ============================================================================
+event_types:
+  - type: USE_OF_FORCE
+    verbs:
+      - "grabbed"
+      - "pushed"
+      - "restrained"
+      - "struck"
+      - "tackled"
+      - "slammed"
+      - "threw"
+      - "pulled"
+      - "hit"
+      - "punched"
+      - "kicked"
+      - "choked"
+    requires_actor: true
+    requires_target: true
+    is_camera_friendly: true
+    participation: incident
+  
+  - type: ARREST
+    verbs:
+      - "arrested"
+      - "handcuffed"
+      - "detained"
+      - "apprehended"
+      - "cuffed"
+      - "took into custody"
+    requires_actor: true
+    is_camera_friendly: true
+    participation: incident
+  
+  - type: SEARCH
+    verbs:
+      - "searched"
+      - "frisked"
+      - "pat down"
+      - "went through"
+    requires_actor: true
+    is_camera_friendly: true
+    participation: incident
+  
+  - type: VERBAL
+    verbs:
+      - "yelled"
+      - "shouted"
+      - "screamed"
+      - "ordered"
+      - "commanded"
+      - "demanded"
+      - "told"
+      - "said"
+    is_camera_friendly: false  # Tone is subjective
+    participation: incident
+  
+  - type: MOVEMENT
+    verbs:
+      - "walked"
+      - "ran"
+      - "drove"
+      - "approached"
+      - "left"
+      - "arrived"
+      - "followed"
+    is_camera_friendly: true
+    participation: incident
+  
+  - type: MEDICAL
+    verbs:
+      - "examined"
+      - "treated"
+      - "diagnosed"
+      - "bandaged"
+      - "stitched"
+      - "evaluated"
+    typical_actor_role: MEDICAL_PROVIDER
+    is_camera_friendly: true
+    participation: post_incident
+  
+  - type: LEGAL
+    verbs:
+      - "charged"
+      - "filed"
+      - "arraigned"
+      - "released"
+      - "booked"
+    is_camera_friendly: true
+    participation: post_incident
+
+# ============================================================================
+# CLASSIFICATION
+# ============================================================================
+classification:
+  camera_friendly:
+    required:
+      - has_named_actor
+      - has_physical_action
+    disqualifying:
+      - contains_internal_state
+      - contains_intent_attribution
+      - contains_characterization
+      - contains_subjective_perception
+  
+  follow_up:
+    actor_roles:
+      - MEDICAL_PROVIDER
+      - INVESTIGATOR
+      - LEGAL_COUNSEL
+    time_contexts:
+      - "later"
+      - "afterward"
+      - "subsequently"
+      - "the next day"
+      - "the following day"
+      - "at the hospital"
+      - "at the station"
+
+# ============================================================================
+# TRANSFORMATIONS
+# ============================================================================
+transformations:
+  # Officer terminology
+  - id: le_cop_singular
+    match: ["cop"]
+    replace: "officer"
+    priority: 60
+  
+  - id: le_cop_plural
+    match: ["cops"]
+    replace: "officers"
+    priority: 60
+  
+  - id: le_derogatory_officer
+    match: ["thug", "pig", "goon", "bully"]
+    replace: "officer"
+    priority: 80
+  
+  # Violence terminology
+  - id: le_police_brutality
+    match: ["police brutality", "police violence"]
+    replace: "police use of force"
+    priority: 85
+  
+  - id: le_brutality
+    match: ["brutality"]
+    replace: "use of force"
+    priority: 84
+  
+  # Violent modifiers - remove
+  - id: le_violent_cop
+    match: ["violent cop", "violent officer"]
+    replace: "officer"
+    priority: 75
+  
+  - id: le_violent_cops
+    match: ["violent cops", "violent officers"]
+    replace: "officers"
+    priority: 75
+  
+  - id: le_violent_modifier
+    match: ["violent"]
+    remove: true
+    context: ["before_officer", "before_cop"]
+    priority: 70
+  
+  # Search terminology
+  - id: le_fishing_through
+    match: ["fishing through", "rummaging through", "digging through"]
+    replace: "searching through"
+    priority: 72
+  
+  # Intent softening
+  - id: le_no_reason
+    match: ["for no reason", "for absolutely no reason", "without any reason"]
+    replace: "-- reporter states no cause was given --"
+    priority: 90
+  
+  - id: le_looking_trouble
+    match: ["looking for trouble", "wanted trouble"]
+    replace: "appeared confrontational"
+    priority: 71
+  
+  - id: le_was_looking_trouble
+    match: ["was clearly looking for trouble", "was obviously looking for trouble"]
+    replace: "appeared to be looking for trouble"
+    priority: 92
+  
+  # Legal context preservation
+  - id: le_charge_context
+    match: ["charged with assault", "charge of assault", "assault on an officer"]
+    preserve: true
+    priority: 120
+
+# ============================================================================
+# DIAGNOSTICS
+# ============================================================================
+diagnostics:
+  flags:
+    - code: PHYSICAL_ACTION_DESCRIBED
+      on_match: ["grabbed", "gripped", "held", "restrained"]
+      level: info
+      message: "Physical action described - preserving factual content"
+    
+    - code: RESTRAINT_DESCRIBED
+      on_match: ["handcuffed", "handcuffs", "cuffed"]
+      level: info
+      message: "Restraint described - preserving factual content"
+    
+    - code: FORCE_DESCRIBED
+      on_match: ["force", "struck", "hit", "punched"]
+      level: warning
+      message: "Use of force described - verify details"
+
+# ============================================================================
+# METADATA
+# ============================================================================
+metadata:
+  typical_actors:
+    - SUBJECT_OFFICER
+    - REPORTER
+    - WITNESS_CIVILIAN
+    - MEDICAL_PROVIDER
+  typical_locations:
+    - traffic_stop
+    - street
+    - precinct
+    - hospital
+    - courthouse
+  typical_timeline:
+    - incident
+    - arrest
+    - transport
+    - booking
+    - medical_evaluation
+    - investigation
