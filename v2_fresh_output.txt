@@ -73,8 +73,8 @@ ITEMS DISCOVERED (as claimed by Reporter)
   Status: Reporter's account only. No seizure/inventory records attached.
 
   PERSONAL EFFECTS:
-    • phone
     • wallet
+    • phone
 
   WORK-RELATED ITEMS:
     • work apron that still had some cash tips from my shift
@@ -162,7 +162,7 @@ NARRATIVE EXCERPTS (UNNORMALIZED)
     - which proves I was completely innocent
   [Interpretive Conspiracy:-- reporter alleges cover-up --]
     - I later found out that her call was mysteriously "lost" in the system, which pro.
-    - which proves there's a going on
+    - which proves there's a -- reporter alleges -- reporter alleges cover-up going on
   [No Valid Actor:After]
     - After holding me against the car for what felt like hours but was probably about.
   [No Valid Actor:Looking]
@@ -182,7 +182,7 @@ NARRATIVE EXCERPTS (UNNORMALIZED)
     - which proves they used excessive and unnecessary violence against me
   [No Valid Actor:Turned]
     - turned out to be a description of a white male in his 40s
-  [Interpretive Legal:ity]
+  [Interpretive Legal:Brutality]
     - My therapist, Dr. Michael Thompson, has diagnosed me with Post-Traumatic Stress.
   [Interpretive Conspiracy:Conspiracy]
     - I am now pursuing legal action against the City Police Department, Officers Jenk.
@@ -258,7 +258,7 @@ LEGAL ALLEGATIONS (Reporter's claims)
   • didn't apologize for their alleged conduct
   • The next day, I filed a formal complaint with the Internal Affairs Division.
   • Three months later, I received a letter stating that my complaint had been investigated and the officers' actions were found to be "within policy."
-  • This is an obvious and -- reporter alleges cover-up --.
+  • This is an obvious -- reporter alleges -- reporter alleges cover-up and -- reporter alleges cover-up --.
   • they had absolutely no legal basis to stop me in the first place.
   • -- reporter characterizes conduct as racial profiling and harassment --.
   • I am now pursuing legal action against the City Police Department, Officers Jenkins and Rodriguez, Sergeant Williams, and the City itself for civil rights violations, -- reporter alleges assault and battery --, false imprisonment, intentional infliction of emotional distress, and conspiracy to violate my constitutional rights.
@@ -274,7 +274,7 @@ REPORTER DESCRIPTIONS (CHARACTERIZATIONS)
   • Officer Jenkins, badge number 4821, jumped out of the car like a.
   • He was fishing through my belongings like a criminal.
   • I could tell from her dismissive attitude that she wasn't going to do anything about it.
-  • Officer Jenkins is a known individual with history with a history of ity complaints against him.
+  • Officer Jenkins is a known individual with history with a history of brutality complaints against him.
   • designed to protect officers
   • victimizing innocent citizens like myself
 
@@ -295,16 +295,16 @@ CONTESTED ALLEGATIONS
 ──────────────────────────────────────────────────────────────────────
   ⚠️ These claims involve conspiracy or systemic allegations requiring verification:
 
-  • I later found out that her call was mysteriously "lost" in the system, which proves there's a going on.
-  • It was obvious they were conspiring about how to -- reporter alleges cover-up -- their crimes.
-  • they were conspiring about how to -- reporter alleges cover-up -- their crimes
+  • I later found out that her call was mysteriously "lost" in the system, which proves there's a -- reporter alleges -- reporter alleges cover-up going on.
+  • It was obvious they were conspiring about how to cover up their crimes.
+  • they were conspiring about how to cover up their crimes
   • She said my injuries were consistent with "significant physical force" which proves they used excessive and unnecessary violence against me.
   • She said "We'll investigate" but
   • I was never charged with any crime, which proves I was completely innocent
   • The -- reporter alleges racism -- is systematic and institutionalized.
   • The police department refuses to release his full disciplinary record, which proves they are hiding even more evidence of his -- reporter alleges pattern of misconduct -- abuse of power.
   • they are hiding even more evidence of his -- reporter alleges pattern of misconduct -- and abuse of power
-  • The whole system is corrupt.
+  • The -- reporter characterizes system --.
   • there is real accountability and reform
   •, these officers will continue to -- reporter characterizes conduct -- with impunity.
   • I refuse to be silenced
@@ -317,7 +317,7 @@ MEDICAL FINDINGS (as reported by Reporter)
 
   • was treated by Dr. Amanda Foster
   • She documented bruises on both wrists, a sprained left shoulder from when Jenkins twisted my arm, and minor abrasions on my face from being slammed against the car.
-  • My therapist, Dr. Michael Thompson, has diagnosed me with Post-Traumatic Stress Disorder directly caused by this -- reporter characterizes conduct as ity -- incident.
+  • My therapist, Dr. Michael Thompson, has diagnosed me with Post-Traumatic Stress Disorder directly caused by this -- reporter characterizes conduct as brutality -- incident.
 
 PRESERVED QUOTES (SPEAKER RESOLVED)
 ──────────────────────────────────────────────────────────────────────
@@ -329,21 +329,10 @@ PRESERVED QUOTES (SPEAKER RESOLVED)
   • Officer Jenkins said: Not today
   • Dr. Foster said: significant physical force
   • Detective Monroe said: We'll investigate
-
-QUOTES (SPEAKER UNRESOLVED)
-──────────────────────────────────────────────────────────────────────
-  ⚠️ These quotes could not be attributed to a speaker:
-
-  ❌ "You're hurting me! Please stop!"
-      Reason: no_speaker_attribution
-  ❌ "Sure you did, that's what they all say."
-      Reason: no_speaker_attribution
-  ❌ "Hey! What are you doing to him? That's my neighbor, he's not."
-      Reason: no_speaker_attribution
-  ❌ "There's been a misunderstanding. You can go."
-      Reason: no_speaker_attribution
-  ❌ "within policy."
-      Reason: no_speaker_attribution
+  • Reporter said: You're hurting me! Please stop!
+  • Marcus Johnson said: Hey! What are you doing to him? That's my neighbor, he's not a criminal!
+  • Sergeant Williams said: There's been a misunderstanding. You can go.
+  • Internal Affairs said: within policy.
 
 EVENTS (ACTOR UNRESOLVED)
 ──────────────────────────────────────────────────────────────────────
@@ -443,13 +432,13 @@ Events ordered by reconstructed chronology.
   │ to report that police officers were assaulting an innocent person
   │ that police officers were assaulting an innocent person
   │ I later found out that her call was mysteriously "lost" in the system, which pro
-  │ which proves there's a going on
+  │ which proves there's a -- reporter alleges -- reporter alleges cover-up going on
   │ After holding me against the car for what felt like hours but was probably about
   │ [about 20 minutes] Sergeant Williams, badge number 2103, pulled Officers Jenkins and Rodriguez asid
   │ I couldn't hear what they were saying, but they kept looking at me and shaking t
   │ what they were saying
   │ looking at me and shaking their heads
-  │ they were conspiring about how to -- reporter alleges cover-up -- their crimes
+  │ they were conspiring about how to cover up their crimes
   │ [Eventually] Eventually, Sergeant Williams came over to me and said "There's been a misunders
   │ [Eventually] You can go."
   │ [Eventually] He uncuffed me but didn't apologize for their alleged conduct
@@ -550,6 +539,6 @@ RAW NEUTRALIZED NARRATIVE (AUTO-GENERATED)
 ──────────────────────────────────────────────────────────────────────
 ⚠️ This is machine-generated neutralization. Review for accuracy.
 
-I was terrified and in complete shock when the cops made physical contact with me -- reporter states no cause was given -- on January 15th, 2026 at around 11:30 PM near the corner of Main Street and Oak Avenue. It all started when I was walking home from my job at the Riverside Cafe where I work as a server. I was exhausted after pulling a double shift and just wanted to get home to my apartment. this unmarked police cruiser came screeching up beside me with its lights flashing. The officer cop behind the wheel appeared to be looking for trouble. Officer Jenkins, badge number 4821, jumped out of the car and immediately started speaking loudly at me. He spoke loudly "STOP RIGHT THERE! DON'T YOU DARE MOVE!". I was so scared I froze in place. I asked him politely "What's the problem, officer? I haven't done anything wrong.". He didn't care about my rights or the law. His partner, Officer Rodriguez, badge number 5539, got out of the passenger side and they both approached me with their hands on their weapons, -- reporter perceived threat reporter states no cause was given --. Officer Jenkins grabbed my left arm with force and twisted it behind my back. I screamed in pain and said "You're hurting me! Please stop!". but he ignored my pleas because he -- reporter infers intent to cause harm -- maximum damage. Officer Rodriguez then searched through my pockets without my consent and without any legal justification. He was searching through my belongings. He found my wallet, my phone, some drugs, and my work apron that still had some cash tips from my shift. He accused me of being a robbery suspect which was a complete lie alleged to justify their allegedly -- reporter characterizes action as illegal -- on me. I appeared to explain "I just got off work at the Riverside Cafe! You can call my manager Sarah Mitchell to verify!". but Officer Jenkins just laughed and said "Sure you did, that's what they all say.". He was speaking dismissively at me and described as appearing to enjoy my suffering. They then slammed me against their patrol car, and Officer Rodriguez put handcuffs on me so tightly that they cut into my wrists. I have permanent scars from their alleged treatment. While my face was pressed against the cold metal of the car, Officer Jenkins whispered in my ear "You should have just cooperated, now you're going to pay for wasting our time.". -- reporter characterizes as threat and witness intimidation --. My neighbor, Marcus Johnson, happened to be walking his dog and witnessed the entire assault. He started recording on his phone and spoke loudly "Hey! What are you doing to him? That's my neighbor, he's not a criminal!". Officer Rodriguez immediately ran over to Marcus and appeared to grab his phone, but Marcus stepped back. Rodriguez made statements described as threatened him saying "You better delete that video or you're next.". This is -- reporter alleges obstruction of justice and intimidation -- of a witness. Another witness, an elderly woman named Mrs. Patricia Chen who lives across the street, came out onto her porch and also saw everything. She called 911 to report that police officers were making physical contact with a person. I later found out that her call was mysteriously "lost" in the system, -- reporter concludes -- there's a large disputed process going on. After holding me against the car for what felt like hours but was probably about 20 minutes, a sergeant arrived at the scene. Sergeant Williams, badge number 2103, pulled Officers Jenkins and Rodriguez aside and they had a hushed conversation. I couldn't hear what they were saying, but they kept looking at me and shaking their heads. it appeared they were discussing about how to -- reporter alleges cover-up -- their alleged crimes. Eventually, Sergeant Williams came over to me and said "There's been a misunderstanding. You can go.". He uncuffed me but didn't apologize for their alleged conduct. My wrists were bleeding and bruised. I asked "Am I being charged with anything?". and he just said "Not today" which -- reporter perceived as threatening -- that they would fabricate charges against me later if I complained. I went to the emergency room at St. Mary's Hospital immediately after and was treated by Dr. Amanda Foster. She documented bruises on both wrists, a sprained left shoulder from when Jenkins twisted my arm, and minor abrasions on my face from being slammed against the car. She said my injuries were consistent with "significant physical force" -- reporter concludes -- they used and unnecessary violence against me. The next day, I filed a formal complaint with the Internal Affairs Division. Detective Sarah Monroe took my statement, but I could tell from her dismissive attitude that she wasn't going to do anything about it. She said "We'll investigate" but Three months later, I received a letter stating that my complaint had been investigated and the officers' actions were found to be "within policy.". This is an obvious internal review and disputed process. I was never charged with any alleged crime, -- reporter concludes -- I was and they had no legal basis to stop me in the first place. -- reporter characterizes conduct as racial profiling and harassment --. The so-called "robbery suspect" they claimed I matched turned out to be a description of a white male in his 40s - I am a 28-year-old Black man. The -- reporter alleges racism -- is systematic and institutionalized. The psychological trauma from this attack has been significant. I now suffer from PTSD, anxiety, and depression. I can no longer walk outside at night without having panic attacks. My therapist, Dr. Michael Thompson, has diagnosed me with Post-Traumatic Stress Disorder directly caused by this police use of force incident. I've lost my job because I couldn't show up to my night shifts anymore due to my fear of going outside after dark. Officer Jenkins is a known offender with a history of use of force complaints against him. I researched his record and found that at least 12 other citizens have filed complaints against him for similar behavior. The police department refuses to release his full disciplinary record, -- reporter concludes -- they are hiding even more evidence of his -- reporter alleges pattern of misconduct -- and alleged misconduct. I am now pursuing legal action against the City Police Department, Officers Jenkins and Rodriguez, Sergeant Williams, and the City itself for civil rights violations, -- reporter alleges assault and battery --, false imprisonment, intentional infliction of emotional distress, and conspiracy to violate my constitutional rights. My attorney, Jennifer Walsh from the Civil Rights Legal Foundation, says this is one of the clearest cases of police misconduct she has ever seen. The whole system is described as corrupt and designed to protect cops while victimizing citizens like myself. Until there is real accountability and reform, these officers will continue to affect our communities. I refuse to be silenced and I will fight for justice no matter how long it takes.
+I was frightened and in shock when the officers made physical contact with me -- reporter states no cause was given -- on January 15th, 2026 at around 11:30 PM near the corner of Main Street and Oak Avenue. It all started when I was walking home from my job at the Riverside Cafe where I work as a server. I was exhausted after pulling a double shift and just wanted to get home to my apartment. this unmarked police cruiser came screeching up beside me with its lights flashing. The officer officer behind the wheel appeared to be looking for trouble. Officer Jenkins, badge number 4821, jumped out of the car and immediately started speaking loudly at me. He spoke loudly "STOP RIGHT THERE! DON'T YOU DARE MOVE!". I was so scared I froze in place. I asked him politely "What's the problem, officer? I haven't done anything wrong.". He didn't care about my rights or the law. His partner, Officer Rodriguez, badge number 5539, got out of the passenger side and they both approached me with their hands on their weapons, -- reporter perceived threat reporter states no cause was given --. Officer Jenkins grabbed my left arm with force and twisted it behind my back. I spoke loudly in pain and said "You're hurting me! Please stop!". but he ignored my pleas because he -- reporter infers intent to cause harm -- maximum damage. Officer Rodriguez then searched through my pockets without my consent and without any legal justification. He was searching through my belongings. He found my wallet, my phone, some drugs, and my work apron that still had some cash tips from my shift. He accused me of being a robbery suspect which was a complete lie alleged to justify their allegedly -- reporter characterizes action as illegal -- on me. I appeared to explain "I just got off work at the Riverside Cafe! You can call my manager Sarah Mitchell to verify!". but Officer Jenkins just laughed and said "Sure you did, that's what they all say.". He was speaking dismissively at me and described as appearing to enjoy my suffering. They then slammed me against their patrol car, and Officer Rodriguez put handcuffs on me so tightly that they cut into my wrists. I have permanent scars from their alleged treatment. While my face was pressed against the cold metal of the car, Officer Jenkins whispered in my ear "You should have just cooperated, now you're going to pay for wasting our time.". -- reporter characterizes as threat and witness intimidation --. My neighbor, Marcus Johnson, happened to be walking his dog and witnessed the entire assault. He started recording on his phone and spoke loudly "Hey! What are you doing to him? That's my neighbor, he's not a criminal!". Officer Rodriguez immediately ran over to Marcus and appeared to grab his phone, but Marcus stepped back. Rodriguez made statements described as threatened him saying "You better delete that video or you're next.". This is -- reporter alleges obstruction of justice and intimidation -- of a witness. Another witness, an elderly woman named Mrs. Patricia Chen who lives across the street, came out onto her porch and also saw everything. She called 911 to report that police officers were making physical contact with a person. I later found out that her call was mysteriously "lost" in the system, -- reporter concludes -- there's a large disputed process going on. After holding me against the car for what felt like hours but was probably about 20 minutes, a sergeant arrived at the scene. Sergeant Williams, badge number 2103, pulled Officers Jenkins and Rodriguez aside and they had a hushed conversation. I couldn't hear what they were saying, but they kept looking at me and shaking their heads. it appeared they were discussing about how to -- reporter alleges cover-up -- their alleged crimes. Eventually, Sergeant Williams came over to me and said "There's been a misunderstanding. You can go.". He uncuffed me but didn't apologize for their alleged conduct. My wrists were bleeding and bruised. I asked "Am I being charged with anything?". and he just said "Not today" which -- reporter perceived as threatening -- that they would fabricate charges against me later if I complained. I went to the emergency room at St. Mary's Hospital immediately after and was treated by Dr. Amanda Foster. She documented bruises on both wrists, a sprained left shoulder from when Jenkins twisted my arm, and minor abrasions on my face from being slammed against the car. She said my injuries were consistent with "significant physical force" -- reporter concludes -- they used and unnecessary violence against me. The next day, I filed a formal complaint with the Internal Affairs Division. Detective Sarah Monroe took my statement, but I could tell from her dismissive attitude that she wasn't going to do anything about it. She said "We'll investigate" but Three months later, I received a letter stating that my complaint had been investigated and the officers' actions were found to be "within policy.". This is an obvious internal review and disputed process. I was never charged with any alleged crime, -- reporter concludes -- I was and they had no legal basis to stop me in the first place. -- reporter characterizes conduct as racial profiling and harassment --. The so-called "robbery suspect" they claimed I matched turned out to be a description of a white male in his 40s - I am a 28-year-old Black man. The -- reporter alleges racism -- is systematic and institutionalized. The psychological trauma from this attack has been significant. I now suffer from PTSD, anxiety, and depression. I can no longer walk outside at night without having panic attacks. My therapist, Dr. Michael Thompson, has diagnosed me with Post-Traumatic Stress Disorder directly caused by this police use of force incident. I've lost my job because I couldn't show up to my night shifts anymore due to my fear of going outside after dark. Officer Jenkins is a known offender with a history of use of force complaints against him. I researched his record and found that at least 12 other citizens have filed complaints against him for similar behavior. The police department refuses to release his full disciplinary record, -- reporter concludes -- they are hiding even more evidence of his -- reporter alleges pattern of misconduct -- and alleged misconduct. I am now pursuing legal action against the City Police Department, Officers Jenkins and Rodriguez, Sergeant Williams, and the City itself for civil rights violations, -- reporter alleges assault and battery --, false imprisonment, intentional infliction of emotional distress, and conspiracy to violate my constitutional rights. My attorney, Jennifer Walsh from the Civil Rights Legal Foundation, says this is one of the clearest cases of police misconduct she has ever seen. The whole system is described as corrupt and designed to protect officers while victimizing citizens like myself. Until there is real accountability and reform, these officers will continue to affect our communities. I refuse to be silenced and I will fight for justice no matter how long it takes.
 
 ══════════════════════════════════════════════════════════════════════.

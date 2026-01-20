@@ -229,8 +229,11 @@ def run_stress_test():
     ))
     
     # ISSUE #5: Check for invective scrubbing in output
+    # V7.2 FIX: Use word-bounded matching to allow 'brutality' (legitimate term)
+    # while still catching standalone 'brutal' (invective)
+    import re
     invective = ['thug', 'psychotic', 'maniac', 'brutal', 'vicious']
-    found_invective = [w for w in invective if w in output_lower]
+    found_invective = [w for w in invective if re.search(rf'\b{w}\b(?!ity)', output_lower)]
     results.append(TestResult(
         name="V5 Issue #5: Invective removed from output",
         passed=len(found_invective) == 0,

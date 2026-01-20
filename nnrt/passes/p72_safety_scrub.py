@@ -142,14 +142,15 @@ CONSPIRACY_SCRUB_PATTERNS = [
      ""),  # Remove entirely
     (r'\bthey\s+always\s+protect\s+their\s+own\.?',
      ""),
+    # V7.2 FIX: Use proper attribution instead of removing entirely
     (r'\bmassive\s+cover.?up',
-     ""),
+     "-- reporter alleges cover-up --"),
     (r'\bwhitewash',
-     ""),
+     "-- reporter alleges cover-up --"),
     (r'\bblue\s+wall\s+of\s+silence\b',
-     ""),
+     "-- reporter alleges systemic silence --"),
     (r'\bcode\s+of\s+silence\b',
-     ""),
+     "-- reporter alleges systemic silence --"),
     (r'\bthugs\s+with\s+badges\b',
      "officers"),
     # V5 STRESS TEST: Additional conspiracy patterns
@@ -181,7 +182,8 @@ INVECTIVE_SCRUB_PATTERNS = [
     (r'\bviciously\s*', ""),
     (r'\bsavagely\s*', ""),
     # V5 STRESS TEST: Additional invective patterns  
-    (r'\bbrutal,?\s*', ""),  # "brutal, psychotic cops" or "brutal cops"
+    # V7.2 FIX: Added \b at end to prevent matching 'brutal' inside 'brutality'
+    (r'\bbrutal\b,?\s*', ""),  # "brutal, psychotic cops" or "brutal cops"
     (r'\bviolent\s+offender\b', "individual with history"),
     (r'\bcriminal\s+behavior\b', "alleged conduct"),
     (r'\bhorrifying\b', "concerning"),

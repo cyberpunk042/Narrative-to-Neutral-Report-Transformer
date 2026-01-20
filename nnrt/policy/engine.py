@@ -287,11 +287,13 @@ class PolicyEngine:
         # Sort by priority (high first), then by length (long first for ties)
         # When multiple rules match overlapping text, highest priority wins
         #
-        # V7: Classification rules (DETECT, CLASSIFY, DISQUALIFY) don't consume spans
-        # because they don't modify text - they just read it for classification.
+        # V7: Classification rules (DETECT, CLASSIFY, DISQUALIFY, GROUP, EXTRACT) don't consume spans
+        # because they don't modify text - they just read it for classification/grouping/extraction.
         # Only text-modifying rules (REMOVE, REPLACE, REFRAME, STRIP) consume spans.
+        # V7.1 FIX: Added GROUP to this list - GROUP rules categorize but don't transform text.
+        # V7.2 FIX: Added EXTRACT - extraction rules also don't modify text.
         
-        CLASSIFICATION_ACTIONS = {RuleAction.DETECT, RuleAction.CLASSIFY, RuleAction.DISQUALIFY}
+        CLASSIFICATION_ACTIONS = {RuleAction.DETECT, RuleAction.CLASSIFY, RuleAction.DISQUALIFY, RuleAction.GROUP, RuleAction.EXTRACT}
         
         sorted_by_priority = sorted(
             unprotected_matches,
