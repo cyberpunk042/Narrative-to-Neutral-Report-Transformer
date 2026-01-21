@@ -91,12 +91,61 @@ def cleanup_punctuation(ctx: TransformContext) -> TransformContext:
     if re.search(r'[.!?][^\S\n]{2,}', text):
         text = re.sub(r'([.!?])[^\S\n]{2,}', r'\1 ', text)
         changes_made.append("sentence_spacing")
-    # 9. Fix article agreement: "a" before vowel should be "an"
+    
+    # 9. V7.3 FIX: Remove comma immediately after bullet points
+    # Pattern: "•," or "• ," → "•"
+    if re.search(r'•\s*,', text):
+        text = re.sub(r'•\s*,\s*', '• ', text)
+        changes_made.append("comma_after_bullet")
+    
+    # 10. V7.3 FIX: Remove duplicate consecutive words (e.g., "officer officer")
+    # Pattern: word + space + same word
+    if re.search(r'\b(\w+)\s+\1\b', text, re.IGNORECASE):
+        text = re.sub(r'\b(\w+)\s+\1\b', r'\1', text, flags=re.IGNORECASE)
+        changes_made.append("duplicate_word")
+    
+    # 11. V7.3 FIX: Clean up orphaned "like a." or "like an " phrases
+    # When words like "maniac" are stripped, we get "like a." or "like an and"
+    text = re.sub(r'\blike\s+an?\s*[.,]', '', text)  # "like a." → ""
+    text = re.sub(r'\blike\s+an?\s+and\b', 'and', text)  # "like an and" → "and"
+    text = re.sub(r'\blike\s+an?\s*$', '', text)  # trailing "like a" → ""
+    if 'like a' in text.lower():
+        changes_made.append("orphan_like_a")
+    
+    # 12. Article agreement: "a" before vowel should be "an"
     if re.search(r'\ba\s+[aeiouAEIOU]', text):
         text = re.sub(r'\ba\s+([aeiouAEIOU])', r'an \1', text)
         changes_made.append("article_agreement")
     
-    # 10. Strip and ensure proper ending
+    # 13. V7.4 FIX: Remove duplicate phrases (e.g., "with a history with a history")
+    # Pattern: 2-4 word phrase + space + same phrase (with variations)
+    # Also handles cases where article may be missing: "with history with a history"
+    duplicate_phrase_fixes = [
+        (r'\bwith a? ?history\s+with a history\b', 'with a history'),
+        (r'\bfor no reason\s+for no reason\b', 'for no reason'),
+        (r'\bin the\s+in the\b', 'in the'),
+        (r'\bon the\s+on the\b', 'on the'),
+        (r'\bto the\s+to the\b', 'to the'),
+        (r'\bknown individual with history\b', 'known offender'),  # Fix weird phrasing
+    ]
+    for pattern, replacement in duplicate_phrase_fixes:
+        if re.search(pattern, text, re.IGNORECASE):
+            text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+            changes_made.append("duplicate_phrase")
+    
+    # General duplicate phrase pattern: 2+ words repeated (exact match)
+    text = re.sub(r'\b((?:\w+\s+){1,3}\w+)\s+\1\b', r'\1', text, flags=re.IGNORECASE)
+    
+    # 14. V7.4 FIX: Capitalize first letter after sentence-ending punctuation
+    # Pattern: ". lowercase" → ". Uppercase"
+    def capitalize_after_period(match):
+        return match.group(1) + match.group(2).upper()
+    
+    if re.search(r'([.!?]\s+)([a-z])', text):
+        text = re.sub(r'([.!?]\s+)([a-z])', capitalize_after_period, text)
+        changes_made.append("sentence_capitalization")
+    
+    # 15. Strip and ensure proper ending
     text = text.strip()
     if text and text[-1] not in ".!?":
         text += "."

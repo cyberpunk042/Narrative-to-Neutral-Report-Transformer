@@ -14,6 +14,36 @@ if TYPE_CHECKING:
     from nnrt.selection.models import SelectionResult
 
 
+# V7.3: Helper for filtering and deduplicating statement text
+# V7.4: Increased threshold and added fragment detection
+MIN_MEANINGFUL_LENGTH = 25  # Skip fragments shorter than this
+
+# Common gerund/verb-only fragment starts (no subject)
+FRAGMENT_PATTERNS = [
+    'shaking', 'looking', 'saying', 'yelling', 'screaming', 'crying',
+    'running', 'walking', 'standing', 'sitting', 'lying', 'holding',
+]
+
+def _is_meaningful_text(text: str) -> bool:
+    """Check if text is meaningful enough to display."""
+    stripped = text.strip()
+    
+    # Too short
+    if len(stripped) < MIN_MEANINGFUL_LENGTH:
+        return False
+    
+    # Starts with gerund/verb without subject (likely a fragment)
+    first_word = stripped.split()[0].lower() if stripped else ''
+    if first_word in FRAGMENT_PATTERNS:
+        return False
+    
+    return True
+
+def _dedupe_key(text: str) -> str:
+    """Generate a key for deduplication (lowercased, stripped)."""
+    return text.strip().lower()[:50]
+
+
 def format_structured_output_v2(
     selection_result: "SelectionResult",
     entities: List[Any],
@@ -1057,10 +1087,18 @@ def _render_self_reported_v2(lines: List[str], sel: "SelectionResult", statement
         lines.append(f"  ℹ️ {desc}")
         lines.append("")
         
+        seen = set()  # V7.3: Dedupe within section
         for stmt_id in stmt_ids:
             stmt = statement_lookup.get(stmt_id)
             if stmt:
                 text = getattr(stmt, 'text', str(stmt))
+                # V7.3 FIX: Skip short fragments and duplicates
+                if not _is_meaningful_text(text):
+                    continue
+                key = _dedupe_key(text)
+                if key in seen:
+                    continue
+                seen.add(key)
                 lines.append(f"  • {text}")
         
         lines.append("")
@@ -1076,10 +1114,17 @@ def _render_legal_allegations(lines: List[str], sel: "SelectionResult", statemen
     lines.append("  ⚠️ These are legal claims made by the Reporter, not established facts:")
     lines.append("")
     
+    seen = set()  # V7.3: Dedupe
     for stmt_id in sel.legal_allegations:
         stmt = statement_lookup.get(stmt_id)
         if stmt:
             text = getattr(stmt, 'text', str(stmt))
+            if not _is_meaningful_text(text):
+                continue
+            key = _dedupe_key(text)
+            if key in seen:
+                continue
+            seen.add(key)
             lines.append(f"  • {text}")
     
     lines.append("")

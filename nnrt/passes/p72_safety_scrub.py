@@ -344,6 +344,39 @@ def _clean_artifacts(text: str) -> str:
         flags=re.IGNORECASE
     )
     
+    # V7.3 FIX: Clean up double/cascading attributions
+    # Pattern: "-- reporter alleges -- reporter alleges X --" → "-- reporter alleges X --"
+    result = re.sub(
+        r'--\s*reporter\s+(alleges|concludes|characterizes|perceives)\s*--\s*reporter\s+\1\s+',
+        r'-- reporter \1 ',
+        result,
+        flags=re.IGNORECASE
+    )
+    
+    # Pattern: "-- reporter alleges -- reporter alleges cover-up" (without final --)
+    result = re.sub(
+        r'--\s*reporter\s+(\w+)\s*--\s*reporter\s+\1\s+(\w+)',
+        r'-- reporter \1 \2',
+        result,
+        flags=re.IGNORECASE
+    )
+    
+    # Pattern: "-- reporter alleges cover-up and -- reporter alleges cover-up --"
+    result = re.sub(
+        r'--\s*reporter\s+alleges\s+cover-up\s+and\s*--\s*reporter\s+alleges\s+cover-up\s*--',
+        r'-- reporter alleges cover-up --',
+        result,
+        flags=re.IGNORECASE
+    )
+    
+    # General cleanup: multiple "reporter X" in same attribution
+    result = re.sub(
+        r'(reporter\s+(?:alleges|concludes|characterizes|perceives))\s+reporter\s+(?:alleges|concludes|characterizes|perceives)',
+        r'\1',
+        result,
+        flags=re.IGNORECASE
+    )
+    
     # Fix "described as described as" duplication
     result = re.sub(r'\bdescribed as\s+described as\b', 'described as', result, flags=re.IGNORECASE)
     

@@ -92,14 +92,19 @@ class TestConspiracyRemoval:
         result = safety_scrub(ctx)
         assert "protect their own" not in result.rendered_text
     
-    def test_cover_up_removed(self):
+    def test_cover_up_attributed(self):
+        # V7.3: Cover-up is now attributed rather than removed
         ctx = _make_context("There is a massive cover-up.")
         result = safety_scrub(ctx)
-        assert "cover-up" not in result.rendered_text
+        assert "reporter alleges cover-up" in result.rendered_text
+        # The original "massive cover-up" phrasing should be gone
+        assert "massive cover-up" not in result.rendered_text
     
-    def test_blue_wall_removed(self):
+    def test_blue_wall_attributed(self):
+        # V7.3: Blue wall of silence is now attributed
         ctx = _make_context("The blue wall of silence protects them.")
         result = safety_scrub(ctx)
+        assert "reporter alleges systemic silence" in result.rendered_text
         assert "blue wall of silence" not in result.rendered_text
 
 
