@@ -8,6 +8,10 @@ Contains the neutralized report based of atomic interpretation.
 Contains the neutralized report based of atomic interpretation. 
 (reduced level of transformation for private version of report vs public version of report)
 
+## It will have a raw structured output mode.
+Contains raw but also a massive header of extraction and reconstitition.
+(reduced level of transformation for private version of report vs public version of report)
+
 ## It will have versions.
 Each of them will now be the same pipeline, but with different parameters.
 Version will define the level of transformation and output that will live in parallel as the "old" version.

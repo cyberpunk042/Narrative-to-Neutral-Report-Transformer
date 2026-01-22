@@ -321,6 +321,15 @@ PHRASAL_VERB_PATTERNS = {
         (r'laugh(?:ed)?\s+(?:in\s+(?:my|his|her)\s+face|at\s+(?:me|him|her))\b', 'laughed at Reporter'),
         (r'laugh(?:ed)?\s+at\s+(.+?)(?:\s+and|$)', 'laughed at'),
     ],
+    # V7.4: Added patterns for actions needing targets
+    'put': [
+        (r'put\s+handcuffs\s+on\s+(?:me|him|her|reporter)\b', 'put handcuffs on Reporter'),
+        (r'put\s+handcuffs\s+on\s+(.+?)(?:\s+so|\s+and|$)', 'put handcuffs on'),
+    ],
+    'threaten': [
+        (r'threaten(?:ed)?\s+(?:me|him|her)\b', 'threatened Reporter'),
+        (r'threaten(?:ed)?\s+(.+?)(?:\s+saying|\s+and|$)', 'threatened'),
+    ],
 }
 
 
@@ -641,11 +650,46 @@ def is_verb_meaningful(verb: str, target: Optional[str], actor: str) -> Tuple[bo
         'went', 'heard', 'complained', 'charged', 'suffered', 'pursued', 'refused',
         'thought', 'felt', 'knew', 'believed', 'wanted', 'liked', 'hated', 'feared',
         'diagnosed',
+        # V7.4: Added more Reporter actions that need context
+        'treated', 'treat', 'found', 'find', 'fight', 'fought',
+    }
+    # V7.4: Non-camera-friendly targets (abstract concepts)
+    NON_OBSERVABLE_TARGETS = {
+        'complaints', 'that', 'out', 'everything', 'nothing', 'something',
+        'it', 'this', 'what', 'jobs', 'job', 'work', 'record',
     }
     if actor == "Reporter" and verb_lower in REPORTER_GENERIC_VERBS:
-        # Only allow with substantial target
-        if not target or len(target) < 10:
+        # Only allow with substantial, observable target
+        if not target or len(target) < 12:
             return False, f"Reporter's action '{verb}' needs more context"
+        target_lower = target.lower().strip()
+        if target_lower in NON_OBSERVABLE_TARGETS:
+            return False, f"Reporter's target '{target}' is not observable"
+    
+    # V7.4: Filter out metaphorical/abstract actions
+    METAPHORICAL_PATTERNS = {
+        'fight for justice', 'fight for', 'fight to', 
+        'pursue legal', 'pursuing legal',
+        'refuse to be', 'refuses to be',
+    }
+    if target:
+        target_lower = target.lower()
+        for pattern in METAPHORICAL_PATTERNS:
+            if pattern in target_lower:
+                return False, f"Metaphorical action: '{verb} {target[:20]}'"
+    
+    # V7.4: Verbs that MUST have a target to be meaningful
+    VERBS_MUST_HAVE_TARGET = {
+        'put', 'threaten', 'threatened',
+    }
+    if verb_lower in VERBS_MUST_HAVE_TARGET and not target:
+        return False, f"Verb '{verb}' requires explicit target"
+    
+    # V7.4: Filter passive constructions for Reporter (e.g., "was treated")
+    # These should be rendered from the professional's perspective
+    PASSIVE_INDICATORS = {'was', 'were', 'been', 'being'}
+    if actor == "Reporter" and verb_lower in {'treat', 'treated', 'examine', 'examined'}:
+        return False, f"Passive action '{verb}' - render from professional's perspective"
     
     # Generic verbs that are always meaningless
     GENERIC_VERBS = {'happen', 'happened', 'occur', 'occurred', 'be', 'was', 'were', 'seem', 'seemed', 'appear', 'appeared'}
