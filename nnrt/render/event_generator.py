@@ -306,6 +306,20 @@ PHRASAL_VERB_PATTERNS = {
     ],
     'step': [
         (r'step(?:ped)?\s+out\s+of\s+(.+?)(?:\s+and|$)', 'stepped out of'),
+        (r'step(?:ped)?\s+back\b', 'stepped back'),  # V7.4: intransitive
+    ],
+    # V7.4: Added patterns for observable speech actions
+    'twist': [
+        (r'twist(?:ed)?\s+(?:it|arm|wrist)\s+behind\b', 'twisted Reporter\'s arm behind'),
+        (r'twist(?:ed)?\s+(?:my|his|her)\s+arm\b', 'twisted Reporter\'s arm'),
+    ],
+    'whisper': [
+        (r'whisper(?:ed)?\s+(?:in\s+(?:my|his|her)\s+ear|menacingly)\b', 'whispered to Reporter'),
+        (r'whisper(?:ed)?\s+to\s+(.+?)(?:\s+and|$)', 'whispered to'),
+    ],
+    'laugh': [
+        (r'laugh(?:ed)?\s+(?:in\s+(?:my|his|her)\s+face|at\s+(?:me|him|her))\b', 'laughed at Reporter'),
+        (r'laugh(?:ed)?\s+at\s+(.+?)(?:\s+and|$)', 'laughed at'),
     ],
 }
 
@@ -334,16 +348,21 @@ def extract_phrasal_verb_and_target(verb: str, description: str) -> Tuple[Option
     for pattern, phrasal_form in PHRASAL_VERB_PATTERNS[verb_lower]:
         match = re.search(pattern, desc_lower, re.IGNORECASE)
         if match:
-            target = match.group(1).strip()
-            # Clean target
-            target = re.sub(r'\s*(,|\.)\s*$', '', target)
-            target = re.sub(r'\s+like\s+.*$', '', target)  # Remove "like a maniac"
-            
-            if len(target) > 2 and len(target) < 40:
-                # Handle special case where target goes in middle
-                if '{target}' in phrasal_form:
-                    return phrasal_form.replace('{target}', target), None
-                return phrasal_form, target
+            # V7.4: Handle patterns without capture groups (intransitive like 'stepped back')
+            if match.lastindex and match.lastindex >= 1:
+                target = match.group(1).strip()
+                # Clean target
+                target = re.sub(r'\s*(,|\.)\s*$', '', target)
+                target = re.sub(r'\s+like\s+.*$', '', target)  # Remove "like a maniac"
+                
+                if len(target) > 2 and len(target) < 40:
+                    # Handle special case where target goes in middle
+                    if '{target}' in phrasal_form:
+                        return phrasal_form.replace('{target}', target), None
+                    return phrasal_form, target
+            else:
+                # Intransitive pattern (no target)
+                return phrasal_form, None
     
     return None, None
 
@@ -522,11 +541,11 @@ EXCLUDE_EPISTEMIC_TYPES = {
 
 # Verbs that are meaningless without a target/complement
 VERBS_REQUIRING_TARGET = {
-    # Speech verbs (base and past) - should go to QUOTES section
+    # Content-only speech verbs (go to QUOTES section)
     'say', 'said', 'ask', 'asked', 'tell', 'told', 'explain', 'explained',
-    'state', 'stated', 'yell', 'yelled', 'scream', 'screamed',
-    'whisper', 'whispered', 'shout', 'shouted', 'laugh', 'laughed', 
-    'threaten', 'threatened',
+    'state', 'stated',
+    # V7.4: Removed observable speech actions (whisper, laugh, yell, scream, shout, threaten)
+    #       These are camera-friendly as actions even without target
     # Intention verbs (base and past)
     'try', 'tried', 'attempt', 'attempted', 'want', 'wanted',
     # Generic verbs that need context
@@ -549,6 +568,9 @@ STANDALONE_VERBS = {
     'arrive', 'arrived', 'depart', 'departed', 'leave', 'left',  # Location changes
     'freeze', 'froze',  # Physical state (for officers, meaningful)
     'run', 'ran', 'jump', 'jumped', 'fall', 'fell',  # Physical movements
+    # V7.4: Observable speech/communication actions are camera-friendly
+    'laugh', 'laughed', 'whisper', 'whispered', 'yell', 'yelled',
+    'scream', 'screamed', 'shout', 'shouted', 'threaten', 'threatened',
 }
 
 
@@ -564,20 +586,29 @@ def is_verb_meaningful(verb: str, target: Optional[str], actor: str) -> Tuple[bo
     
     verb_lower = verb.lower().strip()
     
-    # Speech/communication verbs should NEVER be in STRICT - they belong in QUOTES
-    # Include both base form and past tense
-    # NOTE: 'call' is NOT included as "called 911" is an observable action
-    SPEECH_VERBS = {
+    # Speech/communication verbs that are ONLY about content belong in QUOTES
+    # But whispered/laughed are observable actions (the fact they whispered/laughed is camera-friendly)
+    # V7.4: Split speech verbs into content-only vs action-observable
+    
+    # These verbs are ONLY about content - always redirect to QUOTES
+    CONTENT_ONLY_SPEECH_VERBS = {
         # Base forms
-        'say', 'ask', 'tell', 'yell', 'scream', 'shout', 'whisper', 'laugh', 
-        'threaten', 'state', 'explain', 'respond', 'reply', 'answer',
+        'say', 'ask', 'tell', 'state', 'explain', 'respond', 'reply', 'answer',
         # Past tense
-        'said', 'asked', 'told', 'yelled', 'screamed', 'shouted', 'whispered', 
-        'laughed', 'threatened', 'stated', 'explained', 'responded',
-        'replied', 'answered',
+        'said', 'asked', 'told', 'stated', 'explained', 'responded', 'replied', 'answered',
     }
-    if verb_lower in SPEECH_VERBS:
+    if verb_lower in CONTENT_ONLY_SPEECH_VERBS:
         return False, f"Speech verb '{verb}' belongs in QUOTES section"
+    
+    # These verbs describe OBSERVABLE ACTIONS even if they also have speech content
+    # "Officer Jenkins whispered" is camera-friendly (observable action)
+    # "Officer Jenkins laughed" is camera-friendly (observable action)
+    OBSERVABLE_SPEECH_ACTIONS = {
+        'whisper', 'whispered', 'laugh', 'laughed', 'yell', 'yelled',
+        'scream', 'screamed', 'shout', 'shouted', 'threaten', 'threatened',
+    }
+    # For these verbs, if there's quote content in the target, strip it
+    # The action itself goes to STRICT, the content goes to QUOTES
     
     # If verb requires target and no target, reject
     if verb_lower in VERBS_REQUIRING_TARGET and not target:
@@ -791,7 +822,10 @@ def generate_strict_events(
         else:
             # 4. Get target (from event or parse from description)
             target = ev.target_object
-            if not target:
+            # V7.4: Skip target extraction for standalone verbs - they don't need one
+            # and extracting can pollute with quote content
+            verb_lower = verb.lower().strip() if verb else ''
+            if not target and verb_lower not in STANDALONE_VERBS:
                 target = clean_description_for_target(ev.description)
         
         # 5. Replace pronouns in target

@@ -56,15 +56,15 @@ rules:
   - id: cf_embedded_quote
     category: camera_friendly
     priority: 140
-    description: "Disqualify events with embedded quotes (go to QUOTES section)"
+    description: "Detect events with embedded quotes (action may still be camera-friendly)"
     match:
       type: regex
       patterns:
         - '[""\""]'
-    action: disqualify
+    action: detect  # V7.4: Changed from disqualify - action can be camera-friendly even with quote
     classification:
-      field: is_camera_friendly
-      value: false
+      field: contains_quote
+      value: true
       reason: "contains_quote"
       confidence: 0.9
   

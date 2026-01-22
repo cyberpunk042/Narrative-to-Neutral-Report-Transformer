@@ -182,14 +182,30 @@ def classify_events(ctx: TransformContext) -> TransformContext:
             # -----------------------------------------------------------------
             # Rule 4: Must have NAMED ACTOR anywhere in the text
             # V8.1: Check ANYWHERE, not just at start
+            # V7.4: Also check event.actor_label (set by extraction pass)
             # -----------------------------------------------------------------
             
             has_named_actor = False
             
-            # Pattern 1: Title + Name (e.g., "Officer Jenkins")
-            title_pattern = r'\b(Officer|Sergeant|Detective|Captain|Lieutenant|Deputy|Dr\.?|Mr\.?|Mrs\.?|Ms\.?)\s+[A-Z][a-z]+'
-            if re.search(title_pattern, text):
-                has_named_actor = True
+            # V7.4: Check if actor_label is already a named actor (from extraction)
+            # This handles compound verbs like "twisted" inheriting actor from "grabbed"
+            if event.actor_label:
+                actor_lower = event.actor_label.lower()
+                # Check if it's a Title + Name pattern
+                if re.match(r'^(officer|sergeant|detective|captain|lieutenant|deputy|dr\.?|mr\.?|mrs\.?|ms\.?)\s+\w+', actor_lower):
+                    has_named_actor = True
+                # Or a proper name (two capitalized words)
+                elif re.match(r'^[A-Z][a-z]+\s+[A-Z][a-z]+$', event.actor_label):
+                    has_named_actor = True
+                # Or Reporter
+                elif actor_lower == 'reporter':
+                    has_named_actor = True
+            
+            # Pattern 1: Title + Name in TEXT (e.g., "Officer Jenkins")
+            if not has_named_actor:
+                title_pattern = r'\b(Officer|Sergeant|Detective|Captain|Lieutenant|Deputy|Dr\.?|Mr\.?|Mrs\.?|Ms\.?)\s+[A-Z][a-z]+'
+                if re.search(title_pattern, text):
+                    has_named_actor = True
             
             # Pattern 2: Two-word proper nouns (CASE SENSITIVE)
             # e.g., "Marcus Johnson", "Patricia Chen"

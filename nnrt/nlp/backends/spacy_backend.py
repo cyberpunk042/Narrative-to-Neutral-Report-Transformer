@@ -52,6 +52,15 @@ VERB_TYPE_MAP = {
     "cuff": EventType.ACTION,
     "handcuff": EventType.ACTION,
     "resist": EventType.ACTION,
+    # V7.4: Added missing physical actions
+    "twist": EventType.ACTION,
+    "slam": EventType.ACTION,
+    "throw": EventType.ACTION,
+    "pull": EventType.ACTION,
+    "search": EventType.ACTION,
+    "record": EventType.ACTION,
+    "document": EventType.ACTION,
+    "uncuff": EventType.ACTION,
     # Movement
     "walk": EventType.MOVEMENT,
     "run": EventType.MOVEMENT,
@@ -62,6 +71,8 @@ VERB_TYPE_MAP = {
     "enter": EventType.MOVEMENT,
     "exit": EventType.MOVEMENT,
     "flee": EventType.MOVEMENT,
+    "jump": EventType.MOVEMENT,
+    "come": EventType.MOVEMENT,
     # Verbal
     "say": EventType.VERBAL,
     "yell": EventType.VERBAL,
@@ -71,6 +82,12 @@ VERB_TYPE_MAP = {
     "ask": EventType.VERBAL,
     "command": EventType.VERBAL,
     "order": EventType.VERBAL,
+    # V7.4: Added more verbal and social actions
+    "whisper": EventType.VERBAL,
+    "laugh": EventType.VERBAL,
+    "call": EventType.VERBAL,
+    "threaten": EventType.VERBAL,
+    "try": EventType.ACTION,  # Observable intent-to-act
 }
 
 
@@ -323,7 +340,8 @@ class SpacyEventExtractor(EventExtractor):
                 continue
             
             # Only process ROOT or main clause verbs
-            if token.dep_ not in ("ROOT", "relcl", "advcl", "ccomp", "xcomp"):
+            # V7.4: Added 'conj' to capture compound verbs like "grabbed and twisted"
+            if token.dep_ not in ("ROOT", "relcl", "advcl", "ccomp", "xcomp", "conj"):
                 continue
             
             # V4.2: Get VERBATIM text from subtree instead of reconstruction
@@ -353,12 +371,21 @@ class SpacyEventExtractor(EventExtractor):
             event_type = VERB_TYPE_MAP.get(lemma, EventType.ACTION)
             
             # V5: Extract actor with FULL noun phrase (not just head noun)
+            # V7.4: For conj verbs, inherit actor from head verb
             nsubj = next((c for c in token.children if c.dep_ in ("nsubj", "nsubjpass")), None)
             actor_mention = None
             if nsubj:
                 # Get full noun phrase by traversing subtree
                 nsubj_tokens = sorted(nsubj.subtree, key=lambda t: t.i)
                 actor_mention = " ".join(t.text for t in nsubj_tokens)
+            elif token.dep_ == "conj":
+                # V7.4: Inherit actor from head verb (for "grabbed and twisted" patterns)
+                head_verb = token.head
+                if head_verb and head_verb.pos_ == "VERB":
+                    head_nsubj = next((c for c in head_verb.children if c.dep_ in ("nsubj", "nsubjpass")), None)
+                    if head_nsubj:
+                        head_nsubj_tokens = sorted(head_nsubj.subtree, key=lambda t: t.i)
+                        actor_mention = " ".join(t.text for t in head_nsubj_tokens)
             
             # V5: Extract action verb (may include particle)
             action_verb = token.lemma_

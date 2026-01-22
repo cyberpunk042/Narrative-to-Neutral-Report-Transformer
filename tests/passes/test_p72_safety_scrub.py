@@ -71,7 +71,9 @@ class TestIntentAttributionEnforcement:
     def test_wanted_to_hurt_attributed(self):
         ctx = _make_context("He wanted to hurt me.")
         result = safety_scrub(ctx)
-        assert "reporter perceived intent" in result.rendered_text
+        # V7.4: Pattern now uses "infers intent" for patterns with objects
+        assert "reporter perceived intent" in result.rendered_text or \
+               "reporter infers intent" in result.rendered_text
     
     def test_clearly_intended_attributed(self):
         ctx = _make_context("He clearly intended to harm me.")

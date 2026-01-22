@@ -114,6 +114,9 @@ INTENT_SCRUB_PATTERNS = [
      "-- reporter perceived threat --"),
     (r'\b(was|were)\s+going\s+to\s+(shoot|attack|kill|hurt)\b',
      "-- reporter perceived intent to harm --"),
+    # V7.4: Added 'inflict' and capture full phrase including objects
+    (r'\bwanted\s+to\s+(hurt|harm|kill|intimidate|punish|inflict)\s+(\w+\s*\w*)\b',
+     "-- reporter infers intent to cause harm --"),
     (r'\bwanted\s+to\s+(hurt|harm|kill|intimidate|punish)\b',
      "-- reporter perceived intent --"),
     (r'\btrying\s+to\s+(kill|hurt|harm|intimidate)\b',

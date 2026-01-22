@@ -145,7 +145,25 @@ def cleanup_punctuation(ctx: TransformContext) -> TransformContext:
         text = re.sub(r'([.!?]\s+)([a-z])', capitalize_after_period, text)
         changes_made.append("sentence_capitalization")
     
-    # 15. Strip and ensure proper ending
+    # 16. V7.4 FIX: Fix broken attribution patterns
+    # Pattern: "-- reporter X -- I was" → "-- reporter X -- Reporter was"
+    if re.search(r'--\s*\b(I|my|me)\b', text, re.IGNORECASE):
+        text = re.sub(r'--\s+I\s+was\b', '-- Reporter was', text)
+        text = re.sub(r'--\s+I\s+am\b', '-- Reporter is', text)
+        text = re.sub(r'--\s+I\b', '-- Reporter', text)
+        text = re.sub(r'--\s+my\b', "-- Reporter's", text, flags=re.IGNORECASE)
+        text = re.sub(r'--\s+me\b', "-- Reporter", text, flags=re.IGNORECASE)
+        changes_made.append("attribution_pronoun_fix")
+    
+    # 17. V7.4 FIX: Fix "appeared to" over-neutralization
+    # "appeared to grab" → "tried to grab" (preserve the action)
+    if 'appeared to ' in text:
+        # Only fix specific over-neutralizations, keep legitimate "appeared to be"
+        text = re.sub(r'\bappeared to grab\b', 'tried to grab', text)
+        text = re.sub(r'\bappeared to explain\b', 'tried to explain', text)
+        changes_made.append("appeared_to_fix")
+    
+    # 18. Strip and ensure proper ending
     text = text.strip()
     if text and text[-1] not in ".!?":
         text += "."
