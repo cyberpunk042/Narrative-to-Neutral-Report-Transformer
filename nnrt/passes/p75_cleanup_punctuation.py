@@ -221,8 +221,23 @@ def cleanup_punctuation(ctx: TransformContext) -> TransformContext:
     
     # 26b. V7.4 FIX: Neutralize intensity words in SELF-REPORTED STATE sections
     # These sections pull from atomic_statements which may not be fully neutralized
-    # Use global replace since 'terrified' should be neutralized everywhere
+    # Use global replace since these should be neutralized everywhere
     text = re.sub(r'\bterrified\b', 'frightened', text, flags=re.IGNORECASE)
+    text = re.sub(r'\bcops\b', 'officers', text, flags=re.IGNORECASE)
+    text = re.sub(r'\bthe cops\b', 'the officers', text, flags=re.IGNORECASE)
+    
+    # 26c. V7.4 FIX: Filter only truly incomplete fragments
+    # NOTE: Standalone attribution markers like "-- reporter characterizes as threat --" are VALID
+    # They represent important reporter characterizations and should be preserved
+    lines = text.split('\n')
+    cleaned_lines = []
+    for line in lines:
+        stripped = line.strip()
+        # Skip incomplete fragments ending with "but" (clearly cut off)
+        if stripped.startswith('•') and stripped.endswith('but'):
+            continue
+        cleaned_lines.append(line)
+    text = '\n'.join(cleaned_lines)
     
     # 27. V7.4 FIX: Final cleanup - remove any space-before-punctuation created by prior fixes
     text = re.sub(r' +\.', '.', text)

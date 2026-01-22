@@ -78,8 +78,8 @@ ITEMS DISCOVERED (as claimed by Reporter)
   Status: Reporter's account only. No seizure/inventory records attached.
 
   PERSONAL EFFECTS:
-    • phone
     • wallet
+    • phone
 
   WORK-RELATED ITEMS:
     • work apron that still had some cash tips from my shift
@@ -91,8 +91,8 @@ NARRATIVE EXCERPTS (UNNORMALIZED)
 ──────────────────────────────────────────────────────────────────────
 ⚠️ These excerpts couldn't be normalized. Listed by rejection reason:
 
-  [Characterization In Actor:The Cops]
-    - when the cops attacked me for absolutely no reason o.
+  [Characterization In Actor:The officers]
+    - when the officers attacked me for absolutely no reason o.
   [Bare Role:It All]
     - It all started when I was innocently walking home from my job at the Riverside C.
   [No Valid Actor:Just]
@@ -270,7 +270,7 @@ REPORTER DESCRIPTIONS (CHARACTERIZATIONS)
 ──────────────────────────────────────────────────────────────────────
 ⚠️ These are the reporter's subjective characterizations, not camera-friendly facts:
 
-  • when the cops attacked me for absolutely no reason on January 15th, 2026 at around 11:30 PM near the corner of Main Street and Oak Avenue
+  • when the officers attacked me for absolutely no reason on January 15th, 2026 at around 11:30 PM near the corner of Main Street and Oak Avenue
   • The officer behind the wheel was clearly looking for trouble.
   • Officer Jenkins, badge number 4821, jumped out of the car 
   • He was fishing through my belongings like a criminal.
@@ -300,7 +300,6 @@ CONTESTED ALLEGATIONS
   • It was obvious they were conspiring about how to cover up their crimes.
   • they were conspiring about how to cover up their crimes
   • She said my injuries were consistent with "significant physical force" which proves they used excessive and unnecessary violence against me.
-  • She said "We'll investigate" but
   • I was never charged with any crime, which proves I was completely innocent
   • -- reporter alleges racism -- systematic and institutionalized.
   • The police department refuses to release his full disciplinary record, which proves they are hiding even more evidence of his -- reporter alleges pattern of misconduct -- abuse of power.
@@ -339,8 +338,8 @@ EVENTS (ACTOR UNRESOLVED)
 ──────────────────────────────────────────────────────────────────────
   ⚠️ These events could not be validated for neutral rendering:
 
-  ❌ when the cops attacked me for absolutely no reason o
-      Issues: Actor contains characterization: 'the cops'
+  ❌ when the officers attacked me for absolutely no reason o
+      Issues: Actor contains characterization: 'the officers'
 
   ❌ It all started when I was innocently walking home from my job at the Riverside C
       Issues: Actor is bare role: 'It all'
@@ -382,7 +381,7 @@ Events ordered by reconstructed chronology.
   ┌─── INCIDENT DAY (Day 0) ───
   │
   │ [around 11:30 PM] It all started when I was innocently walking home from my job at the Riverside C
-  │ when the cops attacked me for absolutely no reason o
+  │ when the officers attacked me for absolutely no reason o
   │ when I was innocently walking home from my job at the Riverside Cafe where I wor
   │ where I work as a server
   │ just wanted to get home to my apartment
