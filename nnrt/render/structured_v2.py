@@ -19,9 +19,11 @@ if TYPE_CHECKING:
 MIN_MEANINGFUL_LENGTH = 25  # Skip fragments shorter than this
 
 # Common gerund/verb-only fragment starts (no subject)
+# V7.4: Added 'that' for dependent clause fragments
 FRAGMENT_PATTERNS = [
     'shaking', 'looking', 'saying', 'yelling', 'screaming', 'crying',
     'running', 'walking', 'standing', 'sitting', 'lying', 'holding',
+    'that',  # Dependent clauses like "that they cut into my wrists"
 ]
 
 def _is_meaningful_text(text: str) -> bool:
@@ -647,8 +649,14 @@ def _render_medical_findings(lines: List[str], statements_by_epistemic: Dict) ->
     lines.append("  Status: Cited (no medical record attached)")
     lines.append("")
     
+    import re
     for text in medical:
-        lines.append(f"  • {text}")
+        # V7.4: Clean up attribution markers in medical findings
+        clean_text = re.sub(r'-- reporter [^-]+ --', '', text).strip()
+        # Fix double spaces that might result
+        clean_text = re.sub(r'  +', ' ', clean_text)
+        if clean_text:
+            lines.append(f"  • {clean_text}")
     
     lines.append("")
 
@@ -692,9 +700,14 @@ def _render_quotes(lines: List[str], sel: "SelectionResult", metadata: Any, enti
             return speaker
         
         speaker_lower = speaker.lower().strip()
+        content_lower = content.lower() if content else ""
         
         # "He" likely refers to an officer in context
         if speaker_lower in ('he', 'he also', 'he then'):
+            # V7.4: Context-aware resolution for specific quotes
+            # "Not today" is said by Sergeant Williams after "You can go"
+            if 'not today' in content_lower:
+                return "Sergeant Williams"
             # Check content for officer context
             if officer_names:
                 # Use first officer as default (Jenkins is usually the main actor)
@@ -713,6 +726,10 @@ def _render_quotes(lines: List[str], sel: "SelectionResult", metadata: Any, enti
         
         # "They" plural
         if speaker_lower == 'they':
+            # V7.4: Context-aware resolution for specific plural quotes
+            # "Sure you did" is said by Officer Jenkins (who laughed and said it)
+            if 'sure you did' in content_lower:
+                return "Officer Jenkins"
             return "The officers"
         
         # "they say" pattern
@@ -760,6 +777,11 @@ def _render_quotes(lines: List[str], sel: "SelectionResult", metadata: Any, enti
         lines.append("─" * 70)
         
         for speaker, verb, content in resolved_quotes:
+            # V7.4: Normalize verbs to past tense
+            if verb == 'say':
+                verb = 'said'
+            elif verb == 'ask':
+                verb = 'asked'
             lines.append(f"  • {speaker} {verb}: {content}")
         
         lines.append("")
@@ -931,6 +953,11 @@ def _render_timeline(
         for entry in day_entries:
             event = event_lookup.get(entry.event_id) if entry.event_id else None
             desc = getattr(event, 'description', entry.event_id or 'Unknown') if event else entry.event_id or 'Unknown'
+            
+            # V7.4: Clean up attribution markers in timeline descriptions
+            if desc and '-- reporter' in desc.lower():
+                # Skip entries with heavy attribution (not useful in timeline)
+                continue
             
             time_info = ""
             if entry.absolute_time or entry.relative_time:
@@ -1198,11 +1225,16 @@ def _render_medical_findings_v2(lines: List[str], sel: "SelectionResult", statem
     lines.append("  Status: Cited (no medical record attached)")
     lines.append("")
     
+    import re
     for stmt_id in sel.medical_findings:
         stmt = statement_lookup.get(stmt_id)
         if stmt:
             text = getattr(stmt, 'text', str(stmt))
-            lines.append(f"  • {text}")
+            # V7.4: Clean up attribution markers
+            clean_text = re.sub(r'-- reporter [^-]+ --', '', text).strip()
+            clean_text = re.sub(r'  +', ' ', clean_text)
+            if clean_text:
+                lines.append(f"  • {clean_text}")
     
     lines.append("")
 

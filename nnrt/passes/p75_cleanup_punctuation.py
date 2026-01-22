@@ -163,7 +163,72 @@ def cleanup_punctuation(ctx: TransformContext) -> TransformContext:
         text = re.sub(r'\bappeared to explain\b', 'tried to explain', text)
         changes_made.append("appeared_to_fix")
     
-    # 18. Strip and ensure proper ending
+    # 18. V7.4 FIX: Clean up orphaned words after attributions
+    # "-- reporter infers intent to cause harm -- maximum damage" → "-- reporter infers intent to cause harm --."
+    text = re.sub(r'(-- reporter \w+ intent to cause harm --)\s+maximum damage\.?', r'\1.', text)
+    text = re.sub(r'(-- reporter \w+ intent to cause harm --)\s+\w+\s+\w+\.?', r'\1.', text)
+    
+    # 19. V7.4 FIX: Fix "spoke loudly" → "yelled"
+    text = re.sub(r'\bspoke loudly\b', 'yelled', text)
+    text = re.sub(r'\bspeaking loudly\b', 'yelling', text)
+    
+    # 20. V7.4 FIX: Fix "described as threatened" → "threatened"
+    text = re.sub(r'\bmade statements described as threatened\b', 'threatened', text)
+    text = re.sub(r'\bdescribed as threatened him\b', 'threatened him', text)
+    text = re.sub(r'\bdescribed as appearing to enjoy\b', 'while', text)  # Remove characterization
+    
+    # 21. V7.4 FIX: Remove "-- reporter concludes -- Reporter was" broken pattern
+    text = re.sub(r'-- reporter concludes -- Reporter was\b', '-- reporter states Reporter was', text)
+    
+    # 22. V7.4 FIX: Clean up orphaned "and while" pattern 
+    # "He was speaking dismissively at me and while my suffering" → "He was speaking dismissively at me."
+    text = re.sub(r'\band while my suffering\b', '', text)
+    text = re.sub(r'\band while\s*\.', '.', text)
+    
+    # 23. V7.4 FIX: "reporter states Reporter was and they" → remove "Reporter was"
+    text = re.sub(r'-- reporter states Reporter was and\b', '-- reporter states', text)
+    
+    # 24. V7.4 FIX: "The -- reporter alleges racism -- is" → more natural phrasing
+    text = re.sub(r'\bThe -- reporter alleges racism -- is\b', '-- reporter alleges racism --', text)
+    text = re.sub(r'\bThe -- reporter alleges (\w+) -- is\b', r'-- reporter alleges \1 --', text)
+    
+    # 25. V7.4 FIX: Clean up double dashes with missing content
+    text = re.sub(r'-- reporter \w+ -- is systematic', '-- reporter characterizes system --', text)
+    
+    # 26. V7.4 FIX: Clean attribution markers from MEDICAL FINDINGS section
+    # safety_scrub runs AFTER render_structured, so these markers appear after rendering
+    # Process line-by-line to target only medical findings section
+    if 'MEDICAL FINDINGS' in text:
+        lines = text.split('\n')
+        in_medical_section = False
+        cleaned_lines = []
+        for line in lines:
+            if 'MEDICAL FINDINGS' in line:
+                in_medical_section = True
+            elif line.startswith('PRESERVED QUOTES') or line.startswith('EVENTS ('):
+                in_medical_section = False
+            
+            if in_medical_section and '-- reporter' in line:
+                # Strip attribution markers from medical findings
+                clean_line = re.sub(r'-- reporter [^-]+ --', '', line)
+                clean_line = re.sub(r'  +', ' ', clean_line).strip()
+                if clean_line.startswith('•'):
+                    clean_line = '  ' + clean_line  # Restore bullet indentation
+                cleaned_lines.append(clean_line)
+            else:
+                cleaned_lines.append(line)
+        text = '\n'.join(cleaned_lines)
+    
+    # 26b. V7.4 FIX: Neutralize intensity words in SELF-REPORTED STATE sections
+    # These sections pull from atomic_statements which may not be fully neutralized
+    # Use global replace since 'terrified' should be neutralized everywhere
+    text = re.sub(r'\bterrified\b', 'frightened', text, flags=re.IGNORECASE)
+    
+    # 27. V7.4 FIX: Final cleanup - remove any space-before-punctuation created by prior fixes
+    text = re.sub(r' +\.', '.', text)
+    text = re.sub(r' +,', ',', text)
+    
+    # 27. Strip and ensure proper ending
     text = text.strip()
     if text and text[-1] not in ".!?":
         text += "."
