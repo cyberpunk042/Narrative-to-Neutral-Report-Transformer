@@ -15,31 +15,61 @@ if TYPE_CHECKING:
 
 
 # V7.3: Helper for filtering and deduplicating statement text
-# V7.4: Increased threshold and added fragment detection
+# V7.5: Replaced FRAGMENT_PATTERNS with NLP-based detection
 MIN_MEANINGFUL_LENGTH = 25  # Skip fragments shorter than this
 
-# Common gerund/verb-only fragment starts (no subject)
-# V7.4: Added 'that' for dependent clause fragments
-FRAGMENT_PATTERNS = [
-    'shaking', 'looking', 'saying', 'yelling', 'screaming', 'crying',
-    'running', 'walking', 'standing', 'sitting', 'lying', 'holding',
-    'that',  # Dependent clauses like "that they cut into my wrists"
-]
 
-def _is_meaningful_text(text: str) -> bool:
-    """Check if text is meaningful enough to display."""
+def _is_meaningful_text(text: str, stmt: Any = None) -> bool:
+    """
+    Check if text is meaningful enough to display.
+    
+    V7.5: Now uses NLP-based detection via AtomicStatement.is_complete_sentence
+    instead of brittle string pattern matching.
+    """
     stripped = text.strip()
     
     # Too short
     if len(stripped) < MIN_MEANINGFUL_LENGTH:
         return False
     
-    # Starts with gerund/verb without subject (likely a fragment)
-    first_word = stripped.split()[0].lower() if stripped else ''
-    if first_word in FRAGMENT_PATTERNS:
-        return False
+    # V7.5: Check statement completeness if available
+    if stmt is not None:
+        is_complete = getattr(stmt, 'is_complete_sentence', None)
+        if is_complete is not None:
+            return is_complete
     
-    return True
+    # Fallback for legacy data: use NLP analysis
+    # Import here to avoid circular imports and only when needed
+    try:
+        from nnrt.nlp.spacy_loader import get_nlp
+        nlp = get_nlp()
+        doc = nlp(stripped)
+        
+        # Check for subject
+        subject_deps = {'nsubj', 'nsubjpass', 'expl', 'csubj', 'csubjpass'}
+        has_subject = any(tok.dep_ in subject_deps for tok in doc)
+        
+        # Check for main verb (V7.5.1: include AUX as ROOT for copular sentences)
+        has_main_verb = any(
+            (tok.pos_ == 'VERB' and tok.dep_ not in ('aux', 'auxpass')) or
+            (tok.pos_ == 'AUX' and tok.dep_ == 'ROOT')
+            for tok in doc
+        )
+        
+        # V7.5.1: Check for subordinating conjunction (dependent clause)
+        has_subordinator = any(tok.dep_ == 'mark' and tok.pos_ == 'SCONJ' for tok in doc)
+        if has_subordinator:
+            return False
+        
+        # V7.5.2: Check for relative pronouns at start
+        relative_pronouns = {'which', 'who', 'whom', 'whose'}
+        if doc and doc[0].text.lower() in relative_pronouns:
+            return False
+        
+        return has_subject and has_main_verb
+    except Exception:
+        # If NLP fails, default to True (don't filter)
+        return True
 
 def _dedupe_key(text: str) -> str:
     """Generate a key for deduplication (lowercased, stripped)."""
@@ -1119,8 +1149,8 @@ def _render_self_reported_v2(lines: List[str], sel: "SelectionResult", statement
             stmt = statement_lookup.get(stmt_id)
             if stmt:
                 text = getattr(stmt, 'text', str(stmt))
-                # V7.3 FIX: Skip short fragments and duplicates
-                if not _is_meaningful_text(text):
+                # V7.5: Pass stmt for NLP-based completeness detection
+                if not _is_meaningful_text(text, stmt):
                     continue
                 key = _dedupe_key(text)
                 if key in seen:
@@ -1146,7 +1176,7 @@ def _render_legal_allegations(lines: List[str], sel: "SelectionResult", statemen
         stmt = statement_lookup.get(stmt_id)
         if stmt:
             text = getattr(stmt, 'text', str(stmt))
-            if not _is_meaningful_text(text):
+            if not _is_meaningful_text(text, stmt):
                 continue
             key = _dedupe_key(text)
             if key in seen:

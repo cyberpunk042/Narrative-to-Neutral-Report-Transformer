@@ -96,6 +96,14 @@ class AtomicStatement:
     # Values: verified, cited, missing, inference, unverifiable
     provenance_status: str = "missing"
     
+    # =========================================================================
+    # V7.5: Sentence Completeness (for fragment detection)
+    # =========================================================================
+    
+    # Is this a complete sentence with subject + predicate?
+    # Used by renderer to filter out dependent clause fragments
+    is_complete_sentence: bool = True
+    
 
     # =========================================================================
     # V4 ALPHA: Attribution & Aberration
@@ -206,6 +214,7 @@ def decompose(ctx: TransformContext) -> TransformContext:
                     clause_type=clause["clause_type"],
                     connector=clause.get("connector"),
                     flags=clause.get("flags", []),
+                    is_complete_sentence=clause.get("is_complete", True),
                 )
                 all_statements.append(stmt)
                 statement_counter += 1
@@ -228,6 +237,47 @@ def decompose(ctx: TransformContext) -> TransformContext:
     )
     
     return ctx
+
+
+def _is_complete_clause(tokens: list) -> bool:
+    """
+    V7.5: Check if a clause is a complete sentence (has subject + verb).
+    
+    Uses spaCy dependency labels to detect:
+    - Subject: nsubj, nsubjpass, expl (expletive 'it'/'there')
+    - Verb: Any VERB that isn't just an auxiliary, OR an AUX as ROOT (copular)
+    - Dependent: Starts with subordinating conjunction (that, which, who, etc.)
+    
+    This replaces the brittle FRAGMENT_PATTERNS string matching approach.
+    """
+    if not tokens:
+        return False
+    
+    # Check for subject
+    subject_deps = {'nsubj', 'nsubjpass', 'expl', 'csubj', 'csubjpass'}
+    has_subject = any(tok.dep_ in subject_deps for tok in tokens)
+    
+    # Check for main verb (not just auxiliary)
+    # V7.5.1: Also accept AUX as ROOT (copular sentences like "I was scared")
+    has_main_verb = any(
+        (tok.pos_ == 'VERB' and tok.dep_ not in ('aux', 'auxpass')) or
+        (tok.pos_ == 'AUX' and tok.dep_ == 'ROOT')  # Copular sentences
+        for tok in tokens
+    )
+    
+    # V7.5.1: Check for subordinating conjunction (makes it a dependent clause)
+    # E.g., "that they cut into my wrists" starts with SCONJ
+    has_subordinator = any(tok.dep_ == 'mark' and tok.pos_ == 'SCONJ' for tok in tokens)
+    if has_subordinator:
+        return False  # Dependent clause, not a standalone sentence
+    
+    # V7.5.2: Check for relative pronouns at start (which, who, whom, whose)
+    # E.g., "which proves they used excessive force" - starts with relative pronoun
+    relative_pronouns = {'which', 'who', 'whom', 'whose'}
+    if tokens and tokens[0].text.lower() in relative_pronouns:
+        return False  # Relative clause, not a standalone sentence
+    
+    return has_subject and has_main_verb
 
 
 def _extract_clauses(doc, segment) -> list[dict]:
@@ -289,6 +339,8 @@ def _extract_clauses(doc, segment) -> list[dict]:
     if len(clause_heads) == 1:
         # Single clause - return the whole segment
         head = clause_heads[0]
+        # V7.5: Check sentence completeness using NLP
+        is_complete = _is_complete_clause(list(doc))
         return [{
             "text": doc.text,
             "start": 0,
@@ -298,6 +350,7 @@ def _extract_clauses(doc, segment) -> list[dict]:
             "type_hint": _infer_type_hint_from_head(head),
             "confidence": 0.7,
             "flags": [],
+            "is_complete": is_complete,
         }]
     
     # Multiple clauses - split at clause boundaries
@@ -395,6 +448,9 @@ def _extract_clauses(doc, segment) -> list[dict]:
                 type_hint = StatementType.INTERPRETATION
                 flags.append("intent_attribution")
         
+        # V7.5: Check sentence completeness using NLP
+        is_complete = _is_complete_clause(subtree_for_check)
+        
         clauses.append({
             "text": clause_text,
             "start": start_idx,
@@ -404,6 +460,7 @@ def _extract_clauses(doc, segment) -> list[dict]:
             "type_hint": type_hint,
             "confidence": 0.6,
             "flags": flags,
+            "is_complete": is_complete,
         })
     
     return clauses
