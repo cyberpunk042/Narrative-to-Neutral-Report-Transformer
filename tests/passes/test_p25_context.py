@@ -8,6 +8,8 @@ from nnrt.ir.schema_v0_1 import Segment
 from nnrt.ir.enums import SegmentContext
 from nnrt.passes.p25_annotate_context import annotate_context
 
+pytestmark = pytest.mark.unit
+
 
 def _make_context(text: str) -> TransformContext:
     """Helper to create a context with a segment."""

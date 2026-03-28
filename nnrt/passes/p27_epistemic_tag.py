@@ -13,6 +13,8 @@ sorted into buckets later. Every statement carries:
 Buckets like "OBSERVATIONS" and "CLAIMS" become views over tagged items.
 """
 
+from __future__ import annotations
+
 import re
 from nnrt.core.context import TransformContext
 from nnrt.core.logging import get_pass_logger

@@ -10,6 +10,8 @@ from nnrt.ir.schema_v0_1 import Segment, Entity
 from nnrt.ir.enums import EntityRole, EntityType, EvidenceType, StatementType
 from nnrt.passes.p26_decompose import AtomicStatement
 
+pytestmark = pytest.mark.unit
+
 
 def _make_context(text: str) -> TransformContext:
     """Helper to create a context with segments."""

@@ -5,6 +5,8 @@ NLP components are semantic sensors, not authorities.
 All outputs are treated as untrusted input.
 """
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Optional

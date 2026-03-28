@@ -2,10 +2,13 @@
 Tests for the pipeline engine and passes.
 """
 
+import pytest
 from nnrt.core.context import TransformContext, TransformRequest
 from nnrt.core.engine import Engine, Pipeline
 from nnrt.ir.enums import TransformStatus
 from nnrt.passes import normalize, package, render, segment, tag_spans
+
+pytestmark = pytest.mark.integration
 
 
 def test_transform_request_generates_id():

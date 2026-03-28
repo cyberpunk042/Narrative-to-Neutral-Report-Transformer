@@ -9,6 +9,8 @@ from nnrt.core.context import TransformContext, TransformRequest
 from nnrt.ir.schema_v0_1 import Segment, Event, Identifier
 from nnrt.ir.enums import EventType, IdentifierType
 
+pytestmark = pytest.mark.unit
+
 
 def _make_context(text: str) -> TransformContext:
     """Helper to create a context with segments."""

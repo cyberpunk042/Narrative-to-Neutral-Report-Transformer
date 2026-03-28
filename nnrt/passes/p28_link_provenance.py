@@ -11,6 +11,8 @@ Uses the clause structure from decomposition to establish provenance:
 This creates the "derived_from" links essential for proper NNRT output.
 """
 
+from __future__ import annotations
+
 from typing import Optional
 
 from nnrt.core.context import TransformContext

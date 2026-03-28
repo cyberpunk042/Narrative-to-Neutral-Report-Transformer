@@ -32,6 +32,8 @@ from nnrt.cli.main import setup_default_pipeline
 from nnrt.output.structured import build_structured_output
 from nnrt.ir.enums import StatementType, EntityRole, EventType
 
+pytestmark = pytest.mark.stress
+
 
 # =============================================================================
 # THE ULTIMATE CHALLENGE CASE

@@ -2,6 +2,8 @@
 No New Facts Validator — Ensures transformation doesn't add facts.
 """
 
+from __future__ import annotations
+
 from nnrt.core.context import TransformContext
 from nnrt.core.contracts import Validator
 

@@ -20,6 +20,8 @@ Design decisions:
 - Questions are generated for unexplained gaps
 """
 
+from __future__ import annotations
+
 import re
 import structlog
 from typing import Optional, List

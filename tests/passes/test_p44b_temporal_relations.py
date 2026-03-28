@@ -9,6 +9,8 @@ from nnrt.core.context import TransformContext, TransformRequest
 from nnrt.ir.schema_v0_1 import Segment, Event, TemporalExpression
 from nnrt.ir.enums import EventType, AllenRelation, RelationEvidence, TemporalExpressionType
 
+pytestmark = pytest.mark.unit
+
 
 def _make_context_with_events(text: str, events: list) -> TransformContext:
     """Helper to create a context with segments and events."""

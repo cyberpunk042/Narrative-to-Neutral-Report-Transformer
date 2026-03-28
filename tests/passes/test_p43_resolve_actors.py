@@ -17,6 +17,8 @@ from nnrt.passes.p26_decompose import AtomicStatement
 from nnrt.ir.schema_v0_1 import Entity, Mention, CoreferenceChain
 from nnrt.ir.enums import EntityRole, EntityType, MentionType
 
+pytestmark = pytest.mark.unit
+
 
 def _make_context(text: str) -> TransformContext:
     """Create a TransformContext with proper initialization."""

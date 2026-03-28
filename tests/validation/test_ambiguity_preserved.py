@@ -2,6 +2,8 @@ import pytest
 from nnrt.core.context import TransformRequest
 from nnrt.output.structured import build_structured_output
 
+pytestmark = pytest.mark.unit
+
 AMBIGUOUS_IDS = ["hard_002", "hard_003"]
 
 def test_ambiguity_preserved(engine, hard_cases):

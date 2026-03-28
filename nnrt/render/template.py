@@ -5,6 +5,8 @@ Uses templates to produce neutral text from IR structures.
 This is the safest rendering option - fully deterministic.
 """
 
+from __future__ import annotations
+
 from typing import Optional
 
 from nnrt.ir.schema_v0_1 import TransformResult

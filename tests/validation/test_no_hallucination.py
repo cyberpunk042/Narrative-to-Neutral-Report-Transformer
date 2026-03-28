@@ -2,6 +2,8 @@ import pytest
 from nnrt.core.context import TransformRequest
 from nnrt.output.structured import build_structured_output
 
+pytestmark = pytest.mark.unit
+
 def test_no_hallucination(engine, hard_cases):
     """
     Verify that structured output does not contain hallucinations.

@@ -8,6 +8,8 @@ Provides the foundation for invariant-driven output:
 - QuarantineItem: Content that failed invariants
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, List, Optional

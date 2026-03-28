@@ -8,6 +8,8 @@ from nnrt.ir.schema_v0_1 import Segment, Entity, Event, SemanticSpan
 from nnrt.ir.enums import EntityRole, EntityType, EventType, SpeechActType, SpanLabel
 from nnrt.passes.p40_build_ir import build_ir
 
+pytestmark = pytest.mark.unit
+
 
 def _make_context(text: str) -> TransformContext:
     """Helper to create a context with a segment."""

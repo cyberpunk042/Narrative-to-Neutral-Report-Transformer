@@ -8,6 +8,8 @@ from nnrt.passes.p32_extract_entities import extract_entities
 from nnrt.ir.enums import EntityRole
 from nnrt.ir.schema_v0_1 import Identifier
 
+pytestmark = pytest.mark.unit
+
 def test_extract_generic_subjects():
     """
     Verify contextual role references are extracted as entities.

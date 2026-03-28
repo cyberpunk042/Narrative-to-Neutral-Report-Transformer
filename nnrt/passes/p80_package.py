@@ -5,6 +5,8 @@ Final packaging of IR, text, trace, and diagnostics.
 Performs validation before output.
 """
 
+from __future__ import annotations
+
 from nnrt.core.context import TransformContext
 from nnrt.core.logging import get_pass_logger
 from nnrt.ir.enums import TransformStatus

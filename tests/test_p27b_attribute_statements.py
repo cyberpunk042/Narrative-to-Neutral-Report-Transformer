@@ -7,6 +7,7 @@ epistemic content into safe attributed forms or quarantines it.
 
 import pytest
 from nnrt.passes.p27b_attribute_statements import (
+
     _check_aberration,
     _extract_legal_claim,
     _extract_interpretation,
@@ -15,6 +16,8 @@ from nnrt.passes.p27b_attribute_statements import (
     LEGAL_TERM_EXTRACTIONS,
     INTERPRETATION_EXTRACTIONS,
 )
+
+pytestmark = pytest.mark.unit
 
 
 class TestCheckAberration:

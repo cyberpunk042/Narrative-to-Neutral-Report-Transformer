@@ -12,6 +12,8 @@ to identify different types of semantic content:
 - Temporal/Spatial markers
 """
 
+from __future__ import annotations
+
 from uuid import uuid4
 
 from nnrt.core.context import TransformContext

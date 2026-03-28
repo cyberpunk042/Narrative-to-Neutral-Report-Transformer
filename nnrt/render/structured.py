@@ -33,6 +33,8 @@ OBSERVATIONS
 ...etc
 """
 
+from __future__ import annotations
+
 from typing import Dict, List, Any, Set
 from collections import defaultdict
 

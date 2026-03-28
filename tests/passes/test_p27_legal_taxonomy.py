@@ -11,6 +11,8 @@ Tests that legal claims are correctly classified into sub-types:
 import pytest
 from nnrt.passes.p27_epistemic_tag import _classify_epistemic
 
+pytestmark = pytest.mark.unit
+
 
 class TestLegalClaimDirect:
     """Test that direct legal allegations are classified correctly."""

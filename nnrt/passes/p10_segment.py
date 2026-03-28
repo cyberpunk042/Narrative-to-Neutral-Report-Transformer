@@ -5,6 +5,8 @@ Segments normalized text into sentences using spaCy.
 Includes quote-aware merging to keep quoted content together.
 """
 
+from __future__ import annotations
+
 import re
 from uuid import uuid4
 

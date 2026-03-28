@@ -10,6 +10,7 @@ from nnrt.core.context import TransformRequest
 from nnrt.core.engine import Engine, Pipeline
 from nnrt.ir.enums import SpanLabel, TransformStatus
 from nnrt.passes import (
+
     augment_ir,
     build_ir,
     evaluate_policy,
@@ -20,6 +21,8 @@ from nnrt.passes import (
     segment,
     tag_spans,
 )
+
+pytestmark = pytest.mark.integration
 
 
 @pytest.fixture

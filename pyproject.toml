@@ -76,3 +76,9 @@ warn_unused_configs = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --cov=nnrt --cov-report=term-missing"
+markers = [
+    "unit: fast, isolated tests for a single pass or module",
+    "integration: multi-pass or full pipeline tests",
+    "golden: regression tests with locked-in expected behavior",
+    "stress: comprehensive, adversarial, or high-complexity tests",
+]

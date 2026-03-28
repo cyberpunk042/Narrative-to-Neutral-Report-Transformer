@@ -4,12 +4,15 @@ Unit tests for V6 Question Generation.
 
 import pytest
 from nnrt.v6.questions import (
+
     generate_all_questions,
     generate_questions_from_gaps,
     generate_questions_from_statements,
     QuestionPriority,
     QuestionCategory,
 )
+
+pytestmark = pytest.mark.stress
 
 
 class MockGap:

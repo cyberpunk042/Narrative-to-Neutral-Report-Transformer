@@ -2,6 +2,8 @@ import pytest
 from nnrt.core.context import TransformRequest
 from nnrt.output.structured import build_structured_output
 
+pytestmark = pytest.mark.unit
+
 INFLAMMATORY_TERMS = [
     "brutal", "vicious", "thug", "pig", "scum", 
     "obviously", "clearly", "undoubtedly"

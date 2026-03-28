@@ -12,6 +12,8 @@ Classification hierarchy:
 This uses research-grounded linguistic markers for epistemic status classification.
 """
 
+from __future__ import annotations
+
 import re
 from typing import Optional
 

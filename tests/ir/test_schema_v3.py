@@ -16,11 +16,14 @@ from nnrt.ir.schema_v0_1 import (
     EvidenceClassification,
 )
 from nnrt.ir.enums import (
+
     MentionType,
     GroupType,
     TemporalRelation,
     EvidenceType,
 )
+
+pytestmark = pytest.mark.unit
 
 
 class TestMention:

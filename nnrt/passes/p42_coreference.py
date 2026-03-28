@@ -36,6 +36,8 @@ Design principles:
 - V9: Use FastCoref when available for neural-based resolution
 """
 
+from __future__ import annotations
+
 import re
 import structlog
 from typing import Optional
