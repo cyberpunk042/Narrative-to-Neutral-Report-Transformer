@@ -1,7 +1,25 @@
 """
-TransformContext — Mutable state passed between pipeline passes.
+nnrt.core.context — Pipeline execution context.
 
-Each pass reads prior artifacts and mutates only its allowed fields.
+This module defines the two core data structures that carry state through
+the NNRT transformation pipeline:
+
+- ``TransformRequest``: Immutable input to the pipeline. Holds the raw text,
+  an auto-generated request ID, and optional metadata.
+
+- ``TransformContext``: Mutable working state threaded through every pipeline
+  pass. Accumulates IR artefacts (segments, spans, entities, events, speech
+  acts, timeline entries, etc.), cross-pass communication helpers (span
+  decisions, protected character ranges), quarantine buckets for invariant
+  failures, and the final rendered output. Each pass reads any prior field and
+  mutates only the fields it owns.
+
+Typical flow::
+
+    request = TransformRequest(text="Officer Jenkins reported...")
+    ctx     = TransformContext.from_request(request)
+    ctx     = some_pass(ctx)
+    result  = ctx.to_result()   # → TransformResult (pydantic, serialisable)
 """
 
 from dataclasses import dataclass, field
