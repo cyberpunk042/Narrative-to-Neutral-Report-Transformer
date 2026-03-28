@@ -4,6 +4,8 @@ Stub Backend — No-op implementation for testing.
 Used to validate pipeline architecture without real NLP models.
 """
 
+from __future__ import annotations
+
 from nnrt.ir.enums import EntityRole, EntityType, EventType, SpanLabel
 from nnrt.nlp.interfaces import (
     EntityExtractResult,

@@ -2,6 +2,8 @@
 Schema Validator — Validates IR structure and types.
 """
 
+from __future__ import annotations
+
 from nnrt.core.context import TransformContext
 from nnrt.core.contracts import Validator
 

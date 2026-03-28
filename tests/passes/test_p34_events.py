@@ -2,6 +2,8 @@
 Unit tests for p34_extract_events pass.
 """
 
+from __future__ import annotations
+
 import pytest
 from nnrt.core.context import TransformContext, TransformRequest
 from nnrt.ir.schema_v0_1 import Segment, Entity

@@ -10,6 +10,8 @@ Classifies each segment as:
 This enriches the IR with epistemic metadata for structured output.
 """
 
+from __future__ import annotations
+
 import re
 from nnrt.core.context import TransformContext
 from nnrt.core.logging import get_pass_logger

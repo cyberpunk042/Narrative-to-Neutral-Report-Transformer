@@ -14,6 +14,8 @@ Per LLM policy:
 - Fallback to template if LLM fails validation
 """
 
+from __future__ import annotations
+
 import os
 from nnrt.core.context import TransformContext
 from nnrt.core.logging import get_pass_logger

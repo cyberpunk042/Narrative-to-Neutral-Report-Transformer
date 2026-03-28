@@ -30,6 +30,8 @@ Design principles:
 - Confidence reflects certainty of placement
 """
 
+from __future__ import annotations
+
 import re
 import structlog
 from typing import Optional

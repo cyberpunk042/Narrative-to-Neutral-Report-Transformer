@@ -6,6 +6,8 @@ Supports two modes:
 2. Profile: Load composed profile with includes from multiple category files
 """
 
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Optional
 

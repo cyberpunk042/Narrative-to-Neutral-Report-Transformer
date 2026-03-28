@@ -7,6 +7,8 @@ manages validation, and packages output.
 The engine is NOT where domain logic lives.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Callable, Optional
 

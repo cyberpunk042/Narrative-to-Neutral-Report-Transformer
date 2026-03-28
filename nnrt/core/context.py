@@ -4,6 +4,8 @@ TransformContext — Mutable state passed between pipeline passes.
 Each pass reads prior artifacts and mutates only its allowed fields.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Optional

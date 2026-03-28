@@ -17,6 +17,8 @@ V7 / Stage 4: Primary context detection (CHARGE, FORCE, INJURY, TIMELINE)
 is now handled by PolicyEngine YAML rules in _context/ directory.
 """
 
+from __future__ import annotations
+
 import re
 from uuid import uuid4
 
