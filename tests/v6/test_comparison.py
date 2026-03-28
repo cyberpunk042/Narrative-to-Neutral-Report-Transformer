@@ -4,6 +4,7 @@ Unit tests for V6 Multi-Narrative Comparison.
 
 import pytest
 from nnrt.v6.comparison import (
+
     compare_narratives,
     format_comparison_report,
     ComparisonResult,
@@ -13,6 +14,8 @@ from nnrt.v6.comparison import (
     _text_similarity,
     _compare_events,
 )
+
+pytestmark = pytest.mark.stress
 
 
 class MockTransformResult:

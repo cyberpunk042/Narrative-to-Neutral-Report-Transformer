@@ -7,6 +7,8 @@ V10: Updated to provide selection_result (now required).
 import pytest
 from nnrt.selection.models import SelectionResult
 
+pytestmark = pytest.mark.unit
+
 
 class TestTimelineRendering:
     """Tests for timeline section in structured output."""

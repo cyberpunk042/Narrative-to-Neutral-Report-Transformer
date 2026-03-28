@@ -9,6 +9,8 @@ Compound sentences are split at clause boundaries (and, because, but, etc.).
 This is the foundation for proper NNRT structural decomposition.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from typing import Optional
 

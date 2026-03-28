@@ -11,6 +11,7 @@ from typing import Optional
 
 from nnrt.selection.models import SelectionMode, SelectionResult
 from nnrt.passes.p55_select import (
+
     select,
     _select_events,
     _select_entities,
@@ -18,6 +19,8 @@ from nnrt.passes.p55_select import (
     _select_timeline,
     _parse_mode,
 )
+
+pytestmark = pytest.mark.integration
 
 
 # =============================================================================

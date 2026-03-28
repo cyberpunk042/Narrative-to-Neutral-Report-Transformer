@@ -21,6 +21,8 @@ Configuration via environment:
 - NNRT_LOG_CHANNELS: Comma-separated channel filter (all if not set)
 """
 
+from __future__ import annotations
+
 import logging
 import os
 import sys

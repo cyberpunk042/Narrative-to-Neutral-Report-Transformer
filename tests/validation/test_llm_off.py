@@ -3,6 +3,8 @@ from nnrt.core.context import TransformRequest
 from nnrt.core.engine import get_engine
 from nnrt.cli.main import setup_default_pipeline
 
+pytestmark = pytest.mark.unit
+
 def test_llm_off_resilience(hard_cases):
     """
     Verify that the pipeline runs successfully even with LLM disabled (explicitly).

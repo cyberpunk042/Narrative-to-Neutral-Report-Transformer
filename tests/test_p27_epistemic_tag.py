@@ -7,6 +7,7 @@ with their epistemic type (direct_event, self_report, interpretation, etc.)
 
 import pytest
 from nnrt.passes.p27_epistemic_tag import (
+
     _classify_epistemic,
     _classify_polarity,
     SELF_REPORT_PATTERNS,
@@ -15,6 +16,8 @@ from nnrt.passes.p27_epistemic_tag import (
     CONSPIRACY_PATTERNS,
     MEDICAL_FINDING_PATTERNS,
 )
+
+pytestmark = pytest.mark.unit
 
 
 class TestClassifyEpistemic:

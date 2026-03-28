@@ -12,6 +12,8 @@ from dataclasses import dataclass, field
 from typing import Optional
 from enum import Enum
 
+pytestmark = pytest.mark.unit
+
 
 # Mock classes to avoid full pipeline dependency
 class StatementType(Enum):

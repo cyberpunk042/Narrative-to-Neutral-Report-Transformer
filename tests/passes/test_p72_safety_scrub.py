@@ -9,6 +9,8 @@ import pytest
 from nnrt.core.context import TransformContext, TransformRequest
 from nnrt.passes.p72_safety_scrub import safety_scrub
 
+pytestmark = pytest.mark.unit
+
 
 def _make_context(rendered_text: str) -> TransformContext:
     """Create a context with rendered_text set."""

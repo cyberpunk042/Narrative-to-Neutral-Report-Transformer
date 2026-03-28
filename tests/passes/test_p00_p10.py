@@ -7,6 +7,8 @@ from nnrt.core.context import TransformContext, TransformRequest
 from nnrt.passes.p00_normalize import normalize
 from nnrt.passes.p10_segment import segment
 
+pytestmark = pytest.mark.unit
+
 
 class TestP00Normalize:
     """Tests for p00_normalize pass."""

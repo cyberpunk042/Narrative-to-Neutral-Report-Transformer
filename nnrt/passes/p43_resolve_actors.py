@@ -19,6 +19,8 @@ Exit Criteria:
     - Quotes contain ONLY quoted speech (interpretation split off)
 """
 
+from __future__ import annotations
+
 import re
 from typing import Optional
 

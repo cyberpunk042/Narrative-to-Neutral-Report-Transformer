@@ -11,6 +11,8 @@ The goal: A human can answer "What is claimed vs observed vs inferred?"
 without reading the original narrative.
 """
 
+from __future__ import annotations
+
 import hashlib
 from datetime import datetime
 from typing import Optional

@@ -8,6 +8,8 @@ medical_finding instead of self_report when the subject is a provider.
 import pytest
 from nnrt.passes.p27_epistemic_tag import _classify_epistemic
 
+pytestmark = pytest.mark.unit
+
 
 class TestMedicalProviderFinding:
     """Test that medical provider findings are correctly classified."""

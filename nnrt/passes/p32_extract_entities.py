@@ -11,6 +11,8 @@ This pass:
 - Does NOT directly access spaCy (that's the backend's job)
 """
 
+from __future__ import annotations
+
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Optional, Dict, List

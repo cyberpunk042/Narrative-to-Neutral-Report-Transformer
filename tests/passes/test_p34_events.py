@@ -2,11 +2,15 @@
 Unit tests for p34_extract_events pass.
 """
 
+from __future__ import annotations
+
 import pytest
 from nnrt.core.context import TransformContext, TransformRequest
 from nnrt.ir.schema_v0_1 import Segment, Entity
 from nnrt.ir.enums import EntityRole, EntityType, EventType
 from nnrt.passes.p34_extract_events import extract_events
+
+pytestmark = pytest.mark.unit
 
 
 def _make_context(text: str, entities: list[Entity] = None) -> TransformContext:

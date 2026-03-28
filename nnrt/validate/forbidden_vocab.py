@@ -2,6 +2,8 @@
 Forbidden Vocabulary Validator — Checks for prohibited terms.
 """
 
+from __future__ import annotations
+
 from nnrt.core.context import TransformContext
 from nnrt.core.contracts import Validator
 

@@ -7,6 +7,8 @@ from nnrt.core.context import TransformContext, TransformRequest
 from nnrt.ir.schema_v0_1 import Segment
 from nnrt.passes.p50_policy import evaluate_policy
 
+pytestmark = pytest.mark.unit
+
 
 def _make_context(text: str) -> TransformContext:
     """Helper to create a context with a segment."""

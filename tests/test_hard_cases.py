@@ -14,6 +14,7 @@ from nnrt.core.context import TransformRequest
 from nnrt.core.engine import Engine, Pipeline
 from nnrt.cli.main import setup_default_pipeline
 from nnrt.passes import (
+
     augment_ir,
     build_ir,
     evaluate_policy,
@@ -24,6 +25,8 @@ from nnrt.passes import (
     segment,
     tag_spans,
 )
+
+pytestmark = pytest.mark.golden
 
 # Path to hard cases
 HARD_CASES_FILE = Path(__file__).parent.parent / "data" / "synthetic" / "hard_cases.yaml"

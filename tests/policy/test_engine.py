@@ -5,12 +5,15 @@ Unit tests for the Policy Engine.
 import pytest
 from nnrt.policy.engine import PolicyEngine, RuleMatch
 from nnrt.policy.models import (
+
     MatchType,
     PolicyRule,
     PolicyRuleset,
     RuleAction,
     RuleMatch as RuleMatchModel,
 )
+
+pytestmark = pytest.mark.unit
 
 
 class TestPolicyEngineMatching:

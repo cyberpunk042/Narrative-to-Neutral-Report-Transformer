@@ -8,6 +8,8 @@ Identifiers are critical for legal documentation and must
 be preserved exactly as stated in the original narrative.
 """
 
+from __future__ import annotations
+
 import re
 from uuid import uuid4
 

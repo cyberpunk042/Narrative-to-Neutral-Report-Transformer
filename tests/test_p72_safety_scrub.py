@@ -15,6 +15,8 @@ from nnrt.passes.p72_safety_scrub import (
 )
 from nnrt.core.context import TransformContext, TransformRequest
 
+pytestmark = pytest.mark.unit
+
 
 class TestSafetyScrubPatterns:
     """Tests for pattern-based scrubbing."""

@@ -8,6 +8,8 @@ from nnrt.nlp.interfaces import SpanTagResult
 from nnrt.nlp.backends.stub import StubSpanTagger, StubEntityExtractor, StubEventExtractor
 from nnrt.nlp.backends.spacy_backend import SpacyEntityExtractor, SpacyEventExtractor
 
+pytestmark = pytest.mark.unit
+
 
 class TestStubBackends:
     """Tests for stub (no-op) backends."""

@@ -10,6 +10,8 @@ Tests the V4 observation section rendering:
 
 import pytest
 
+pytestmark = pytest.mark.unit
+
 
 class TestCameraFriendlyFilter:
     """Tests for is_camera_friendly logic."""

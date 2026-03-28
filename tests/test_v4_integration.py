@@ -14,6 +14,8 @@ from typing import Optional
 from enum import Enum
 from nnrt.selection.models import SelectionResult
 
+pytestmark = pytest.mark.integration
+
 
 # ============================================================================
 # Real AtomicStatement to test actual functions

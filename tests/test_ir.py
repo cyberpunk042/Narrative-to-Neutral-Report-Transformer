@@ -2,10 +2,13 @@
 Tests for IR models and serialization.
 """
 
+import pytest
 from datetime import datetime
 
 from nnrt.ir import Segment, SemanticSpan, SpanLabel, TransformResult, TransformStatus
 from nnrt.ir.serialization import from_json, to_json
+
+pytestmark = pytest.mark.unit
 
 
 def test_segment_creation():

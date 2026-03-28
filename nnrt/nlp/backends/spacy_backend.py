@@ -5,6 +5,8 @@ These implementations wrap spaCy functionality behind the defined
 NLP interfaces for pluggable backend support.
 """
 
+from __future__ import annotations
+
 from typing import Optional
 
 from nnrt.ir.enums import EntityRole, EntityType, EventType, SpanLabel

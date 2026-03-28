@@ -9,6 +9,8 @@ from nnrt.core.context import TransformContext, TransformRequest
 from nnrt.ir.schema_v0_1 import Segment, Event
 from nnrt.ir.enums import EventType, TimeSource, TimeGapType
 
+pytestmark = pytest.mark.unit
+
 
 def _make_full_ctx(text: str, events: list) -> TransformContext:
     """Helper to create a context, run expressions and relations."""

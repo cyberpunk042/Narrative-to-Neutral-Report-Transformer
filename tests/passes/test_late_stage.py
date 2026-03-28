@@ -10,6 +10,8 @@ from nnrt.passes.p60_augment_ir import augment_ir
 from nnrt.passes.p70_render import render
 from nnrt.passes.p80_package import package
 
+pytestmark = pytest.mark.unit
+
 
 def _make_context(text: str) -> TransformContext:
     """Helper to create a context with a segment."""
