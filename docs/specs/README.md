@@ -2,7 +2,7 @@
 
 ## Overview
 
-These specs define the implementation path from current state (v0.2) to pre-alpha.
+These specs define the implementation path from current state (v0.3) to pre-alpha.
 
 ---
 
@@ -15,6 +15,7 @@ These specs define the implementation path from current state (v0.2) to pre-alph
 | [phase2_structured_output.md](phase2_structured_output.md) | JSON output schema | 2-3 |
 | [phase3_4_uncertainty_entities.md](phase3_4_uncertainty_entities.md) | Uncertainty & entity/event extraction | 5-6 |
 | [phase5_validation.md](phase5_validation.md) | Validation test suites | 3-4 |
+| [p51-contradiction-detection.md](p51-contradiction-detection.md) | Contradiction detection pass (Milestone 3) | TBD |
 
 ---
 

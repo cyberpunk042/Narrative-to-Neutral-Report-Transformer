@@ -64,7 +64,7 @@ This milestone transforms NNRT from a "dumb transformer" to an "intelligent advi
 | Logical impossibility | "I never touched him. After I shoved him..." | Direct contradiction |
 
 **Implementation:**
-- New pass: `p35_detect_contradictions`
+- New pass: `p51_detect_contradictions` (see [spec](../specs/p51-contradiction-detection.md))
 - Cross-segment analysis
 - New diagnostic: `CONTRADICTION_DETECTED`
 - Preserve both statements, flag for review
@@ -90,7 +90,9 @@ This milestone transforms NNRT from a "dumb transformer" to an "intelligent advi
 
 ## Architecture Additions
 
-### New Pass: p35_detect_contradictions
+### New Pass: p51_detect_contradictions
+
+> The authoritative pipeline placement and full algorithm design live in [`docs/specs/p51-contradiction-detection.md`](../specs/p51-contradiction-detection.md). The diagram below is a milestone-level sketch — the spec runs `p51` **after** `p50_policy` so that contradiction detection operates on the post-policy IR.
 
 ```
 p00_normalize
@@ -98,9 +100,9 @@ p10_segment
 p20_tag_spans
 p25_annotate_context
 p30_extract_identifiers
-p35_detect_contradictions  ← NEW
 p40_build_ir
 p50_policy
+p51_detect_contradictions  ← NEW
 p60_augment_ir
 p70_render
 p80_package
