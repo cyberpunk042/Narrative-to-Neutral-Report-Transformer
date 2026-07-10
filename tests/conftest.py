@@ -42,7 +42,10 @@ def _skip_when_spacy_model_missing(monkeypatch):
     NLP engine — nothing else is affected."""
     if _NLP_MODEL_AVAILABLE:
         return
-    import spacy
+    try:
+        import spacy
+    except Exception:
+        return  # spaCy itself unimportable — nothing to patch; leave collection as-is
 
     def _skip_load(*_args, **_kwargs):
         pytest.skip(

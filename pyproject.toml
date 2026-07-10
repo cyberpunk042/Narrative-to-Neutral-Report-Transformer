@@ -29,8 +29,13 @@ dependencies = [
     # spaCy is the core NLP engine (imported across nnrt/passes and nnrt/nlp);
     # the language model (en_core_web_sm) is a separate data download.
     "spacy>=3.7",
+    # spaCy's CLI imports `click` directly (spacy/cli/_util.py) but only declares
+    # `typer`, so pin it explicitly or `import spacy` fails with No module 'click'.
+    "click>=8.0",
     # structlog is the logging backbone, imported unconditionally in core passes.
     "structlog>=23.0",
+    # PyYAML backs the policy/domain config loaders (nnrt/policy, nnrt/domain).
+    "pyyaml>=6.0",
     # Heavy / optional (local-LLM event extraction) stay in the `nlp` extra:
     # transformers, torch, accelerate, sentencepiece, google-generativeai.
 ]
@@ -50,12 +55,10 @@ nlp = [
     "sentencepiece>=0.1.99",
     "google-generativeai>=0.3",  # V10: LLM-based event extraction
 ]
-production = [
-    "pyyaml>=6.0",
-    # structlog moved to core dependencies (used unconditionally in passes).
-]
 all = [
-    "nnrt[dev,nlp,production]",
+    # structlog, pyyaml and spaCy are now core dependencies; `all` adds the
+    # dev tooling plus the heavy local-LLM stack.
+    "nnrt[dev,nlp]",
 ]
 
 [project.scripts]
