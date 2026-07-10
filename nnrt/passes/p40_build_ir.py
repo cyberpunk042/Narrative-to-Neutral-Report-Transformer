@@ -15,12 +15,10 @@ This pass:
 from __future__ import annotations
 
 import re
-from typing import Optional
-from uuid import uuid4
 
 from nnrt.core.context import TransformContext
 from nnrt.core.logging import get_pass_logger
-from nnrt.ir.enums import EntityRole, SpeechActType
+from nnrt.ir.enums import SpeechActType
 from nnrt.ir.schema_v0_1 import Entity, Event, SpeechAct
 from nnrt.nlp.spacy_loader import get_nlp
 
@@ -50,13 +48,13 @@ SPEECH_ACT_VERBS = {
 def build_ir(ctx: TransformContext) -> TransformContext:
     """
     Assemble IR from extracted components.
-    
+
     This pass:
     - Uses entities from p32 (does NOT extract its own)
     - Uses events from p34 (does NOT extract its own)
     - Extracts speech acts (unique to this pass)
     - Links and validates cross-references
-    
+
     If p32/p34 produced no entities/events, this pass does NOT
     fall back to inferior extraction. Empty IR = transparent failure.
     """
@@ -73,7 +71,7 @@ def build_ir(ctx: TransformContext) -> TransformContext:
     entities: list[Entity] = list(ctx.entities) if ctx.entities else []
     events: list[Event] = list(ctx.events) if ctx.events else []
     speech_acts: list[SpeechAct] = list(ctx.speech_acts) if ctx.speech_acts else []
-    
+
     # Log if extraction passes produced nothing (transparent, not hidden)
     if len(entities) == 0:
         ctx.add_diagnostic(
@@ -82,42 +80,42 @@ def build_ir(ctx: TransformContext) -> TransformContext:
             message="No entities from p32. IR will have no entities.",
             source=PASS_NAME,
         )
-    
+
     if len(events) == 0:
         ctx.add_diagnostic(
             level="info",
-            code="NO_EVENTS", 
+            code="NO_EVENTS",
             message="No events from p34. IR will have no events.",
             source=PASS_NAME,
         )
-    
+
     # Build entity lookup for speech act speaker resolution
     entity_by_role: dict[str, Entity] = {}
     for ent in entities:
         if ent.role.value not in entity_by_role:
             entity_by_role[ent.role.value] = ent
-    
+
     # Extract speech acts (p40's unique responsibility)
     nlp = get_nlp()
     speech_act_counter = len(speech_acts)
-    
+
     for segment in ctx.segments:
         doc = nlp(segment.text)
         segment_spans = [s for s in ctx.spans if s.segment_id == segment.id]
         span_ids = [s.id for s in segment_spans]
-        
+
         for token in doc:
             if token.lemma_.lower() in SPEECH_ACT_VERBS:
                 speech_type = SPEECH_ACT_VERBS.get(token.lemma_.lower(), SpeechActType.STATEMENT)
                 speech_verb = token.text.lower()  # V5: Capture the actual verb form
-                
+
                 # Find speaker by matching subject to known entities
                 speaker_id = None
                 speaker_label = None
                 for child in token.children:
                     if child.dep_ == "nsubj":
                         subject_text = child.text.lower()
-                        
+
                         # V8.1: "I" in first-person narrative = Reporter
                         if subject_text == "i":
                             speaker_label = "Reporter"
@@ -138,14 +136,14 @@ def build_ir(ctx: TransformContext) -> TransformContext:
                             if not speaker_label:
                                 # Use the text itself as label if not resolved
                                 speaker_label = child.text
-                
+
                 # Extract quoted content if present
                 content = _extract_speech_content(segment.text)
                 is_direct = '"' in segment.text or "'" in segment.text
-                
+
                 # V5: Detect nested quotes
                 is_nested = segment.text.count('"') > 2 or segment.text.count("'") > 2
-                
+
                 if content:
                     speech_act = SpeechAct(
                         id=f"speech_{speech_act_counter:03d}",
@@ -175,13 +173,13 @@ def build_ir(ctx: TransformContext) -> TransformContext:
     ctx.entities = entities
     ctx.events = events
     ctx.speech_acts = speech_acts
-    
+
     log.info("assembled",
         entities=len(entities),
         events=len(events),
         speech_acts=len(speech_acts),
     )
-    
+
     ctx.add_trace(
         pass_name=PASS_NAME,
         action="assembled_ir",
@@ -191,10 +189,10 @@ def build_ir(ctx: TransformContext) -> TransformContext:
     return ctx
 
 
-def _resolve_speaker(text: str, entities: list[Entity]) -> Optional[str]:
+def _resolve_speaker(text: str, entities: list[Entity]) -> str | None:
     """Resolve speaker text to an entity ID."""
     text_lower = text.lower()
-    
+
     # Check if text matches any entity label or mention
     for ent in entities:
         if ent.label and ent.label.lower() in text_lower:
@@ -202,7 +200,7 @@ def _resolve_speaker(text: str, entities: list[Entity]) -> Optional[str]:
         for mention in ent.mentions:
             if isinstance(mention, str) and mention.lower() in text_lower:
                 return ent.id
-    
+
     return None
 
 
@@ -212,11 +210,11 @@ def _extract_speech_content(text: str) -> str:
     double_match = re.search(r'"([^"]+)"', text)
     if double_match:
         return double_match.group(1)
-    
+
     # Try single quotes
     single_match = re.search(r"'([^']+)'", text)
     if single_match:
         return single_match.group(1)
-    
+
     # No quotes - return empty (indirect speech will be handled differently)
     return ""

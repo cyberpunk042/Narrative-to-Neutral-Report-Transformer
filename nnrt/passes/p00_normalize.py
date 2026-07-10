@@ -19,7 +19,7 @@ log = get_pass_logger(PASS_NAME)
 def normalize(ctx: TransformContext) -> TransformContext:
     """
     Normalize raw input text.
-    
+
     This pass:
     - Strips leading/trailing whitespace
     - Normalizes Unicode (NFC)
@@ -28,7 +28,7 @@ def normalize(ctx: TransformContext) -> TransformContext:
     """
     raw = ctx.raw_text
     raw_len = len(raw)
-    
+
     log.verbose("starting_normalization", input_chars=raw_len)
 
     # Unicode normalization (NFC)
@@ -44,11 +44,11 @@ def normalize(ctx: TransformContext) -> TransformContext:
 
     text = "\n\n".join(normalized_lines)
     output_len = len(text)
-    
+
     # Log results
     log.info(
-        "normalized", 
-        input_chars=raw_len, 
+        "normalized",
+        input_chars=raw_len,
         output_chars=output_len,
         paragraphs=len(normalized_lines),
         chars_removed=raw_len - output_len,

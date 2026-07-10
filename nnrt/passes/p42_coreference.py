@@ -39,12 +39,12 @@ Design principles:
 from __future__ import annotations
 
 import re
+
 import structlog
-from typing import Optional
 
 from nnrt.core.context import TransformContext
-from nnrt.ir.schema_v0_1 import Mention, CoreferenceChain, Entity
-from nnrt.ir.enums import MentionType, EntityRole, EntityType
+from nnrt.ir.enums import EntityRole, MentionType
+from nnrt.ir.schema_v0_1 import CoreferenceChain, Entity, Mention
 from nnrt.nlp.spacy_loader import get_nlp
 
 log = structlog.get_logger("nnrt.p42_coreference")
@@ -77,12 +77,12 @@ ALL_PRONOUNS = FIRST_PERSON | MALE_PRONOUNS | FEMALE_PRONOUNS | NEUTRAL_PRONOUNS
 # Gender inference from names (expandable)
 MALE_INDICATORS = {
     "officer", "sergeant", "detective", "captain", "mr", "sir",
-    "james", "john", "robert", "michael", "william", "david", "marcus", 
+    "james", "john", "robert", "michael", "william", "david", "marcus",
     "jenkins", "rodriguez", "williams", "johnson", "smith", "brown"
 }
 FEMALE_INDICATORS = {
     "ms", "mrs", "miss", "madam",
-    "mary", "patricia", "jennifer", "linda", "sarah", "amanda", 
+    "mary", "patricia", "jennifer", "linda", "sarah", "amanda",
     "foster", "chen", "lisa", "nancy"
 }
 
@@ -90,7 +90,7 @@ FEMALE_INDICATORS = {
 def resolve_coreference(ctx: TransformContext) -> TransformContext:
     """
     Resolve pronouns and build coreference chains.
-    
+
     V9: Uses FastCoref when available for neural-based resolution.
     Falls back to rule-based algorithm otherwise.
     """
@@ -98,15 +98,15 @@ def resolve_coreference(ctx: TransformContext) -> TransformContext:
         log.info("no_entities", pass_name=PASS_NAME, message="No entities to resolve")
         ctx.add_trace(PASS_NAME, "skipped", after="No entities")
         return ctx
-    
+
     # =========================================================================
     # PHASE 0 (V9): FastCoref Resolution
     # =========================================================================
     # Use FastCoref when available for neural pronoun resolution
-    
+
     fastcoref_resolver = _get_fastcoref()
     fastcoref_resolved = 0
-    
+
     if fastcoref_resolver:
         # Build entity map for preferred names
         entity_map = {}
@@ -117,55 +117,55 @@ def resolve_coreference(ctx: TransformContext) -> TransformContext:
                 for word in words:
                     if word[0].isupper() and len(word) > 2:
                         entity_map[word] = entity.label
-        
+
         # Resolve pronouns in each segment
         for segment in ctx.segments:
             original = segment.text
             resolved = fastcoref_resolver.resolve(original, entity_map)
-            
+
             if resolved != original:
                 # Store resolved text for event extraction
                 segment.resolved_text = resolved  # V9: Add resolved_text attribute
                 fastcoref_resolved += 1
-                
+
                 log.debug(
                     "fastcoref_segment_resolved",
                     segment_id=segment.id,
                     original_len=len(original),
                     resolved_len=len(resolved),
                 )
-        
+
         if fastcoref_resolved > 0:
             log.info(
-                "fastcoref_resolution", 
+                "fastcoref_resolution",
                 pass_name=PASS_NAME,
                 segments_resolved=fastcoref_resolved,
             )
-    
+
     all_mentions: list[Mention] = []
     mention_counter = 0
-    
+
     nlp = get_nlp()
-    
+
     # =========================================================================
     # PHASE 1: Exhaustive Mention Detection
     # =========================================================================
     # For each entity, search for all occurrences in text
-    
+
     for segment in ctx.segments:
         # Always use original text for mention detection
         # (resolved_text is for event extraction in p34)
         text = segment.text
-        text_lower = text.lower()
-        
+        text.lower()
+
         # Track positions we've already created mentions for (avoid duplicates)
         covered_ranges: list[tuple[int, int]] = []
-        
+
         # A) Search for each entity's label in the text
         for entity in ctx.entities:
             if not entity.label:
                 continue
-            
+
             # Search for full label
             positions = _find_all_occurrences(text, entity.label)
             for start, end in positions:
@@ -183,7 +183,7 @@ def resolve_coreference(ctx: TransformContext) -> TransformContext:
                     all_mentions.append(mention)
                     covered_ranges.append((start, end))
                     mention_counter += 1
-            
+
             # Search for individual significant words (skip common titles)
             label_words = entity.label.split()
             for word in label_words:
@@ -191,7 +191,7 @@ def resolve_coreference(ctx: TransformContext) -> TransformContext:
                     continue
                 if word.lower() in {"the", "officer", "sergeant", "dr", "mr", "ms", "mrs"}:
                     continue  # Skip common titles
-                    
+
                 positions = _find_all_occurrences(text, word)
                 for start, end in positions:
                     if not _overlaps_any(start, end, covered_ranges):
@@ -209,7 +209,7 @@ def resolve_coreference(ctx: TransformContext) -> TransformContext:
                         all_mentions.append(mention)
                         covered_ranges.append((start, end))
                         mention_counter += 1
-        
+
         # B) Also collect spaCy PERSON entities (as supplement)
         doc = nlp(text)
         for ent in doc.ents:
@@ -230,7 +230,7 @@ def resolve_coreference(ctx: TransformContext) -> TransformContext:
                     all_mentions.append(mention)
                     covered_ranges.append((ent.start_char, ent.end_char))
                     mention_counter += 1
-        
+
         # =====================================================================
         # PHASE 2: Pronoun Collection (using POS tagging, not NER)
         # =====================================================================
@@ -238,13 +238,13 @@ def resolve_coreference(ctx: TransformContext) -> TransformContext:
             # Use POS tagging for reliable pronoun detection
             if token.pos_ == "PRON" or token.text.lower() in ALL_PRONOUNS:
                 text_lower_tok = token.text.lower()
-                
+
                 if text_lower_tok not in ALL_PRONOUNS:
                     continue  # Not a pronoun we handle
-                
+
                 if _overlaps_any(token.idx, token.idx + len(token.text), covered_ranges):
                     continue  # Already covered
-                
+
                 # Classify pronoun
                 if text_lower_tok in FIRST_PERSON:
                     gender = "first_person"
@@ -258,7 +258,7 @@ def resolve_coreference(ctx: TransformContext) -> TransformContext:
                 else:
                     gender = "neutral"
                     number = "plural" if text_lower_tok in {"they", "them", "their", "theirs", "themselves"} else "singular"
-                
+
                 mention = Mention(
                     id=f"m_{mention_counter:04d}",
                     segment_id=segment.id,
@@ -272,26 +272,26 @@ def resolve_coreference(ctx: TransformContext) -> TransformContext:
                 all_mentions.append(mention)
                 covered_ranges.append((token.idx, token.idx + len(token.text)))
                 mention_counter += 1
-    
+
     # =========================================================================
     # PHASE 3: Unified Timeline Resolution
     # =========================================================================
-    
+
     # Find reporter entity (for first-person pronouns)
     reporter = next((e for e in ctx.entities if e.role == EntityRole.REPORTER), None)
-    
+
     # Build unified timeline: all mentions sorted by position
     # For proper names, we already have resolved_entity_id
     timeline: list[tuple[int, Mention]] = [
         (m.start_char, m) for m in all_mentions
     ]
     timeline.sort(key=lambda x: x[0])
-    
+
     # Track the most recent entity mention at each point
     # As we iterate through timeline, we know which entity was last mentioned
     recent_entity_by_gender: dict[str, str] = {}  # gender -> entity_id
-    recent_entity_any: Optional[str] = None  # Most recent entity regardless of gender
-    
+    recent_entity_any: str | None = None  # Most recent entity regardless of gender
+
     for pos, mention in timeline:
         if mention.mention_type == MentionType.PRONOUN:
             # This is a pronoun - resolve it
@@ -325,30 +325,30 @@ def resolve_coreference(ctx: TransformContext) -> TransformContext:
                     inferred_gender = _infer_entity_gender(entity)
                     if inferred_gender:
                         recent_entity_by_gender[inferred_gender] = entity.id
-    
+
     # =========================================================================
     # PHASE 4: Chain Assembly
     # =========================================================================
     chains: list[CoreferenceChain] = []
-    
+
     for entity in ctx.entities:
         # Collect all mentions for this entity
         entity_mentions = [m for m in all_mentions if m.resolved_entity_id == entity.id]
-        
+
         if not entity_mentions:
             continue
-        
+
         # Sort by position
         entity_mentions.sort(key=lambda m: m.start_char)
         entity_mention_ids = [m.id for m in entity_mentions]
-        
+
         # Check if chain has proper name
         has_proper = any(m.mention_type == MentionType.PROPER_NAME for m in entity_mentions)
-        
+
         # Calculate confidence
         proper_count = sum(1 for m in entity_mentions if m.mention_type == MentionType.PROPER_NAME)
         pronoun_count = sum(1 for m in entity_mentions if m.mention_type == MentionType.PRONOUN)
-        
+
         if proper_count >= 2:
             confidence = 0.95
         elif proper_count == 1 and pronoun_count > 0:
@@ -357,7 +357,7 @@ def resolve_coreference(ctx: TransformContext) -> TransformContext:
             confidence = 0.8
         else:
             confidence = 0.6
-        
+
         chain = CoreferenceChain(
             id=f"coref_{entity.id}",
             entity_id=entity.id,
@@ -367,16 +367,16 @@ def resolve_coreference(ctx: TransformContext) -> TransformContext:
             confidence=confidence,
         )
         chains.append(chain)
-    
+
     # Store results
     ctx.mentions = all_mentions
     ctx.coreference_chains = chains
-    
+
     # Log summary
     resolved_count = sum(1 for m in all_mentions if m.resolved_entity_id)
     proper_mentions = sum(1 for m in all_mentions if m.mention_type in {MentionType.PROPER_NAME, MentionType.TITLE})
     pronoun_mentions = sum(1 for m in all_mentions if m.mention_type == MentionType.PRONOUN)
-    
+
     log.info(
         "resolved",
         pass_name=PASS_NAME,
@@ -387,20 +387,20 @@ def resolve_coreference(ctx: TransformContext) -> TransformContext:
         resolved=resolved_count,
         chains=len(chains),
     )
-    
+
     ctx.add_trace(
         PASS_NAME,
         "coreference_resolved",
         after=f"{len(all_mentions)} mentions ({proper_mentions} proper, {pronoun_mentions} pronouns), {len(chains)} chains",
     )
-    
+
     return ctx
 
 
 def _find_all_occurrences(text: str, pattern: str) -> list[tuple[int, int]]:
     """
     Find all occurrences of pattern in text (case-insensitive, word boundaries).
-    
+
     Returns list of (start, end) tuples.
     """
     results = []
@@ -408,10 +408,10 @@ def _find_all_occurrences(text: str, pattern: str) -> list[tuple[int, int]]:
     escaped = re.escape(pattern)
     # Use word boundaries for accurate matching
     regex = rf'\b{escaped}\b'
-    
+
     for match in re.finditer(regex, text, re.IGNORECASE):
         results.append((match.start(), match.end()))
-    
+
     return results
 
 
@@ -423,52 +423,52 @@ def _overlaps_any(start: int, end: int, ranges: list[tuple[int, int]]) -> bool:
     return False
 
 
-def _match_entity_by_name(name_text: str, entities: list) -> Optional[Entity]:
+def _match_entity_by_name(name_text: str, entities: list) -> Entity | None:
     """Try to match a name mention to an existing entity."""
     name_lower = name_text.lower()
-    
+
     for entity in entities:
         if not entity.label:
             continue
         label_lower = entity.label.lower()
-        
+
         # Exact match
         if name_lower == label_lower:
             return entity
-        
+
         # Name is part of label
         if name_lower in label_lower:
             return entity
-        
+
         # Label is part of name
         if label_lower in name_lower:
             return entity
-        
+
         # Check individual words
         name_words = set(name_lower.split())
         label_words = set(label_lower.split())
         if name_words & label_words:
             return entity
-    
+
     return None
 
 
-def _infer_entity_gender(entity: Entity) -> Optional[str]:
+def _infer_entity_gender(entity: Entity) -> str | None:
     """
     Infer gender from entity label.
-    
+
     Returns "male", "female", or None if unknown.
     """
     if not entity.label:
         return None
-    
+
     label_lower = entity.label.lower()
     words = label_lower.split()
-    
+
     for word in words:
         if word in MALE_INDICATORS:
             return "male"
         if word in FEMALE_INDICATORS:
             return "female"
-    
+
     return None

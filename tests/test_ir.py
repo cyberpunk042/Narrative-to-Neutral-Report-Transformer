@@ -2,8 +2,9 @@
 Tests for IR models and serialization.
 """
 
-import pytest
 from datetime import datetime
+
+import pytest
 
 from nnrt.ir import Segment, SemanticSpan, SpanLabel, TransformResult, TransformStatus
 from nnrt.ir.serialization import from_json, to_json

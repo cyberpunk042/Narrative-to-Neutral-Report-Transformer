@@ -16,6 +16,7 @@ Buckets like "OBSERVATIONS" and "CLAIMS" become views over tagged items.
 from __future__ import annotations
 
 import re
+
 from nnrt.core.context import TransformContext
 from nnrt.core.logging import get_pass_logger
 
@@ -69,9 +70,9 @@ STATE_SOCIOECONOMIC_PATTERNS = [
 
 # V5: Legacy combined pattern (for backward compatibility)
 SELF_REPORT_PATTERNS = (
-    STATE_ACUTE_PATTERNS + 
-    STATE_INJURY_PATTERNS + 
-    STATE_PSYCHOLOGICAL_PATTERNS + 
+    STATE_ACUTE_PATTERNS +
+    STATE_INJURY_PATTERNS +
+    STATE_PSYCHOLOGICAL_PATTERNS +
     STATE_SOCIOECONOMIC_PATTERNS +
     [
         # General self-report (not in specific sub-category)
@@ -212,9 +213,9 @@ LEGAL_CLAIM_ATTORNEY_PATTERNS = [
 
 # Legacy combined pattern (for backward compatibility)
 LEGAL_CLAIM_PATTERNS = (
-    LEGAL_CLAIM_DIRECT_PATTERNS + 
-    LEGAL_CLAIM_ADMIN_PATTERNS + 
-    LEGAL_CLAIM_CAUSATION_PATTERNS + 
+    LEGAL_CLAIM_DIRECT_PATTERNS +
+    LEGAL_CLAIM_ADMIN_PATTERNS +
+    LEGAL_CLAIM_CAUSATION_PATTERNS +
     LEGAL_CLAIM_ATTORNEY_PATTERNS
 )
 
@@ -248,7 +249,7 @@ MEDICAL_FINDING_PATTERNS = [
     r'\b(dr\.?|doctor)\s+\w+\s+(documented|said|diagnosed|noted|found|observed|recorded)\b',
     r'\b(dr\.?|doctor)\s+\w+\s+\w+\s+(documented|said|diagnosed|noted|found|observed|recorded)\b',  # "Dr. Amanda Foster documented"
     r'\b(the\s+)?(doctor|physician|nurse|emt|ems|paramedic|attendant)\s+(documented|noted|found|observed|said|recorded)\b',
-    
+
     # Provider pronoun patterns (key fix for Issue #3)
     # When "she/he" refers to a medical provider and documents medical info
     # Allow optional words between verb and medical term (e.g., "the", "my", "several")
@@ -258,17 +259,17 @@ MEDICAL_FINDING_PATTERNS = [
     r'\b(she|he)\s+observed\s+(\w+\s+)*(bruises?|injuries?|swelling|redness|marks?)\b',
     r'\b(she|he)\s+photographed\s+(\w+\s+)*(injuries?|bruises?|wounds?)\b',
     r'\b(she|he)\s+recorded\s+(\w+\s+)*(injuries?|condition|symptoms)\b',
-    
+
     # Medical provider as subject (title then action)
     r'\b(the\s+)?(nurse|emt|paramedic|physician)\s+(saw|examined|treated|noted|documented)\b',
     r'\b(my\s+)?(doctor|physician)\s+(told\s+me|said|confirmed|diagnosed)\b',
-    
+
     # Medical documentation markers
     r'\bmedical\s+records?\s+(show|indicate|document|state|reflect)\b',
     r'\bmedical\s+report\s+(states?|shows?|indicates?)\b',
     r'\b(er|emergency\s+room)\s+(staff|doctor|nurse)\s+(noted|documented|recorded)\b',
     r'\b(hospital|clinic)\s+(records?|documentation)\s+(show|indicate)\b',
-    
+
     # Diagnosed patterns (provider is implicit source)
     r'\bdiagnosed\s+(me\s+)?with\b',
     r'\bi\s+was\s+diagnosed\s+(with|as\s+having)\b',
@@ -276,7 +277,7 @@ MEDICAL_FINDING_PATTERNS = [
     r'\bmedical\s+examination\s+(revealed|showed|found)\b',
     r'\bx.?ray\s+(showed|revealed|confirmed)\b',
     r'\b(ct|mri|scan)\s+(showed|revealed|found)\b',
-    
+
     # Attribution to medical source
     r'\baccording\s+to\s+(my\s+)?(doctor|physician|the\s+medical)\b',
     r'\bper\s+(the\s+)?(medical|doctor|physician)\b',
@@ -309,53 +310,53 @@ CONSPIRACY_PATTERNS = [
 def _classify_epistemic(text: str) -> tuple[str, str, float]:
     """
     Classify a statement's epistemic type based on linguistic patterns.
-    
+
     V5: Returns fine-grained sub-types for self-reports and interpretations.
-    
+
     Returns (epistemic_type, evidence_source, confidence).
     """
     text_lower = text.lower()
-    
+
     # Check patterns in priority order (most specific first)
-    
+
     # 1. Conspiracy claims (highest priority - most dangerous)
     for pattern in CONSPIRACY_PATTERNS:
         if re.search(pattern, text_lower):
             return ("conspiracy_claim", "inference", 0.9)
-    
+
     # 2. P2 FIX: Legal claims with sub-types for taxonomy purity
     # Check specific sub-types first, then fall back to generic
-    
+
     # 2a. Attorney opinions (professional opinion, highest specificity)
     for pattern in LEGAL_CLAIM_ATTORNEY_PATTERNS:
         if re.search(pattern, text_lower):
             return ("legal_claim_attorney", "opinion", 0.85)
-    
+
     # 2b. Medical/psych causation claims (links condition to event)
     for pattern in LEGAL_CLAIM_CAUSATION_PATTERNS:
         if re.search(pattern, text_lower):
             return ("legal_claim_causation", "inference", 0.85)
-    
+
     # 2c. Admin outcomes (IA findings, policy determinations)
     for pattern in LEGAL_CLAIM_ADMIN_PATTERNS:
         if re.search(pattern, text_lower):
             return ("legal_claim_admin", "document", 0.85)
-    
+
     # 2d. Direct legal allegations (fallback for other legal claims)
     for pattern in LEGAL_CLAIM_DIRECT_PATTERNS:
         if re.search(pattern, text_lower):
             return ("legal_claim_direct", "inference", 0.85)
-    
+
     # 3. V5: CHARACTERIZATION (name-calling, insults - distinct from inference)
     for pattern in CHARACTERIZATION_PATTERNS:
         if re.search(pattern, text_lower):
             return ("characterization", "opinion", 0.85)
-    
+
     # 4. V5: INFERENCE (intent/motive attribution)
     for pattern in INFERENCE_PATTERNS:
         if re.search(pattern, text_lower):
             return ("inference", "inference", 0.85)
-    
+
     # 5. P1 FIX: Medical findings BEFORE self-report
     # This is critical for Issue #3: "She documented bruises" should be
     # medical_finding, not state_injury. Medical provider as subject changes
@@ -363,40 +364,40 @@ def _classify_epistemic(text: str) -> tuple[str, str, float]:
     for pattern in MEDICAL_FINDING_PATTERNS:
         if re.search(pattern, text_lower):
             return ("medical_finding", "document", 0.90)
-    
+
     # 6. V5: Self-reported with sub-types
     # Only check these AFTER medical findings to avoid mis-classification
     for pattern in STATE_PSYCHOLOGICAL_PATTERNS:
         if re.search(pattern, text_lower):
             return ("state_psychological", "self_report", 0.9)
-    
+
     for pattern in STATE_SOCIOECONOMIC_PATTERNS:
         if re.search(pattern, text_lower):
             return ("state_socioeconomic", "self_report", 0.9)
-    
+
     for pattern in STATE_INJURY_PATTERNS:
         if re.search(pattern, text_lower):
             return ("state_injury", "self_report", 0.9)
-    
+
     for pattern in STATE_ACUTE_PATTERNS:
         if re.search(pattern, text_lower):
             return ("state_acute", "self_report", 0.9)
-    
+
     # General self-report (fallback)
     for pattern in SELF_REPORT_PATTERNS:
         if re.search(pattern, text_lower):
             return ("self_report", "self_report", 0.9)
-    
+
     # 7. Administrative/document-based
     for pattern in DOCUMENT_PATTERNS:
         if re.search(pattern, text_lower):
             return ("admin_action", "document", 0.8)
-    
+
     # 8. Direct quotes
     for pattern in QUOTE_PATTERNS:
         if re.search(pattern, text_lower):
             return ("quote", "direct_observation", 0.9)
-    
+
     # 8. V4 ALPHA: Narrative glue (filler, transitions - low information value)
     narrative_glue_patterns = [
         r'^it\s+all\s+started\b',
@@ -411,7 +412,7 @@ def _classify_epistemic(text: str) -> tuple[str, str, float]:
     for pattern in narrative_glue_patterns:
         if re.search(pattern, text_lower):
             return ("narrative_glue", "self_report", 0.6)
-    
+
     # 9. V4 ALPHA: Expanded direct event patterns
     action_patterns = [
         # Physical actions
@@ -438,11 +439,11 @@ def _classify_epistemic(text: str) -> tuple[str, str, float]:
         # Research/discovery
         r'\b(researched|looked\s+up|found\s+that|discovered)\b',  # V4.1
     ]
-    
+
     for pattern in action_patterns:
         if re.search(pattern, text_lower):
             return ("direct_event", "self_report", 0.7)
-    
+
     # 10. V4 ALPHA: Third-party reports
     third_party_patterns = [
         r'\b(my\s+)?(neighbor|friend|coworker|colleague)\s+\w+\s+(said|told|mentioned)\b',
@@ -453,7 +454,7 @@ def _classify_epistemic(text: str) -> tuple[str, str, float]:
     for pattern in third_party_patterns:
         if re.search(pattern, text_lower):
             return ("third_party_report", "third_party", 0.75)
-    
+
     return ("unknown", "self_report", 0.5)
 
 
@@ -461,11 +462,11 @@ def _classify_epistemic(text: str) -> tuple[str, str, float]:
 def _classify_polarity(text: str) -> str:
     """Determine if statement is asserted, denied, or uncertain."""
     text_lower = text.lower()
-    
+
     # Denial markers
     if re.search(r'\b(didn\'t|did not|never|wasn\'t|was not|weren\'t|were not)\b', text_lower):
         return "denied"
-    
+
     # Uncertainty markers (expanded)
     if re.search(r'\b(might|maybe|perhaps|probably|possibly|could have|may have)\b', text_lower):
         return "uncertain"
@@ -475,18 +476,18 @@ def _classify_polarity(text: str) -> str:
         return "uncertain"
     if re.search(r'\bapparently\b', text_lower):
         return "uncertain"
-    
+
     # Hypothetical
     if re.search(r'\b(if|would have|could have been)\b', text_lower):
         return "hypothetical"
-    
+
     return "asserted"
 
 
 def tag_epistemic(ctx: TransformContext) -> TransformContext:
     """
     Tag every AtomicStatement with epistemic metadata.
-    
+
     V4 Alpha: This is the core fix. Every statement gets tagged at
     extraction time with:
     - source
@@ -497,36 +498,36 @@ def tag_epistemic(ctx: TransformContext) -> TransformContext:
     if not ctx.atomic_statements:
         log.warning("no_statements", message="No atomic statements to tag")
         return ctx
-    
+
     tagged_count = 0
     type_counts = {}
-    
+
     for stmt in ctx.atomic_statements:
         # Classify epistemic type
         epistemic_type, evidence_source, confidence = _classify_epistemic(stmt.text)
-        
+
         # Classify polarity
         polarity = _classify_polarity(stmt.text)
-        
+
         # Set the fields
         stmt.epistemic_type = epistemic_type
         stmt.evidence_source = evidence_source
         stmt.polarity = polarity
-        
+
         # =====================================================================
         # V6: Honest Provenance Status (Invariant: verified requires evidence)
         # =====================================================================
         # CRITICAL: "verified" can ONLY be used with non-reporter source.
         # Reporter content is "self_attested" - not externally verified.
         # =====================================================================
-        
+
         if epistemic_type == "medical_finding":
             stmt.source_type = "medical"
             stmt.provenance_status = "cited"  # Has provider attribution
         elif epistemic_type == "admin_action":
             stmt.source_type = "document"
             stmt.provenance_status = "cited"  # Document reference
-        elif epistemic_type in ("self_report", "state_acute", "state_injury", 
+        elif epistemic_type in ("self_report", "state_acute", "state_injury",
                                  "state_psychological", "state_socioeconomic"):
             stmt.source_type = "reporter"
             stmt.provenance_status = "self_attested"  # V6: Not verified without evidence
@@ -548,16 +549,16 @@ def tag_epistemic(ctx: TransformContext) -> TransformContext:
         else:
             stmt.source_type = "reporter"
             stmt.provenance_status = "needs_provenance"  # Unknown - needs provenance
-        
+
         # Update confidence if classification is strong
         if confidence > stmt.confidence:
             stmt.confidence = confidence
-        
+
         # Track counts
         type_counts[epistemic_type] = type_counts.get(epistemic_type, 0) + 1
         if epistemic_type != "unknown":
             tagged_count += 1
-        
+
         # Add diagnostic for dangerous types
         if epistemic_type in ("interpretation", "legal_claim", "conspiracy_claim"):
             ctx.add_diagnostic(
@@ -567,18 +568,18 @@ def tag_epistemic(ctx: TransformContext) -> TransformContext:
                 source=PASS_NAME,
                 affected_ids=[stmt.id],
             )
-    
+
     log.info(
         "tagged_statements",
         total=len(ctx.atomic_statements),
         tagged=tagged_count,
         **type_counts,
     )
-    
+
     ctx.add_trace(
         pass_name=PASS_NAME,
         action="tagged_epistemic",
         after=f"Tagged {tagged_count}/{len(ctx.atomic_statements)} statements",
     )
-    
+
     return ctx

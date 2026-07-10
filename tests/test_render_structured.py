@@ -15,11 +15,11 @@ pytestmark = pytest.mark.unit
 
 class TestCameraFriendlyFilter:
     """Tests for is_camera_friendly logic."""
-    
+
     # Words that disqualify a statement from OBSERVED EVENTS
     INTERPRETIVE_DISQUALIFIERS = [
         'horrifying', 'horrific', 'brutal', 'brutally', 'viciously', 'vicious',
-        'psychotic', 'maniac', 'thug', 'aggressive', 'aggressively', 
+        'psychotic', 'maniac', 'thug', 'aggressive', 'aggressively',
         'menacing', 'menacingly', 'distressing', 'terrifying', 'shocking',
         'innocent', 'guilty', 'criminal', 'illegal', 'unlawful', 'assault',
         'assaulting', 'torture', 'terrorize', 'misconduct', 'violation',
@@ -27,7 +27,7 @@ class TestCameraFriendlyFilter:
         'absolutely', 'completely', 'totally', 'definitely', 'certainly',
         'cover-up', 'coverup', 'whitewash', 'conspiracy', 'conspiring',
     ]
-    
+
     def is_camera_friendly(self, text: str) -> bool:
         """Replicate the is_camera_friendly logic."""
         text_lower = text.lower()
@@ -35,11 +35,11 @@ class TestCameraFriendlyFilter:
             if word in text_lower:
                 return False
         return True
-    
+
     # =========================================================================
     # Camera-friendly: Should be in OBSERVED EVENTS
     # =========================================================================
-    
+
     @pytest.mark.parametrize("text", [
         "Officer grabbed my arm",
         "He twisted it behind my back",
@@ -53,11 +53,11 @@ class TestCameraFriendlyFilter:
     def test_camera_friendly_statements(self, text):
         """Pure physical actions should be camera-friendly."""
         assert self.is_camera_friendly(text), f"'{text}' should be camera-friendly"
-    
+
     # =========================================================================
     # NOT camera-friendly: Should be in REPORTER DESCRIPTIONS
     # =========================================================================
-    
+
     @pytest.mark.parametrize("text,disqualifying_word", [
         ("witnessed the horrifying assault", "horrifying"),
         ("They brutally slammed me", "brutally"),
@@ -78,7 +78,7 @@ class TestCameraFriendlyFilter:
 
 class TestFollowUpDetection:
     """Tests for is_follow_up_event logic."""
-    
+
     FOLLOW_UP_PATTERNS = [
         'later found', 'later learned', 'turned out', 'found out',
         'three months later', 'the next day', 'afterward', 'afterwards',
@@ -87,16 +87,16 @@ class TestFollowUpDetection:
         'internal affairs', 'detective', 'investigated', 'pursuing legal',
         'my attorney', 'researched',
     ]
-    
+
     def is_follow_up_event(self, text: str) -> bool:
         """Replicate the is_follow_up_event logic."""
         text_lower = text.lower()
         return any(pattern in text_lower for pattern in self.FOLLOW_UP_PATTERNS)
-    
+
     # =========================================================================
     # Follow-up events (post-incident)
     # =========================================================================
-    
+
     @pytest.mark.parametrize("text,pattern", [
         ("I went to the hospital immediately after", "went to the hospital"),
         ("I went to the emergency room", "went to the emergency"),
@@ -113,11 +113,11 @@ class TestFollowUpDetection:
         """Post-incident events should be detected as follow-up."""
         assert self.is_follow_up_event(text), \
             f"'{text}' should be follow-up (contains '{pattern}')"
-    
+
     # =========================================================================
     # Incident-scene events (NOT follow-up)
     # =========================================================================
-    
+
     @pytest.mark.parametrize("text", [
         "Officer grabbed my arm",
         "He twisted it behind my back",
@@ -134,22 +134,22 @@ class TestFollowUpDetection:
 
 class TestRenderedSections:
     """Tests for the rendered output sections."""
-    
+
     def test_observed_events_incident_scene_header(self):
         """OBSERVED EVENTS (STRICT) header should be correct."""
         expected_header = "OBSERVED EVENTS (STRICT"
         assert "STRICT" in expected_header
-    
+
     def test_observed_events_follow_up_header(self):
         """OBSERVED EVENTS (FOLLOW-UP ACTIONS) header should be correct."""
         expected_header = "OBSERVED EVENTS (FOLLOW-UP ACTIONS)"
         assert "FOLLOW-UP" in expected_header
-    
+
     def test_reporter_descriptions_header(self):
         """REPORTER DESCRIPTIONS header should indicate characterization."""
         expected_header = "REPORTER DESCRIPTIONS (contains characterization)"
         assert "characterization" in expected_header
-    
+
     def test_self_reported_state_prefix(self):
         """SELF-REPORTED STATE items should have 'Reporter reports:' prefix."""
         expected_prefix = "Reporter reports:"
@@ -158,7 +158,7 @@ class TestRenderedSections:
 
 class TestSectionOrdering:
     """Tests for section ordering in rendered output."""
-    
+
     def test_expected_section_order(self):
         """Sections should appear in logical order."""
         expected_order = [
@@ -167,11 +167,11 @@ class TestSectionOrdering:
             "REPORTER DESCRIPTIONS",
             "SELF-REPORTED STATE",
         ]
-        
+
         # Just verify the order makes sense (incident before follow-up)
         assert expected_order.index("OBSERVED EVENTS (STRICT") < \
                expected_order.index("OBSERVED EVENTS (FOLLOW-UP ACTIONS)")
-        
+
         # Reporter descriptions after observed events
         assert expected_order.index("OBSERVER EVENTS (INCIDENT SCENE)" if False else "OBSERVED EVENTS (STRICT") < \
                expected_order.index("REPORTER DESCRIPTIONS")
@@ -179,17 +179,17 @@ class TestSectionOrdering:
 
 class TestCriticalInvariant:
     """Tests for the critical invariant: OBSERVED EVENTS must be camera-friendly."""
-    
+
     INTERPRETIVE_DISQUALIFIERS = [
         'horrifying', 'brutal', 'brutally', 'viciously', 'innocent',
         'criminal', 'assault', 'assaulting', 'torture', 'deliberately',
         'intentionally', 'clearly', 'obviously',
     ]
-    
+
     def has_interpretive_content(self, text: str) -> bool:
         text_lower = text.lower()
         return any(word in text_lower for word in self.INTERPRETIVE_DISQUALIFIERS)
-    
+
     def test_interpretive_content_excluded_from_observed_events(self):
         """CRITICAL: Interpretive content MUST be excluded from OBSERVED EVENTS."""
         test_cases = [
@@ -199,10 +199,10 @@ class TestCriticalInvariant:
             "he deliberately twisted my arm",
             "she clearly wanted to hurt me",
         ]
-        
+
         for text in test_cases:
             assert self.has_interpretive_content(text), \
                 f"Test case '{text}' should have interpretive content"
-            
+
             # This guarantees it would be excluded
             # (in real code, is_camera_friendly would return False)

@@ -15,21 +15,20 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Optional, Dict, List
 from uuid import uuid4
 
 from nnrt.core.context import TransformContext
 from nnrt.core.logging import get_pass_logger
 from nnrt.ir.enums import EntityRole, EntityType, IdentifierType, UncertaintyType
-from nnrt.ir.schema_v0_1 import Entity, UncertaintyMarker, SemanticSpan
-from nnrt.nlp.interfaces import EntityExtractor, EntityExtractResult
+from nnrt.ir.schema_v0_1 import Entity, SemanticSpan, UncertaintyMarker
 from nnrt.nlp.backends.spacy_backend import get_entity_extractor
+from nnrt.nlp.interfaces import EntityExtractor, EntityExtractResult
 
 PASS_NAME = "p32_extract_entities"
 log = get_pass_logger(PASS_NAME)
 
 # Default extractor (can be swapped for testing)
-_extractor: Optional[EntityExtractor] = None
+_extractor: EntityExtractor | None = None
 
 
 def get_extractor() -> EntityExtractor:
@@ -108,40 +107,40 @@ SUPERVISOR_PATTERNS = {"sergeant", "lieutenant", "captain", "commander", "chief"
 def _is_valid_entity(label: str) -> tuple[bool, str]:
     """
     V4: Check if an extracted entity is valid.
-    
+
     Returns (is_valid, entity_type) where entity_type is:
     - "named"       : Properly named entity (Officer Jenkins)
     - "contextual"  : Valid contextual reference (his partner, the manager)
     - "invalid"     : Should be rejected (bare title, badge number as name)
-    
+
     Key insight: "partner", "manager" etc. ARE valid entity references
     when they refer to distinct people. They just don't have names.
     The problem is only when JUST a title ("Officer") is extracted alone.
     """
     if not label:
         return (False, "invalid")
-    
+
     label_lower = label.lower().strip()
     words = label_lower.split()
-    
+
     # ==========================================================================
     # REJECT: Pure numbers (badge numbers being extracted as person names)
     # ==========================================================================
     if label.isdigit() or label_lower.replace(" ", "").isdigit():
         return (False, "invalid")  # "4821" is not a person name
-    
+
     # ==========================================================================
     # REJECT: Single-word bare titles without any name
     # ==========================================================================
     if len(words) == 1 and label_lower in BARE_TITLES:
         return (False, "invalid")  # "Officer" alone is not an entity
-    
+
     # ==========================================================================
     # REJECT: Single-word descriptors that aren't people
     # ==========================================================================
     if len(words) == 1 and label_lower in BARE_DESCRIPTORS:
         return (False, "invalid")  # "male" is not an entity
-    
+
     # ==========================================================================
     # ACCEPT as CONTEXTUAL: Role-based references (track as unidentified)
     # ==========================================================================
@@ -149,12 +148,12 @@ def _is_valid_entity(label: str) -> tuple[bool, str]:
     # They just don't have names. Track them for coreference/ambiguity.
     if len(words) == 1 and label_lower in BARE_ROLES:
         return (True, "contextual")
-    
+
     # "the partner", "his manager" - valid contextual references
     if len(words) == 2 and words[0] in {"the", "a", "an", "his", "her", "their", "my"}:
         if words[1] in BARE_ROLES or words[1] in BARE_TITLES:
             return (True, "contextual")
-    
+
     # ==========================================================================
     # ACCEPT as NAMED: Everything else (proper names, titled names)
     # ==========================================================================
@@ -165,50 +164,50 @@ def _is_valid_entity(label: str) -> tuple[bool, str]:
 def _classify_role(label: str, current_role: EntityRole) -> EntityRole:
     """
     V4: Classify entity role based on title/context in the label.
-    
+
     Upgrades generic AUTHORITY/WITNESS to specific roles where possible.
     """
     label_lower = label.lower()
     first_word = label_lower.split()[0] if label_lower.split() else ""
-    
+
     # Medical providers
     if first_word in MEDICAL_ROLE_PATTERNS or "dr." in label_lower or "doctor" in label_lower:
         return EntityRole.MEDICAL_PROVIDER
-    
+
     # Legal counsel
     if any(p in label_lower for p in LEGAL_ROLE_PATTERNS):
         return EntityRole.LEGAL_COUNSEL
-    
+
     # Investigators (IA, detectives doing investigations)
     if first_word in INVESTIGATOR_PATTERNS or "internal affairs" in label_lower:
         return EntityRole.INVESTIGATOR
-    
+
     # Supervisors
     if first_word in SUPERVISOR_PATTERNS:
         return EntityRole.SUPERVISOR
-    
+
     # Subject officers (default for "Officer X" patterns)
     if first_word == "officer" or first_word == "deputy":
         return EntityRole.SUBJECT_OFFICER
-    
+
     # Keep current role if no upgrade found
     return current_role
 
 
 def _link_badges_to_officers(
-    entities: List[Entity], 
-    identifiers: List,  # List[Identifier]
+    entities: list[Entity],
+    identifiers: list,  # List[Identifier]
     source_text: str
-) -> List[Entity]:
+) -> list[Entity]:
     """
     V6: Link badge numbers to their corresponding officer entities.
-    
+
     Uses text proximity: "Officer Jenkins, badge number 4821" links 4821 to Jenkins.
-    
+
     Invariant: Each badge should link to exactly one officer.
     """
     import re
-    
+
     # Collect badge identifiers
     badge_identifiers = []
     for ident in identifiers:
@@ -217,20 +216,20 @@ def _link_badges_to_officers(
                 badge_identifiers.append(ident)
         elif hasattr(ident, 'type') and str(ident.type) == 'badge_number':
             badge_identifiers.append(ident)
-    
+
     if not badge_identifiers:
         return entities
-    
+
     # Find officers (entities with officer titles)
     officer_titles = {'officer', 'sergeant', 'deputy', 'detective', 'lieutenant', 'captain'}
-    officers = [e for e in entities if e.label and 
+    officers = [e for e in entities if e.label and
                 any(t in e.label.lower() for t in officer_titles)]
-    
+
     # Try to link badges to officers using text patterns
     # Pattern: "Officer Jenkins, badge number 4821" or "Officer Jenkins (badge 4821)"
     for badge in badge_identifiers:
         badge_value = badge.value
-        
+
         # Find nearby officer mention in text
         # Look for patterns like "Officer X, badge number 4821" or "Officer X badge 4821"
         patterns = [
@@ -239,12 +238,12 @@ def _link_badges_to_officers(
             rf"(Deputy\s+\w+)[,\s]+badge\s*(?:number\s*)?\s*{re.escape(badge_value)}",
             rf"(Detective\s+\w+)[,\s]+badge\s*(?:number\s*)?\s*{re.escape(badge_value)}",
         ]
-        
+
         for pattern in patterns:
             match = re.search(pattern, source_text, re.IGNORECASE)
             if match:
                 officer_name = match.group(1).strip()
-                
+
                 # Find the corresponding entity
                 for entity in officers:
                     if entity.label and officer_name.lower() in entity.label.lower():
@@ -256,7 +255,7 @@ def _link_badges_to_officers(
                         )
                         break
                 break  # Move to next badge
-    
+
     return entities
 
 
@@ -277,7 +276,7 @@ class MentionLocation:
 def extract_entities(ctx: TransformContext) -> TransformContext:
     """
     Extract entities using the EntityExtractor interface.
-    
+
     This pass:
     1. Uses EntityExtractor to get raw extraction results
     2. Handles pronoun resolution and ambiguity detection
@@ -285,11 +284,11 @@ def extract_entities(ctx: TransformContext) -> TransformContext:
     4. Creates Entity IR objects with proper span IDs
     """
     extractor = get_extractor()
-    
+
     # Initialize canonical entities
-    entities: List[Entity] = []
-    pending_mentions: Dict[str, List[MentionLocation]] = defaultdict(list)
-    
+    entities: list[Entity] = []
+    pending_mentions: dict[str, list[MentionLocation]] = defaultdict(list)
+
     # Always exists: Reporter
     reporter = Entity(
         id=f"ent_{uuid4().hex[:8]}",
@@ -299,18 +298,18 @@ def extract_entities(ctx: TransformContext) -> TransformContext:
         mentions=[]
     )
     entities.append(reporter)
-    
+
     # Seed from Identifiers (p30)
-    identifier_entities = _seed_from_identifiers(ctx.identifiers, entities)
-    
+    _seed_from_identifiers(ctx.identifiers, entities)
+
     # Track recently mentioned entities for resolution
-    recent_entities: List[Entity] = []
-    
+    recent_entities: list[Entity] = []
+
     # Process each segment using the interface
     for segment in ctx.segments:
         # Use the interface - not direct spaCy
         extraction_results = extractor.extract(segment.text)
-        
+
         # Process each extraction result
         for result in extraction_results:
             entity = _process_extraction_result(
@@ -322,61 +321,61 @@ def extract_entities(ctx: TransformContext) -> TransformContext:
                 pending_mentions=pending_mentions,
                 ctx=ctx,
             )
-            
+
             if entity and entity not in recent_entities:
                 recent_entities.append(entity)
                 if len(recent_entities) > 5:
                     recent_entities.pop(0)
-    
+
     # Resolve mention locations to span IDs
     _resolve_mentions_to_spans(entities, pending_mentions, ctx.spans)
-    
+
     # V4: Deduplicate entities - remove token fragments and duplicates
     entities = _deduplicate_entities(entities)
-    
+
     # V4: Refine roles based on context in source text
     source_text = " ".join(seg.text for seg in ctx.segments)
     entities = _refine_entity_roles(entities, source_text)
-    
+
     # V6: Link badge numbers to officers
     entities = _link_badges_to_officers(entities, ctx.identifiers, source_text)
-    
+
     # V7 / Stage 0: Populate Entity classification fields
     _populate_entity_classification_fields(entities)
-    
+
     ctx.entities = entities
-    
+
     # Count by role
     role_counts = {}
     for ent in entities:
         role_counts[ent.role.value] = role_counts.get(ent.role.value, 0) + 1
-    
+
     log.info("extracted",
         total_entities=len(entities),
         backend=extractor.name,
         **role_counts,
     )
-    
+
     ctx.add_trace(
         pass_name=PASS_NAME,
         action="extracted_entities",
         after=f"{len(entities)} entities extracted (via {extractor.name})",
     )
-    
+
     return ctx
 
 
 def _normalize_entity_label(label: str) -> str:
     """
     V4: Normalize entity labels to fix common spaCy extraction issues.
-    
+
     Fixes:
     - "Officers Jenkins" -> "Officer Jenkins" (plural to singular)
     - "Sergeants Williams" -> "Sergeant Williams"
     """
     if not label:
         return label
-    
+
     # Plural title corrections
     plural_corrections = {
         "Officers ": "Officer ",
@@ -385,7 +384,7 @@ def _normalize_entity_label(label: str) -> str:
         "Detectives ": "Detective ",
         "Lieutenants ": "Lieutenant ",
     }
-    
+
     for plural, singular in plural_corrections.items():
         if label.startswith(plural):
             corrected = singular + label[len(plural):]
@@ -395,14 +394,14 @@ def _normalize_entity_label(label: str) -> str:
                 corrected=corrected,
             )
             return corrected
-    
+
     return label
 
 
-def _deduplicate_entities(entities: List[Entity]) -> List[Entity]:
+def _deduplicate_entities(entities: list[Entity]) -> list[Entity]:
     """
     V4: Remove duplicate and fragment entities.
-    
+
     This function:
     1. Normalizes labels (e.g., "Officers Jenkins" -> "Officer Jenkins")
     2. Removes single-token entities that are substrings of multi-token entities
@@ -412,18 +411,18 @@ def _deduplicate_entities(entities: List[Entity]) -> List[Entity]:
     """
     if not entities:
         return entities
-    
+
     # V4: Normalize labels first
     for ent in entities:
         if ent.label:
             ent.label = _normalize_entity_label(ent.label)
-    
+
     # Build set of multi-word labels (normalized)
     multi_word_labels = set()
     for ent in entities:
         if ent.label and len(ent.label.split()) > 1:
             multi_word_labels.add(ent.label.lower())
-    
+
     # Check if a single word is a substring of any multi-word label
     def is_fragment(label: str) -> bool:
         if not label:
@@ -432,27 +431,27 @@ def _deduplicate_entities(entities: List[Entity]) -> List[Entity]:
         words = label_lower.split()
         if len(words) > 1:
             return False  # Multi-word labels are not fragments
-        
+
         # Check if this single word appears in any multi-word label
         for multi in multi_word_labels:
             multi_words = multi.split()
             if label_lower in multi_words:
                 return True
         return False
-    
+
     # Track seen labels for exact duplicate removal
     seen_labels = set()
     result = []
     fragment_count = 0
     duplicate_count = 0
-    
+
     for ent in entities:
         # Always keep Reporter
         if ent.role == EntityRole.REPORTER:
             result.append(ent)
             seen_labels.add(ent.label.lower() if ent.label else "reporter")
             continue
-        
+
         # Check for fragment
         if is_fragment(ent.label):
             fragment_count += 1
@@ -462,7 +461,7 @@ def _deduplicate_entities(entities: List[Entity]) -> List[Entity]:
                 reason="single_token_in_multiword_entity",
             )
             continue
-        
+
         # Check for exact duplicate
         label_key = ent.label.lower() if ent.label else ""
         if label_key in seen_labels:
@@ -472,10 +471,10 @@ def _deduplicate_entities(entities: List[Entity]) -> List[Entity]:
                 label=ent.label,
             )
             continue
-        
+
         seen_labels.add(label_key)
         result.append(ent)
-    
+
     if fragment_count or duplicate_count:
         log.info(
             "v4_entity_dedup",
@@ -484,14 +483,14 @@ def _deduplicate_entities(entities: List[Entity]) -> List[Entity]:
             before=len(entities),
             after=len(result),
         )
-    
+
     return result
 
 
-def _refine_entity_roles(entities: List[Entity], source_text: str) -> List[Entity]:
+def _refine_entity_roles(entities: list[Entity], source_text: str) -> list[Entity]:
     """
     V4: Refine entity roles based on context in source text.
-    
+
     Scans the source text for professional role indicators near entity names:
     - "Dr. Amanda Foster" → MEDICAL_PROVIDER
     - "attorney Jennifer Walsh" → LEGAL_COUNSEL
@@ -499,7 +498,7 @@ def _refine_entity_roles(entities: List[Entity], source_text: str) -> List[Entit
     - "Detective Sarah Monroe" → INVESTIGATOR
     """
     source_lower = source_text.lower()
-    
+
     # Role patterns to search for near entity names
     role_patterns = {
         EntityRole.MEDICAL_PROVIDER: [
@@ -546,7 +545,7 @@ def _refine_entity_roles(entities: List[Entity], source_text: str) -> List[Entit
             r"call\s+my\s+\w+\s+{name}\s+to\s+verify",
         ],
     }
-    
+
     # Title prefixes that indicate roles (for labels that already have them)
     title_role_map = {
         "officer ": EntityRole.SUBJECT_OFFICER,
@@ -557,19 +556,19 @@ def _refine_entity_roles(entities: List[Entity], source_text: str) -> List[Entit
         "dr. ": EntityRole.MEDICAL_PROVIDER,
         "dr ": EntityRole.MEDICAL_PROVIDER,
     }
-    
+
     refined_count = 0
-    
+
     for ent in entities:
         if not ent.label:
             continue
-        
+
         # Skip Reporter
         if ent.role == EntityRole.REPORTER:
             continue
-        
+
         label_lower = ent.label.lower()
-        
+
         # First check: Does the label itself start with a title?
         for title, role in title_role_map.items():
             if label_lower.startswith(title):
@@ -588,12 +587,12 @@ def _refine_entity_roles(entities: List[Entity], source_text: str) -> List[Entit
             # Second check: Search for role patterns in source text
             import re
             name_escaped = re.escape(label_lower)
-            
+
             # Check each role pattern
             for role, patterns in role_patterns.items():
                 if ent.role == role:
                     continue  # Already has this role
-                
+
                 found = False
                 for pattern_template in patterns:
                     pattern = pattern_template.format(name=name_escaped)
@@ -610,17 +609,17 @@ def _refine_entity_roles(entities: List[Entity], source_text: str) -> List[Entit
                         )
                         found = True
                         break
-                
+
                 if found:
                     break
 
-    
+
     if refined_count:
         log.info(
             "v4_role_refinement",
             entities_refined=refined_count,
         )
-    
+
     return entities
 
 
@@ -635,29 +634,29 @@ MALE_FIRST_NAMES = {"james", "john", "michael", "david", "william", "robert", "j
 FEMALE_FIRST_NAMES = {"mary", "jennifer", "linda", "elizabeth", "susan", "jessica", "sarah", "karen", "nancy", "lisa", "margaret", "betty", "sandra", "ashley", "dorothy", "kimberly", "emily", "donna", "michelle", "carol", "amanda", "melissa", "deborah", "stephanie", "rebecca", "laura", "helen", "sharon", "cynthia", "angela", "maria", "anna", "ruth", "brenda", "pamela", "nicole", "kathleen", "samantha"}
 
 
-def _populate_entity_classification_fields(entities: List[Entity]) -> None:
+def _populate_entity_classification_fields(entities: list[Entity]) -> None:
     """
     V7 / Stage 0: Populate Entity classification fields.
-    
+
     This function sets the classification fields defined in schema_v0_1.py:
     - is_valid_actor, invalid_actor_reason
     - is_named, is_named_confidence, name_detection_source
     - gender, gender_confidence, gender_source
     - domain_role, domain_role_confidence
-    
+
     This was planned for Stage 0 to enable Stage 2 selection.
     """
     classified_count = 0
-    
+
     for entity in entities:
         # Skip if no label
         if not entity.label:
             continue
-        
+
         label_lower = entity.label.lower().strip()
         words = label_lower.split()
         first_word = words[0] if words else ""
-        
+
         # =====================================================================
         # 1. is_valid_actor: Can this entity serve as an actor in events?
         # =====================================================================
@@ -667,7 +666,7 @@ def _populate_entity_classification_fields(entities: List[Entity]) -> None:
             entity.invalid_actor_reason = "bare_title_number_or_descriptor"
         elif category == "contextual":
             entity.invalid_actor_reason = "contextual_reference"
-        
+
         # =====================================================================
         # 2. is_named: Does this entity have a proper name?
         # =====================================================================
@@ -703,14 +702,14 @@ def _populate_entity_classification_fields(entities: List[Entity]) -> None:
                 entity.is_named = False
                 entity.is_named_confidence = 0.6
                 entity.name_detection_source = "unknown"
-        
+
         # =====================================================================
         # 3. gender: Infer gender for pronoun resolution
         # =====================================================================
         gender_detected = None
         gender_confidence = 0.0
         gender_source = None
-        
+
         # Check titles
         if first_word in MALE_TITLES:
             gender_detected = "male"
@@ -724,7 +723,7 @@ def _populate_entity_classification_fields(entities: List[Entity]) -> None:
             # Check first names (after title if present)
             name_word = words[1] if len(words) >= 2 and first_word in BARE_TITLES else first_word
             name_word_lower = name_word.lower()
-            
+
             if name_word_lower in MALE_FIRST_NAMES:
                 gender_detected = "male"
                 gender_confidence = 0.75
@@ -733,12 +732,12 @@ def _populate_entity_classification_fields(entities: List[Entity]) -> None:
                 gender_detected = "female"
                 gender_confidence = 0.75
                 gender_source = "first_name"
-        
+
         if gender_detected:
             entity.gender = gender_detected
             entity.gender_confidence = gender_confidence
             entity.gender_source = gender_source
-        
+
         # =====================================================================
         # 4. domain_role: Map EntityRole to domain-specific role string
         # =====================================================================
@@ -754,11 +753,11 @@ def _populate_entity_classification_fields(entities: List[Entity]) -> None:
             EntityRole.WITNESS_OFFICIAL: ("witness_official", 0.85),
             EntityRole.WORKPLACE_CONTACT: ("workplace_contact", 0.8),
         }
-        
+
         if entity.role in role_map:
             entity.domain_role, entity.domain_role_confidence = role_map[entity.role]
             classified_count += 1
-    
+
     if classified_count:
         log.info(
             "v7_entity_classification",
@@ -769,16 +768,16 @@ def _populate_entity_classification_fields(entities: List[Entity]) -> None:
 
 def _seed_from_identifiers(
     identifiers: list,
-    entities: List[Entity]
-) -> Dict[str, Entity]:
+    entities: list[Entity]
+) -> dict[str, Entity]:
     """
     Create entities from identifiers extracted in p30.
-    
+
     V4: Badge numbers should NOT become standalone entities.
     They should be attached to the officers they identify.
     """
-    identifier_map: Dict[str, Entity] = {}
-    
+    identifier_map: dict[str, Entity] = {}
+
     for ident in identifiers:
         # V4: Only create entities from NAMES, not badge numbers
         # Badge numbers should be attached to officers, not become entities
@@ -793,16 +792,16 @@ def _seed_from_identifiers(
                     reason="failed_validation",
                 )
                 continue
-            
+
             is_authority = any(t in ident.value.lower() for t in AUTHORITY_TITLES)
             role = EntityRole.AUTHORITY if is_authority else EntityRole.WITNESS
-            
+
             # Apply V4 role classification
             role = _classify_role(ident.value, role)
-            
+
             # Check for existing entity with same label
             existing = next((e for e in entities if e.label == ident.value), None)
-            
+
             if existing:
                 ent = existing
             else:
@@ -814,9 +813,9 @@ def _seed_from_identifiers(
                     mentions=[]
                 )
                 entities.append(ent)
-            
+
             identifier_map[ident.id] = ent
-        
+
         # V4: Badge numbers are identifiers, not entities
         # They will be linked to officers during entity extraction
         elif ident.type in (IdentifierType.BADGE_NUMBER, IdentifierType.EMPLOYEE_ID):
@@ -826,7 +825,7 @@ def _seed_from_identifiers(
                 value=ident.value,
                 note="Badge numbers attach to officers, not standalone entities",
             )
-    
+
     return identifier_map
 
 
@@ -834,14 +833,14 @@ def _process_extraction_result(
     result: EntityExtractResult,
     segment_id: str,
     reporter: Entity,
-    entities: List[Entity],
-    recent_entities: List[Entity],
-    pending_mentions: Dict[str, List[MentionLocation]],
+    entities: list[Entity],
+    recent_entities: list[Entity],
+    pending_mentions: dict[str, list[MentionLocation]],
     ctx: TransformContext,
-) -> Optional[Entity]:
+) -> Entity | None:
     """
     Process a single extraction result from the backend.
-    
+
     Handles:
     - V4: Validation to reject bare titles/roles/descriptors
     - V4: Role classification for proper taxonomy
@@ -850,16 +849,16 @@ def _process_extraction_result(
     - Entity creation or matching
     """
     match_entity = None
-    
+
     # ==========================================================================
     # V4: Validate entity before processing
     # ==========================================================================
     is_valid = True
     entity_category = "named"
-    
+
     if result.label:
         is_valid, entity_category = _is_valid_entity(result.label)
-        
+
         if not is_valid:
             log.debug(
                 "rejected_invalid_entity",
@@ -868,7 +867,7 @@ def _process_extraction_result(
                 reason="bare_title_number_or_descriptor",
             )
             return None  # Skip this extraction
-        
+
         # V4: Contextual references (partner, manager) become unidentified entities
         if entity_category == "contextual":
             log.debug(
@@ -877,18 +876,18 @@ def _process_extraction_result(
                 original_label=result.label,
                 will_mark_as="Individual (Unidentified)",
             )
-    
+
     # ==========================================================================
     # V4: Classify role using new taxonomy
     # ==========================================================================
     classified_role = result.role
     if result.label and result.role in {EntityRole.AUTHORITY, EntityRole.WITNESS}:
         classified_role = _classify_role(result.label, result.role)
-    
+
     # Check if this is a Reporter mention
     if result.role == EntityRole.REPORTER:
         match_entity = reporter
-    
+
     # Check if this needs resolution (pronoun or unidentified)
     elif result.label == "Individual (Unidentified)" and result.confidence < 0.7:
         # This is a resolvable pronoun - try to resolve
@@ -896,13 +895,13 @@ def _process_extraction_result(
             e for e in reversed(recent_entities)
             if e != reporter and e.type == EntityType.PERSON
         ]
-        
+
         if candidates:
             # Check for ambiguity
             if len(candidates) > 1:
                 lbls = [c.label or "Unknown" for c in candidates[:3]]
                 mention_text = result.mentions[0][2] if result.mentions else "pronoun"
-                
+
                 marker = UncertaintyMarker(
                     id=f"unc_{uuid4().hex[:8]}",
                     type=UncertaintyType.AMBIGUOUS_REFERENCE,
@@ -912,7 +911,7 @@ def _process_extraction_result(
                     source=PASS_NAME,
                 )
                 ctx.uncertainty.append(marker)
-            
+
             match_entity = candidates[0]
         else:
             # No candidates - create new unidentified entity
@@ -924,10 +923,10 @@ def _process_extraction_result(
                 mentions=[]
             )
             entities.append(match_entity)
-    
+
     # Check for authority titles that might link to existing
     elif result.role == EntityRole.AUTHORITY or classified_role in {
-        EntityRole.SUBJECT_OFFICER, EntityRole.SUPERVISOR, 
+        EntityRole.SUBJECT_OFFICER, EntityRole.SUPERVISOR,
         EntityRole.INVESTIGATOR, EntityRole.MEDICAL_PROVIDER,
         EntityRole.LEGAL_COUNSEL
     }:
@@ -940,7 +939,7 @@ def _process_extraction_result(
                     if classified_role != EntityRole.AUTHORITY and ent.role == EntityRole.AUTHORITY:
                         ent.role = classified_role
                     break
-        
+
         if not match_entity:
             # Create new entity with classified role
             match_entity = Entity(
@@ -951,14 +950,14 @@ def _process_extraction_result(
                 mentions=[]
             )
             entities.append(match_entity)
-    
+
     # Check for existing entity with same label (general case)
     elif result.label:
         for ent in entities:
             if ent.label and ent.label.lower() == result.label.lower():
                 match_entity = ent
                 break
-        
+
         if not match_entity and result.is_new:
             # Create new entity with classified role
             match_entity = Entity(
@@ -969,7 +968,7 @@ def _process_extraction_result(
                 mentions=[]
             )
             entities.append(match_entity)
-    
+
     # Record mention locations
     if match_entity and result.mentions:
         for start, end, text in result.mentions:
@@ -979,29 +978,29 @@ def _process_extraction_result(
                 end_char=end,
                 text=text
             ))
-    
+
     return match_entity
 
 
 def _resolve_mentions_to_spans(
-    entities: List[Entity],
-    pending_mentions: Dict[str, List[MentionLocation]],
-    spans: List[SemanticSpan]
+    entities: list[Entity],
+    pending_mentions: dict[str, list[MentionLocation]],
+    spans: list[SemanticSpan]
 ) -> None:
     """
     Resolve pending mention locations to span IDs.
-    
+
     For each mention, find the span that contains or overlaps with it.
     Store the span ID (not text) in Entity.mentions.
     """
     # Build span index by segment for efficient lookup
-    spans_by_segment: Dict[str, List[SemanticSpan]] = defaultdict(list)
+    spans_by_segment: dict[str, list[SemanticSpan]] = defaultdict(list)
     for span in spans:
         spans_by_segment[span.segment_id].append(span)
-    
+
     for entity in entities:
         resolved_span_ids = []
-        
+
         for mention in pending_mentions.get(entity.id, []):
             # Find span that contains this mention
             matching_span = _find_overlapping_span(
@@ -1010,7 +1009,7 @@ def _resolve_mentions_to_spans(
                 mention.end_char,
                 spans_by_segment
             )
-            
+
             if matching_span:
                 # Avoid duplicates
                 if matching_span.id not in resolved_span_ids:
@@ -1020,7 +1019,7 @@ def _resolve_mentions_to_spans(
                 fallback = f"text:{mention.text}"
                 if fallback not in resolved_span_ids:
                     resolved_span_ids.append(fallback)
-        
+
         entity.mentions = resolved_span_ids
 
 
@@ -1028,8 +1027,8 @@ def _find_overlapping_span(
     segment_id: str,
     start_char: int,
     end_char: int,
-    spans_by_segment: Dict[str, List[SemanticSpan]]
-) -> Optional[SemanticSpan]:
+    spans_by_segment: dict[str, list[SemanticSpan]]
+) -> SemanticSpan | None:
     """Find a span that overlaps with the given character range."""
     for span in spans_by_segment.get(segment_id, []):
         # Check if ranges overlap
@@ -1041,7 +1040,7 @@ def _find_overlapping_span(
             return span
         elif span.start_char < end_char <= span.end_char:
             return span
-    
+
     return None
 
 

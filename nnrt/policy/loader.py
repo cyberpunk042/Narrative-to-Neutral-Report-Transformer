@@ -9,7 +9,6 @@ Supports two modes:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 import yaml
 
@@ -33,19 +32,19 @@ RULESETS_DIR = Path(__file__).parent / "rulesets"
 def load_ruleset(name: str = "base") -> PolicyRuleset:
     """
     Load a policy ruleset by name.
-    
+
     First checks for a profile in profiles/, then falls back to
     direct file loading for backwards compatibility.
-    
+
     Special case: 'base' redirects to 'law_enforcement' profile
     as the default for backwards compatibility with v1.x.
-    
+
     Args:
         name: Ruleset/profile name (without .yaml extension)
-        
+
     Returns:
         Parsed PolicyRuleset
-        
+
     Raises:
         FileNotFoundError: If ruleset file doesn't exist
         ValueError: If ruleset is invalid
@@ -53,61 +52,61 @@ def load_ruleset(name: str = "base") -> PolicyRuleset:
     # Backwards compatibility: 'base' now means 'law_enforcement' profile
     if name == "base":
         name = "law_enforcement"
-    
+
     # Check for profile first
     profile_path = RULESETS_DIR / "profiles" / f"{name}.yaml"
     if profile_path.exists():
         return load_profile(name)
-    
+
     # Check for legacy/direct file
     path = RULESETS_DIR / f"{name}.yaml"
     if not path.exists():
         raise FileNotFoundError(f"Ruleset not found: {path}")
-    
+
     with open(path) as f:
         data = yaml.safe_load(f)
-    
+
     return parse_ruleset(data)
 
 
 def load_profile(name: str) -> PolicyRuleset:
     """
     Load a composed profile from profiles/ directory.
-    
+
     Profiles specify includes which are loaded and merged.
     """
     profile_path = RULESETS_DIR / "profiles" / f"{name}.yaml"
     if not profile_path.exists():
         raise FileNotFoundError(f"Profile not found: {profile_path}")
-    
+
     with open(profile_path) as f:
         profile_data = yaml.safe_load(f)
-    
+
     # Get profile metadata
     profile_info = profile_data.get("profile", {})
     settings_data = profile_data.get("settings", {})
-    
+
     # Load and merge all included files
     all_rules: list[PolicyRule] = []
-    
+
     for include_path in profile_data.get("includes", []):
         included_rules = _load_category_file(include_path)
         all_rules.extend(included_rules)
-    
+
     # Apply any overrides
     for override in profile_data.get("overrides", []):
         _apply_override(all_rules, override)
-    
+
     # Sort rules by priority (highest first)
     all_rules.sort(key=lambda r: r.priority, reverse=True)
-    
+
     # Build settings
     settings = PolicySettings(
         min_confidence=settings_data.get("min_confidence", 0.7),
         always_diagnose=settings_data.get("always_diagnose", True),
         allow_override=settings_data.get("allow_override", True),
     )
-    
+
     return PolicyRuleset(
         version=profile_info.get("version", "2.0"),
         name=profile_info.get("name", name),
@@ -124,16 +123,16 @@ def _load_category_file(relative_path: str) -> list[PolicyRule]:
     if not full_path.exists():
         print(f"Warning: Category file not found: {full_path}")
         return []
-    
+
     with open(full_path) as f:
         data = yaml.safe_load(f)
-    
+
     rules = []
     for rule_data in data.get("rules", []):
         rule = parse_rule(rule_data)
         if rule:
             rules.append(rule)
-    
+
     return rules
 
 
@@ -165,14 +164,14 @@ def parse_ruleset(data: dict) -> PolicyRuleset:
         always_diagnose=settings_data.get("always_diagnose", True),
         allow_override=settings_data.get("allow_override", True),
     )
-    
+
     # Parse rules
     rules = []
     for rule_data in data.get("rules", []):
         rule = parse_rule(rule_data)
         if rule:
             rules.append(rule)
-    
+
     # Parse validation rules
     validation = []
     for val_data in data.get("validation", []):
@@ -182,7 +181,7 @@ def parse_ruleset(data: dict) -> PolicyRuleset:
             type=val_data["type"],
             terms=val_data.get("terms", []),
         ))
-    
+
     return PolicyRuleset(
         version=data.get("version", "1.0"),
         name=data.get("name", "unnamed"),
@@ -193,7 +192,7 @@ def parse_ruleset(data: dict) -> PolicyRuleset:
     )
 
 
-def parse_rule(data: dict) -> Optional[PolicyRule]:
+def parse_rule(data: dict) -> PolicyRule | None:
     """Parse a single rule from dictionary."""
     try:
         # Parse match config
@@ -205,7 +204,7 @@ def parse_rule(data: dict) -> Optional[PolicyRule]:
             case_sensitive=match_data.get("case_sensitive", False),
             exempt_following=match_data.get("exempt_following", []),
         )
-        
+
         # Parse diagnostic if present
         diagnostic = None
         if "diagnostic" in data:
@@ -215,7 +214,7 @@ def parse_rule(data: dict) -> Optional[PolicyRule]:
                 code=diag_data["code"],
                 message=diag_data["message"],
             )
-        
+
         # Parse condition if present
         condition = None
         if "condition" in data:
@@ -226,7 +225,7 @@ def parse_rule(data: dict) -> Optional[PolicyRule]:
                 span_label=cond_data.get("span_label"),
                 segment_pattern=cond_data.get("segment_pattern"),
             )
-        
+
         # V7 / Stage 1: Parse classification if present
         classification = None
         if "classification" in data:
@@ -237,7 +236,7 @@ def parse_rule(data: dict) -> Optional[PolicyRule]:
                 reason=class_data.get("reason"),
                 confidence=class_data.get("confidence", 0.9),
             )
-        
+
         return PolicyRule(
             id=data["id"],
             category=data.get("category", "uncategorized"),
@@ -285,7 +284,7 @@ def get_ruleset(name: str = "base", use_cache: bool = True) -> PolicyRuleset:
     """Get a ruleset, using cache by default."""
     if use_cache and name in _cache:
         return _cache[name]
-    
+
     ruleset = load_ruleset(name)
     _cache[name] = ruleset
     return ruleset

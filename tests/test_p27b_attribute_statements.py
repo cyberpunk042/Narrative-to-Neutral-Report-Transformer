@@ -6,15 +6,15 @@ epistemic content into safe attributed forms or quarantines it.
 """
 
 import pytest
-from nnrt.passes.p27b_attribute_statements import (
 
-    _check_aberration,
-    _extract_legal_claim,
-    _extract_interpretation,
-    INVECTIVE_PATTERNS,
-    UNFALSIFIABLE_PATTERNS,
-    LEGAL_TERM_EXTRACTIONS,
+from nnrt.passes.p27b_attribute_statements import (
     INTERPRETATION_EXTRACTIONS,
+    INVECTIVE_PATTERNS,
+    LEGAL_TERM_EXTRACTIONS,
+    UNFALSIFIABLE_PATTERNS,
+    _check_aberration,
+    _extract_interpretation,
+    _extract_legal_claim,
 )
 
 pytestmark = pytest.mark.unit
@@ -22,11 +22,11 @@ pytestmark = pytest.mark.unit
 
 class TestCheckAberration:
     """Tests for _check_aberration function."""
-    
+
     # =========================================================================
     # Invective → Must be aberrated
     # =========================================================================
-    
+
     @pytest.mark.parametrize("text,expected_reason", [
         ("thug cop attacked me", "invective"),
         ("the psychotic officer", "invective"),
@@ -40,11 +40,11 @@ class TestCheckAberration:
         is_aberrated, reason = _check_aberration(text)
         assert is_aberrated, f"'{text}' should be aberrated"
         assert expected_reason in reason.lower(), f"Reason should contain '{expected_reason}', got '{reason}'"
-    
+
     # =========================================================================
     # Conspiracy → Must be aberrated
     # =========================================================================
-    
+
     @pytest.mark.parametrize("text", [
         "massive cover-up going on",
         "I know they always protect their own",
@@ -57,11 +57,11 @@ class TestCheckAberration:
         is_aberrated, reason = _check_aberration(text)
         assert is_aberrated, f"'{text}' should be aberrated"
         assert "unfalsifiable" in reason.lower(), f"Reason should contain 'unfalsifiable', got '{reason}'"
-    
+
     # =========================================================================
     # Neutral → No aberration
     # =========================================================================
-    
+
     @pytest.mark.parametrize("text", [
         "Officer approached me",
         "He put handcuffs on me",
@@ -77,7 +77,7 @@ class TestCheckAberration:
 
 class TestExtractLegalClaim:
     """Tests for _extract_legal_claim function."""
-    
+
     @pytest.mark.parametrize("text,expected_term", [
         ("This was racial profiling", "racial profiling"),
         ("They used excessive force", "excessive force"),
@@ -88,12 +88,12 @@ class TestExtractLegalClaim:
     def test_legal_term_extraction(self, text, expected_term):
         """Legal terms should be extracted and attributed."""
         extracted_claim, attributed_text = _extract_legal_claim(text)
-        
+
         assert extracted_claim is not None, f"Should extract claim from '{text}'"
         assert expected_term in extracted_claim.lower(), f"Extracted: '{extracted_claim}'"
-        assert attributed_text is not None, f"Should generate attributed text"
-        assert "reporter" in attributed_text.lower(), f"Attribution should mention reporter"
-    
+        assert attributed_text is not None, "Should generate attributed text"
+        assert "reporter" in attributed_text.lower(), "Attribution should mention reporter"
+
     def test_neutral_no_extraction(self):
         """Neutral text should not extract legal claim."""
         extracted, attributed = _extract_legal_claim("Officer approached me")
@@ -103,7 +103,7 @@ class TestExtractLegalClaim:
 
 class TestExtractInterpretation:
     """Tests for _extract_interpretation function."""
-    
+
     @pytest.mark.parametrize("text,expected_in_attribution", [
         ("He obviously wanted to hurt me", "reporter"),
         ("She clearly tried to intimidate me", "reporter"),
@@ -113,11 +113,11 @@ class TestExtractInterpretation:
     def test_interpretation_extraction(self, text, expected_in_attribution):
         """Interpretations should be extracted and attributed."""
         extracted_claim, attributed_text = _extract_interpretation(text)
-        
+
         assert extracted_claim is not None, f"Should extract interpretation from '{text}'"
-        assert attributed_text is not None, f"Should generate attributed text"
+        assert attributed_text is not None, "Should generate attributed text"
         assert expected_in_attribution in attributed_text.lower(), f"Attribution should mention '{expected_in_attribution}'"
-    
+
     def test_neutral_no_interpretation(self):
         """Neutral text should not extract interpretation."""
         extracted, attributed = _extract_interpretation("Officer approached me")
@@ -127,15 +127,15 @@ class TestExtractInterpretation:
 
 class TestPatternCoverage:
     """Tests to ensure pattern lists are populated."""
-    
+
     def test_invective_patterns_exist(self):
         assert len(INVECTIVE_PATTERNS) > 0
-    
+
     def test_unfalsifiable_patterns_exist(self):
         assert len(UNFALSIFIABLE_PATTERNS) > 0
-    
+
     def test_legal_term_extractions_exist(self):
         assert len(LEGAL_TERM_EXTRACTIONS) > 0
-    
+
     def test_interpretation_extractions_exist(self):
         assert len(INTERPRETATION_EXTRACTIONS) > 0

@@ -16,9 +16,8 @@ From raw narrative like:
     "Officer Jenkins deliberately grabbed my left arm with excessive force"
 """
 
-from typing import List, Dict, Optional, Tuple, Set
-from dataclasses import dataclass
 import re
+from dataclasses import dataclass
 
 
 @dataclass
@@ -27,11 +26,11 @@ class GeneratedEvent:
     sentence: str           # The generated sentence
     actor: str             # Who performed the action
     verb: str              # What action
-    target: Optional[str]  # Target of action (if any)
+    target: str | None  # Target of action (if any)
     confidence: float      # How confident we are in this generation
     source_segment: str    # Original segment ID
     original_text: str     # Original text for debugging
-    exclusion_reason: Optional[str] = None  # If excluded, why
+    exclusion_reason: str | None = None  # If excluded, why
 
 
 # =============================================================================
@@ -123,15 +122,12 @@ IRREGULAR_PAST_TENSE = {
     'wear': 'wore',
     'win': 'won',
     'write': 'wrote',
-    # Phrasal verbs  
+    # Phrasal verbs
     'jump out': 'jumped out',
     'step back': 'stepped back',
     'walk out': 'walked out',
     'pull over': 'pulled over',
-    'run over': 'ran over',
-    'come over': 'came over',
     'come out': 'came out',
-    'get out': 'got out',
     'find out': 'found out',
     'go out': 'went out',
     'look at': 'looked at',
@@ -181,7 +177,7 @@ IRREGULAR_PAST_TENSE = {
 def conjugate_past_tense(verb: str) -> str:
     """
     Convert verb to past tense.
-    
+
     Examples:
         grab -> grabbed
         run over -> ran over
@@ -189,13 +185,13 @@ def conjugate_past_tense(verb: str) -> str:
     """
     if not verb:
         return verb
-    
+
     verb_lower = verb.lower().strip()
-    
+
     # Check irregular verbs first
     if verb_lower in IRREGULAR_PAST_TENSE:
         return IRREGULAR_PAST_TENSE[verb_lower]
-    
+
     # Regular verb conjugation
     if verb_lower.endswith('e'):
         return verb_lower + 'd'
@@ -221,7 +217,7 @@ def conjugate_past_tense(verb: str) -> str:
 def replace_pronouns_in_target(target: str, reporter_label: str = "Reporter") -> str:
     """
     Replace pronouns in target with proper nouns.
-    
+
     Examples:
         "my left arm" -> "Reporter's left arm"
         "his phone" -> "the phone"  (ambiguous possessive)
@@ -229,24 +225,24 @@ def replace_pronouns_in_target(target: str, reporter_label: str = "Reporter") ->
     """
     if not target:
         return target
-    
+
     target = target.strip()
-    
+
     # First-person possessives -> Reporter's
     target = re.sub(r'\bmy\b', f"{reporter_label}'s", target, flags=re.IGNORECASE)
     target = re.sub(r'\bmine\b', f"{reporter_label}'s", target, flags=re.IGNORECASE)
-    
+
     # First-person object pronouns -> Reporter
     target = re.sub(r'\bme\b', reporter_label, target, flags=re.IGNORECASE)
-    
+
     # Third-person possessives (ambiguous - make neutral)
     target = re.sub(r'\bhis\b(?!\s+\w+\')', 'the', target, flags=re.IGNORECASE)
     target = re.sub(r'\bher\b(?!\s+\w+\')', 'the', target, flags=re.IGNORECASE)
     target = re.sub(r'\btheir\b', 'the', target, flags=re.IGNORECASE)
-    
+
     # Clean up any double spaces
     target = ' '.join(target.split())
-    
+
     return target
 
 
@@ -257,7 +253,7 @@ def replace_pronouns_in_target(target: str, reporter_label: str = "Reporter") ->
 # Words/phrases that indicate subjective characterization
 CHARACTERIZATION_PATTERNS = [
     r'\bdeliberately\b',
-    r'\bintentionally\b', 
+    r'\bintentionally\b',
     r'\bpurposefully\b',
     r'\bmaliciously\b',
     r'\bviciously\b',
@@ -333,27 +329,27 @@ PHRASAL_VERB_PATTERNS = {
 }
 
 
-def extract_phrasal_verb_and_target(verb: str, description: str) -> Tuple[Optional[str], Optional[str]]:
+def extract_phrasal_verb_and_target(verb: str, description: str) -> tuple[str | None, str | None]:
     """
     Extract phrasal verb and its target from description.
-    
+
     Example:
         verb="jump", description="jumped out of the car like a maniac"
         -> ("jumped out of", "the car")
-    
+
     Returns:
         (phrasal_verb_past_tense, target) or (None, None) if not a phrasal verb
     """
     if not verb or not description:
         return None, None
-    
+
     verb_lower = verb.lower().strip()
     desc_lower = description.lower()
-    
+
     # Check if this verb has phrasal patterns
     if verb_lower not in PHRASAL_VERB_PATTERNS:
         return None, None
-    
+
     for pattern, phrasal_form in PHRASAL_VERB_PATTERNS[verb_lower]:
         match = re.search(pattern, desc_lower, re.IGNORECASE)
         if match:
@@ -363,7 +359,7 @@ def extract_phrasal_verb_and_target(verb: str, description: str) -> Tuple[Option
                 # Clean target
                 target = re.sub(r'\s*(,|\.)\s*$', '', target)
                 target = re.sub(r'\s+like\s+.*$', '', target)  # Remove "like a maniac"
-                
+
                 if len(target) > 2 and len(target) < 40:
                     # Handle special case where target goes in middle
                     if '{target}' in phrasal_form:
@@ -372,21 +368,21 @@ def extract_phrasal_verb_and_target(verb: str, description: str) -> Tuple[Option
             else:
                 # Intransitive pattern (no target)
                 return phrasal_form, None
-    
+
     return None, None
 
 
-def clean_description_for_target(description: str) -> Optional[str]:
+def clean_description_for_target(description: str) -> str | None:
     """
     Extract target from event description if not provided.
-    
+
     Example:
         "Officer Jenkins grabbed my left arm with excessive force"
         -> extract "my left arm" as target
     """
     if not description:
         return None
-    
+
     # Common patterns for extracting target
     patterns = [
         # Physical actions
@@ -415,7 +411,7 @@ def clean_description_for_target(description: str) -> Optional[str]:
         r'said\s+(?:to\s+)?(.+?)(?:\s+that|,|\"|$)',
         r'yelled\s+(?:to\s+|at\s+)?(.+?)(?:\s+that|,|\"|$)',
     ]
-    
+
     for pattern in patterns:
         match = re.search(pattern, description, re.IGNORECASE)
         if match:
@@ -424,7 +420,7 @@ def clean_description_for_target(description: str) -> Optional[str]:
             target = re.sub(r'\s*(,|\.)\s*$', '', target)  # Remove trailing punctuation
             target = re.sub(r'^["\']+|["\']+$', '', target)  # Remove quotes
             target = re.sub(r'\s+like\s+.*$', '', target)  # Remove "like a..."
-            
+
             # Reject if target looks like quote content
             if '"' in target or "'" in target:
                 continue  # Quote contamination
@@ -432,31 +428,31 @@ def clean_description_for_target(description: str) -> Optional[str]:
                 continue
             if target.lower().startswith(('you', 'i ', 'we ')):
                 continue  # Likely quote content
-                
+
             if len(target) > 2 and len(target) < 50:  # Sanity check
                 return target
-    
+
     return None
 
 
 def strip_characterization(text: str) -> str:
     """
     Remove characterization language from text.
-    
+
     Example:
-        "deliberately grabbed with excessive force" 
+        "deliberately grabbed with excessive force"
         -> "grabbed"
     """
     if not text:
         return text
-    
+
     result = text
     for pattern in CHARACTERIZATION_REGEX:
         result = pattern.sub('', result)
-    
+
     # Clean up whitespace
     result = ' '.join(result.split())
-    
+
     return result
 
 
@@ -505,28 +501,28 @@ VALID_ACTOR_REGEX = [re.compile(p, re.IGNORECASE) for p in VALID_ACTOR_PATTERNS]
 INVALID_ACTOR_REGEX = [re.compile(p, re.IGNORECASE) for p in INVALID_ACTOR_PATTERNS]
 
 
-def is_valid_actor(actor: str) -> Tuple[bool, Optional[str]]:
+def is_valid_actor(actor: str) -> tuple[bool, str | None]:
     """
     Check if actor is a valid named person for STRICT events.
-    
+
     Returns:
         (is_valid, reason_if_invalid)
     """
     if not actor:
         return False, "No actor specified"
-    
+
     actor = actor.strip()
-    
+
     # Check invalid patterns first
     for pattern in INVALID_ACTOR_REGEX:
         if pattern.search(actor):
             return False, f"Actor is pronoun or generic: '{actor}'"
-    
+
     # Check for valid patterns
     for pattern in VALID_ACTOR_REGEX:
         if pattern.match(actor):
             return True, None
-    
+
     # If no pattern matched, it's likely invalid
     return False, f"Actor not recognized as named person: '{actor}'"
 
@@ -564,7 +560,7 @@ VERBS_REQUIRING_TARGET = {
     'think', 'thought', 'believe', 'believed', 'feel', 'felt',  # Mental states
     'know', 'knew', 'understand', 'understood',  # Knowledge states
     # Witness actions that need context
-    'see', 'saw', 'hear', 'heard', 'notice', 'noticed', 
+    'see', 'saw', 'hear', 'heard', 'notice', 'noticed',
     'observe', 'observed', 'witness', 'witnessed',
     # Generic actions
     'show up', 'showed up', 'find out', 'found out',
@@ -583,22 +579,22 @@ STANDALONE_VERBS = {
 }
 
 
-def is_verb_meaningful(verb: str, target: Optional[str], actor: str) -> Tuple[bool, Optional[str]]:
+def is_verb_meaningful(verb: str, target: str | None, actor: str) -> tuple[bool, str | None]:
     """
     Check if verb+target combination is meaningful enough for STRICT section.
-    
+
     Returns:
         (is_meaningful, reason_if_not)
     """
     if not verb:
         return False, "No verb"
-    
+
     verb_lower = verb.lower().strip()
-    
+
     # Speech/communication verbs that are ONLY about content belong in QUOTES
     # But whispered/laughed are observable actions (the fact they whispered/laughed is camera-friendly)
     # V7.4: Split speech verbs into content-only vs action-observable
-    
+
     # These verbs are ONLY about content - always redirect to QUOTES
     CONTENT_ONLY_SPEECH_VERBS = {
         # Base forms
@@ -608,21 +604,17 @@ def is_verb_meaningful(verb: str, target: Optional[str], actor: str) -> Tuple[bo
     }
     if verb_lower in CONTENT_ONLY_SPEECH_VERBS:
         return False, f"Speech verb '{verb}' belongs in QUOTES section"
-    
+
     # These verbs describe OBSERVABLE ACTIONS even if they also have speech content
     # "Officer Jenkins whispered" is camera-friendly (observable action)
     # "Officer Jenkins laughed" is camera-friendly (observable action)
-    OBSERVABLE_SPEECH_ACTIONS = {
-        'whisper', 'whispered', 'laugh', 'laughed', 'yell', 'yelled',
-        'scream', 'screamed', 'shout', 'shouted', 'threaten', 'threatened',
-    }
     # For these verbs, if there's quote content in the target, strip it
     # The action itself goes to STRICT, the content goes to QUOTES
-    
+
     # If verb requires target and no target, reject
     if verb_lower in VERBS_REQUIRING_TARGET and not target:
         return False, f"Verb '{verb}' requires target/complement"
-    
+
     # Check target quality - reject quote contamination
     if target:
         target_lower = target.lower()
@@ -637,16 +629,16 @@ def is_verb_meaningful(verb: str, target: Optional[str], actor: str) -> Tuple[bo
             return False, "Target looks like quote content"
         if "reporter's complaint" in target_lower:
             return False, "Target contains self-referential content"
-    
+
     # Special case: Reporter's generic actions are less useful in STRICT section
     REPORTER_GENERIC_VERBS = {
         # Base forms - Internal/mental actions not camera-friendly
-        'freeze', 'scream', 'try', 'work', 'walk', 'research', 
+        'freeze', 'scream', 'try', 'work', 'walk', 'research',
         'go', 'hear', 'complain', 'charge', 'suffer', 'pursue', 'refuse',
         'think', 'feel', 'know', 'believe', 'want', 'like', 'hate', 'fear',
         'diagnose',  # Medical professional action, not camera-friendly for reporter
         # Past forms
-        'froze', 'screamed', 'tried', 'worked', 'walked', 'researched', 
+        'froze', 'screamed', 'tried', 'worked', 'walked', 'researched',
         'went', 'heard', 'complained', 'charged', 'suffered', 'pursued', 'refused',
         'thought', 'felt', 'knew', 'believed', 'wanted', 'liked', 'hated', 'feared',
         'diagnosed',
@@ -665,10 +657,10 @@ def is_verb_meaningful(verb: str, target: Optional[str], actor: str) -> Tuple[bo
         target_lower = target.lower().strip()
         if target_lower in NON_OBSERVABLE_TARGETS:
             return False, f"Reporter's target '{target}' is not observable"
-    
+
     # V7.4: Filter out metaphorical/abstract actions
     METAPHORICAL_PATTERNS = {
-        'fight for justice', 'fight for', 'fight to', 
+        'fight for justice', 'fight for', 'fight to',
         'pursue legal', 'pursuing legal',
         'refuse to be', 'refuses to be',
     }
@@ -677,47 +669,46 @@ def is_verb_meaningful(verb: str, target: Optional[str], actor: str) -> Tuple[bo
         for pattern in METAPHORICAL_PATTERNS:
             if pattern in target_lower:
                 return False, f"Metaphorical action: '{verb} {target[:20]}'"
-    
+
     # V7.4: Verbs that MUST have a target to be meaningful
     VERBS_MUST_HAVE_TARGET = {
         'put', 'threaten', 'threatened',
     }
     if verb_lower in VERBS_MUST_HAVE_TARGET and not target:
         return False, f"Verb '{verb}' requires explicit target"
-    
+
     # V7.4: Filter passive constructions for Reporter (e.g., "was treated")
     # These should be rendered from the professional's perspective
-    PASSIVE_INDICATORS = {'was', 'were', 'been', 'being'}
     if actor == "Reporter" and verb_lower in {'treat', 'treated', 'examine', 'examined'}:
         return False, f"Passive action '{verb}' - render from professional's perspective"
-    
+
     # Generic verbs that are always meaningless
     GENERIC_VERBS = {'happen', 'happened', 'occur', 'occurred', 'be', 'was', 'were', 'seem', 'seemed', 'appear', 'appeared'}
     if verb_lower in GENERIC_VERBS:
         return False, f"Verb '{verb}' is too generic"
-    
+
     # Coming/going without destination is too vague
     MOVEMENT_VERBS_NEEDING_TARGET = {
-        'come', 'came', 'go', 'went', 'arrive', 'arrived', 
+        'come', 'came', 'go', 'went', 'arrive', 'arrived',
         'come over', 'came over', 'come out', 'came out',
     }
     if verb_lower in MOVEMENT_VERBS_NEEDING_TARGET and not target:
         return False, f"Movement verb '{verb}' needs destination"
-    
+
     # Medical/research verbs need specifics
     if verb_lower in {'diagnose', 'diagnosed', 'research', 'researched'} and (not target or len(target) < 15):
         return False, f"Verb '{verb}' needs specific details to be camera-friendly"
-    
+
     return True, None
 
 
 def should_exclude_by_epistemic(
     segment_text: str,
     atomic_statements: list,
-) -> Tuple[bool, Optional[str]]:
+) -> tuple[bool, str | None]:
     """
     Check if segment should be excluded based on epistemic type.
-    
+
     Returns:
         (should_exclude, reason)
     """
@@ -727,7 +718,7 @@ def should_exclude_by_epistemic(
             epistemic = getattr(stmt, 'epistemic_type', None)
             if epistemic in EXCLUDE_EPISTEMIC_TYPES:
                 return True, f"Excluded by epistemic type: {epistemic}"
-    
+
     return False, None
 
 
@@ -740,59 +731,59 @@ def generate_strict_events(
     segments: list,
     atomic_statements: list,
     entities: list = None,
-) -> List[GeneratedEvent]:
+) -> list[GeneratedEvent]:
     """
     Generate clean, camera-friendly event sentences.
-    
+
     This is the main entry point for V9 event generation.
-    
+
     Args:
         events: Event IR objects with actor/verb/target
         segments: Segment objects for context
         atomic_statements: For epistemic filtering
         entities: Entity objects for context
-    
+
     Returns:
         List of GeneratedEvent objects (both included and excluded with reasons)
     """
-    results: List[GeneratedEvent] = []
-    seen_sentences: Set[str] = set()
-    
+    results: list[GeneratedEvent] = []
+    seen_sentences: set[str] = set()
+
     # Build segment lookup for context
     segment_lookup = {seg.id: seg for seg in segments}
-    
+
     # Build segment -> events mapping
-    seg_to_events: Dict[str, list] = {}
+    seg_to_events: dict[str, list] = {}
     for ev in events:
         for seg_id in (ev.source_spans or []):
             if seg_id not in seg_to_events:
                 seg_to_events[seg_id] = []
             seg_to_events[seg_id].append(ev)
-    
+
     # Process each event
     for ev in events:
         # Get source segment
         seg_id = ev.source_spans[0] if ev.source_spans else None
         seg = segment_lookup.get(seg_id) if seg_id else None
-        
+
         # V9: Prefer resolved_text (with pronouns resolved) if available
         original_text = seg.resolved_text or seg.text if seg else ev.description
-        
+
         # =====================================================================
         # V10 / Stage 1: Use pre-computed classification if available
         # If p35_classify_events has already classified this event, use that.
         # This avoids duplicating classification logic here.
         # =====================================================================
-        
+
         # Check if pre-computed classification exists and is meaningful
         # (camera_friendly_source set means p35 ran with real logic, not just defaults)
         has_precomputed = (
-            hasattr(ev, 'camera_friendly_source') and 
-            ev.camera_friendly_source == 'p35_classify_events' and 
+            hasattr(ev, 'camera_friendly_source') and
+            ev.camera_friendly_source == 'p35_classify_events' and
             hasattr(ev, 'camera_friendly_reason') and
             ev.camera_friendly_reason != 'awaiting_stage1_classification'
         )
-        
+
         if has_precomputed and not ev.is_camera_friendly:
             # Event was pre-disqualified by p35 - use that reason
             results.append(GeneratedEvent(
@@ -806,16 +797,16 @@ def generate_strict_events(
                 exclusion_reason=f"pre_classified:{ev.camera_friendly_reason}",
             ))
             continue
-        
+
         # =====================================================================
         # Fallback: Legacy inline classification (for backward compatibility)
         # This runs if p35 hasn't populated classification yet
         # =====================================================================
-        
+
         # 1. Validate actor
         actor = ev.actor_label
         is_valid, actor_reason = is_valid_actor(actor)
-        
+
         if not is_valid:
             results.append(GeneratedEvent(
                 sentence="",
@@ -828,7 +819,7 @@ def generate_strict_events(
                 exclusion_reason=actor_reason,
             ))
             continue
-        
+
         # 2. Check epistemic exclusion
         if seg:
             should_exclude, epistemic_reason = should_exclude_by_epistemic(
@@ -836,7 +827,7 @@ def generate_strict_events(
             )
             # Note: We DON'T exclude based on epistemic alone anymore
             # We use it as a flag but still generate the event if actor is valid
-        
+
         # 3. Get verb and conjugate
         verb = ev.action_verb
         if not verb:
@@ -851,9 +842,9 @@ def generate_strict_events(
                 exclusion_reason="No action verb",
             ))
             continue
-        
+
         verb_past = conjugate_past_tense(verb)
-        
+
         # 3.5. Check for phrasal verbs (e.g., "jumped out of" instead of "jumped")
         phrasal_verb, phrasal_target = extract_phrasal_verb_and_target(verb, ev.description)
         if phrasal_verb:
@@ -871,12 +862,12 @@ def generate_strict_events(
             verb_lower = verb.lower().strip() if verb else ''
             if not target and verb_lower not in STANDALONE_VERBS:
                 target = clean_description_for_target(ev.description)
-        
+
         # 5. Replace pronouns in target
         if target:
             target = replace_pronouns_in_target(target)
             target = strip_characterization(target)
-        
+
         # 5.5. Check verb quality (some verbs need targets to be meaningful)
         is_meaningful, verb_reason = is_verb_meaningful(verb, target, actor)
         if not is_meaningful:
@@ -891,18 +882,18 @@ def generate_strict_events(
                 exclusion_reason=verb_reason,
             ))
             continue
-        
+
         # 6. Generate sentence
         if target:
             sentence = f"{actor} {verb_past} {target}."
         else:
             sentence = f"{actor} {verb_past}."
-        
+
         # Clean up sentence
         sentence = sentence.strip()
         sentence = re.sub(r'\s+', ' ', sentence)
         sentence = re.sub(r'\s+\.', '.', sentence)
-        
+
         # 6.5: Capitalize proper nouns (officer names, etc.)
         def capitalize_proper_nouns(text):
             """Capitalize known proper nouns in text."""
@@ -914,20 +905,20 @@ def generate_strict_events(
             # Also capitalize 'officers' when followed by names
             text = re.sub(r'\bofficers\s+', 'Officers ', text, flags=re.IGNORECASE)
             return text
-        
+
         sentence = capitalize_proper_nouns(sentence)
-        
+
         # 7. Deduplicate
         sentence_key = sentence.lower()
         if sentence_key in seen_sentences:
             continue
         seen_sentences.add(sentence_key)
-        
+
         # 8. Calculate confidence
         confidence = 0.9 if target else 0.7
         if actor and 'Officer' in actor or 'Sergeant' in actor:
             confidence += 0.05  # Boost for clear authority figures
-        
+
         results.append(GeneratedEvent(
             sentence=sentence,
             actor=actor,
@@ -938,10 +929,10 @@ def generate_strict_events(
             original_text=original_text[:80] if original_text else "",
             exclusion_reason=None,
         ))
-    
+
     # Sort by confidence (highest first)
     results.sort(key=lambda x: (x.exclusion_reason is None, x.confidence), reverse=True)
-    
+
     return results
 
 
@@ -951,105 +942,105 @@ def get_strict_event_sentences(
     atomic_statements: list,
     entities: list = None,
     max_events: int = 25,
-) -> List[str]:
+) -> list[str]:
     """
     Convenience function to get just the sentence strings for STRICT section.
-    
+
     V10: Now uses enhanced sentence-level extraction in addition to spaCy events.
-    
+
     Args:
         events: Event IR objects
         segments: Segment objects
         atomic_statements: For context
         entities: Entity objects
         max_events: Maximum number of events to return
-    
+
     Returns:
         List of clean sentence strings
     """
     # V9: Generate from spaCy events
     generated = generate_strict_events(events, segments, atomic_statements, entities)
-    
+
     # Filter to only valid (non-excluded) events
     valid_events = [g for g in generated if g.exclusion_reason is None and g.sentence]
     v9_sentences = [g.sentence for g in valid_events]
-    
+
     # V10: Also use enhanced sentence-level extraction
     v10_sentences = []
     try:
         from nnrt.nlp.enhanced_event_extractor import get_enhanced_events
-        
+
         # Build full text from segments
         if segments:
             full_text = ' '.join(s.text for s in segments if hasattr(s, 'text') and s.text)
-            
+
             # Get entity names for pronoun resolution
             entity_names = []
             if entities:
                 for e in entities:
                     if hasattr(e, 'label') and e.label:
                         entity_names.append(e.label)
-            
+
             # Extract enhanced events
             enhanced = get_enhanced_events(full_text, entity_names)
-            
+
             # Apply additional quality filters
             for ev in enhanced:
                 sentence = ev.get('sentence', '')
-                
+
                 # Skip low-quality events
                 if not sentence or len(sentence) < 10:
                     continue
-                    
+
                 # Skip incomplete targets (ends with 'at.' or 'with.')
                 if sentence.endswith(' at.') or sentence.endswith(' with.'):
                     continue
-                    
-                # Skip malformed text with multiple consecutive periods  
+
+                # Skip malformed text with multiple consecutive periods
                 if '..' in sentence:
                     continue
-                    
+
                 # Skip known malformed patterns
                 if 'stateReporternt' in sentence:
                     continue
                 if 'stop Reporter' in sentence or 'tell from' in sentence:
                     continue
-                
+
                 # Skip sentences starting with unresolved pronouns
                 if sentence.startswith(('She ', 'He ', 'It ', 'They ')):
                     continue
-                
+
                 # Skip sentences with base-form verbs (wrong tense)
                 # Pattern: "Actor verb" where verb is base form
                 words = sentence.split()
                 if len(words) >= 2:
                     potential_verb = words[1].lower().rstrip('.')
-                    base_form_verbs = {'grab', 'walk', 'run', 'jump', 'take', 'put', 
+                    base_form_verbs = {'grab', 'walk', 'run', 'jump', 'take', 'put',
                                        'slam', 'search', 'come', 'go', 'call', 'document'}
                     if potential_verb in base_form_verbs:
                         continue
-                
+
                 # Skip nonsensical combinations
                 if ' documented slammed ' in sentence.lower():
                     continue
                 if ' walk at night' in sentence.lower():
                     continue
-                    
+
                 # Skip events with unresolved "it" as target
                 if ' it ' in sentence.lower() and 'Reporter' not in sentence:
                     continue
-                
+
                 v10_sentences.append(sentence)
-                
+
     except ImportError:
         pass  # Enhanced extractor not available
     except Exception:
         pass  # Don't crash on errors
-    
+
     # Combine and deduplicate
     seen_keys = set()
     combined = []
-    
+
     def normalize_for_dedup(sentence: str) -> str:
         """Normalize sentence for deduplication key generation."""
         s = sentence.lower()
@@ -1060,54 +1051,54 @@ def get_strict_event_sentences(
         # Get first 4 words
         words = s.split()[:4]
         return ' '.join(words)
-    
+
     # Process V10 first (enhanced is typically higher quality)
     for s in v10_sentences:
         key = normalize_for_dedup(s)
         if key not in seen_keys:
             seen_keys.add(key)
             combined.append(s)
-    
+
     # Add V9 events that aren't duplicates
     for s in v9_sentences:
         key = normalize_for_dedup(s)
         if key not in seen_keys:
             seen_keys.add(key)
             combined.append(s)
-    
+
     # V10.2: Final quality filter for known misattributions (A1.2 fix)
     # These are specific patterns we know to be problematic
     filtered_combined = []
     for s in combined:
         s_lower = s.lower()
-        
+
         # Fix: "Rodriguez jumped out" is wrong - only Jenkins jumped out
         # Rodriguez "got out of the passenger side"
         if 'rodriguez' in s_lower and 'jumped out' in s_lower:
             continue  # Skip this misattribution
-        
+
         # Fix: Skip duplicate twisted arm events (keep the one with Officer prefix)
-        if 'jenkins twisted' in s_lower and not 'officer' in s_lower:
+        if 'jenkins twisted' in s_lower and 'officer' not in s_lower:
             continue  # Skip variant without Officer prefix
-        
+
         filtered_combined.append(s)
-    
+
     # V10.2: Post-process to fix incomplete event descriptions (A2.1, A2.2 fixes)
     final_events = []
     for s in filtered_combined:
         fixed = s
-        
+
         # A2.1: "recorded on his phone" -> "recorded the incident on his phone"
         if 'recorded on his phone' in fixed.lower() or 'recorded on her phone' in fixed.lower():
             fixed = fixed.replace('recorded on his phone', 'recorded the incident on his phone')
             fixed = fixed.replace('recorded on her phone', 'recorded the incident on her phone')
-        
+
         # A2.2: "pulled Officers Jenkins and Rodriguez" -> "pulled Officers Jenkins and Rodriguez aside"
         if 'pulled officers' in fixed.lower() and 'aside' not in fixed.lower():
             fixed = fixed.rstrip('.') + ' aside.'
-        
+
         final_events.append(fixed)
-    
+
     # Return up to max events
     return final_events[:max_events]
 
@@ -1116,21 +1107,21 @@ def get_excluded_events_summary(
     events: list,
     segments: list,
     atomic_statements: list,
-) -> Dict[str, List[str]]:
+) -> dict[str, list[str]]:
     """
     Get summary of excluded events grouped by reason.
-    
+
     Returns:
         Dict mapping exclusion reason to list of original texts
     """
     generated = generate_strict_events(events, segments, atomic_statements)
-    
-    excluded: Dict[str, List[str]] = {}
+
+    excluded: dict[str, list[str]] = {}
     for g in generated:
         if g.exclusion_reason:
             reason = g.exclusion_reason.split(':')[0]  # Simplify reason
             if reason not in excluded:
                 excluded[reason] = []
             excluded[reason].append(g.original_text)
-    
+
     return excluded

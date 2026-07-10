@@ -1,8 +1,10 @@
+from pathlib import Path
+
 import pytest
 import yaml
-from pathlib import Path
-from nnrt.core.engine import get_engine
+
 from nnrt.cli.main import setup_default_pipeline
+from nnrt.core.engine import get_engine
 
 # Path to hard cases (relative to tests/validation/)
 HARD_CASES_FILE = Path(__file__).parent.parent.parent / "data" / "synthetic" / "hard_cases.yaml"
@@ -11,7 +13,7 @@ HARD_CASES_FILE = Path(__file__).parent.parent.parent / "data" / "synthetic" / "
 def hard_cases():
     if not HARD_CASES_FILE.exists():
         return []
-        
+
     with open(HARD_CASES_FILE) as f:
         data = yaml.safe_load(f)
     return data.get("cases", [])

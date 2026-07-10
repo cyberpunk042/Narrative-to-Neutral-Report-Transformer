@@ -18,7 +18,7 @@ class SchemaValidator(Validator):
     def validate(self, ctx: TransformContext) -> list[str]:
         """
         Validate IR schema.
-        
+
         Checks:
         - All required fields present
         - All ID references resolve

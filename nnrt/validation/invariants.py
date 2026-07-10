@@ -10,14 +10,15 @@ Provides the foundation for invariant-driven output:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Callable, List, Optional
+from collections.abc import Callable
+from dataclasses import dataclass
+from enum import StrEnum
+from typing import Any
 
 
-class InvariantSeverity(str, Enum):
+class InvariantSeverity(StrEnum):
     """How to handle invariant failures."""
-    
+
     HARD = "hard"      # Content goes to quarantine, NOT rendered in main section
     SOFT = "soft"      # Content renders with ⚠️ warning
     INFO = "info"      # Log only, no output change
@@ -26,14 +27,14 @@ class InvariantSeverity(str, Enum):
 @dataclass
 class InvariantResult:
     """Result of checking an invariant."""
-    
+
     passes: bool
     invariant_id: str
     message: str
-    failed_content: Optional[str] = None
-    quarantine_bucket: Optional[str] = None
+    failed_content: str | None = None
+    quarantine_bucket: str | None = None
     severity: InvariantSeverity = InvariantSeverity.HARD
-    
+
     def __repr__(self) -> str:
         status = "✅ PASS" if self.passes else "❌ FAIL"
         return f"{status} [{self.invariant_id}] {self.message}"
@@ -42,12 +43,12 @@ class InvariantResult:
 @dataclass
 class QuarantineItem:
     """Content that failed one or more invariants."""
-    
+
     content: Any                           # The original content (Event, SpeechAct, etc.)
     content_preview: str                   # Human-readable preview (first 100 chars)
-    failures: List[InvariantResult]        # All failed invariant checks
+    failures: list[InvariantResult]        # All failed invariant checks
     content_type: str = "unknown"          # "event", "quote", "statement", etc.
-    
+
     @property
     def issue_summary(self) -> str:
         """Single-line summary of issues."""
@@ -58,16 +59,16 @@ class QuarantineItem:
 class Invariant:
     """
     A machine-checkable rule that content must pass.
-    
+
     Invariants are the core of V6's "nothing renders unless valid" philosophy.
     """
-    
+
     id: str                                # Unique identifier (e.g., "EVENT_HAS_ACTOR")
     description: str                       # Human-readable description
     severity: InvariantSeverity            # How to handle failures
     check_fn: Callable[[Any], InvariantResult]  # Function that checks the invariant
     quarantine_bucket: str                 # Where failed content goes
-    
+
     def check(self, content: Any) -> InvariantResult:
         """Check this invariant against content."""
         result = self.check_fn(content)
@@ -82,25 +83,25 @@ class Invariant:
 class InvariantRegistry:
     """
     Central registry of all invariants.
-    
+
     Usage:
         InvariantRegistry.register(my_invariant)
         result = InvariantRegistry.check("EVENT_HAS_ACTOR", event)
         results = InvariantRegistry.check_all(event, ["EVENT_HAS_ACTOR", "EVENT_NOT_FRAGMENT"])
     """
-    
+
     _invariants: dict[str, Invariant] = {}
-    
+
     @classmethod
     def register(cls, invariant: Invariant) -> None:
         """Register an invariant."""
         cls._invariants[invariant.id] = invariant
-    
+
     @classmethod
-    def get(cls, invariant_id: str) -> Optional[Invariant]:
+    def get(cls, invariant_id: str) -> Invariant | None:
         """Get an invariant by ID."""
         return cls._invariants.get(invariant_id)
-    
+
     @classmethod
     def check(cls, invariant_id: str, content: Any) -> InvariantResult:
         """Check a single invariant against content."""
@@ -112,14 +113,14 @@ class InvariantRegistry:
                 message=f"Unknown invariant: {invariant_id}",
             )
         return inv.check(content)
-    
+
     @classmethod
-    def check_all(cls, content: Any, invariant_ids: List[str]) -> List[InvariantResult]:
+    def check_all(cls, content: Any, invariant_ids: list[str]) -> list[InvariantResult]:
         """Check multiple invariants against content."""
         return [cls.check(id, content) for id in invariant_ids]
-    
+
     @classmethod
-    def check_all_registered(cls, content: Any, content_type: str) -> List[InvariantResult]:
+    def check_all_registered(cls, content: Any, content_type: str) -> list[InvariantResult]:
         """Check all invariants applicable to a content type."""
         results = []
         for inv in cls._invariants.values():
@@ -128,12 +129,12 @@ class InvariantRegistry:
             if inv.id.startswith(content_type.upper()):
                 results.append(inv.check(content))
         return results
-    
+
     @classmethod
-    def list_all(cls) -> List[str]:
+    def list_all(cls) -> list[str]:
         """List all registered invariant IDs."""
         return list(cls._invariants.keys())
-    
+
     @classmethod
     def clear(cls) -> None:
         """Clear all registered invariants (for testing)."""
@@ -142,13 +143,13 @@ class InvariantRegistry:
 
 def validate_content(
     content: Any,
-    invariant_ids: List[str],
-    content_preview: Optional[str] = None,
+    invariant_ids: list[str],
+    content_preview: str | None = None,
     content_type: str = "unknown"
-) -> tuple[bool, Optional[QuarantineItem]]:
+) -> tuple[bool, QuarantineItem | None]:
     """
     Validate content against multiple invariants.
-    
+
     Returns:
         (passes_all, quarantine_item)
         - passes_all: True if content passes ALL invariants
@@ -156,10 +157,10 @@ def validate_content(
     """
     results = InvariantRegistry.check_all(content, invariant_ids)
     failures = [r for r in results if not r.passes]
-    
+
     if not failures:
         return True, None
-    
+
     # Create quarantine item
     preview = content_preview or str(content)[:100]
     quarantine = QuarantineItem(
@@ -168,5 +169,5 @@ def validate_content(
         failures=failures,
         content_type=content_type,
     )
-    
+
     return False, quarantine

@@ -11,7 +11,6 @@ be preserved exactly as stated in the original narrative.
 from __future__ import annotations
 
 import re
-from uuid import uuid4
 
 from nnrt.core.context import TransformContext
 from nnrt.core.logging import get_pass_logger
@@ -56,10 +55,10 @@ IDENTIFIER_PATTERNS = {
         # Street addresses MUST have a street suffix to match
         # "near Main Street", "at Oak Avenue" - requires Street/Ave/etc.
         r'\b(?:at|on|near)\s+(?:the\s+)?([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\s+(?:Street|St\.?|Avenue|Ave\.?|Boulevard|Blvd\.?|Road|Rd\.?|Drive|Dr\.?|Lane|Ln\.?|Highway|Hwy\.?))\b',
-        
+
         # "corner of Main and Oak" - intersection without suffix
         r'\b(?:corner\s+of|intersection\s+of)\s+([A-Z][a-z]+(?:\s+(?:Street|St\.?))?\s+(?:and|&)\s+[A-Z][a-z]+(?:\s+(?:Avenue|Ave\.?))?)\b',
-        
+
         # Numbered addresses: "123 Main Street"
         r'\b(\d+\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\s+(?:Street|St\.?|Avenue|Ave\.?|Boulevard|Blvd\.?|Road|Rd\.?|Drive|Dr\.?|Lane|Ln\.?))\b',
     ],
@@ -96,17 +95,17 @@ NOT_TEMPORAL_PATTERNS = [
 def _is_valid_time(value: str) -> tuple[bool, float]:
     """
     V4: Validate a time identifier.
-    
+
     Returns (is_valid, confidence).
     Rejects parsing artifacts like "30 PM" and vague words like "night", "hours".
     """
     value = value.strip()
-    
+
     # Check for invalid patterns
     for pattern in INVALID_TIME_PATTERNS:
         if re.match(pattern, value, re.IGNORECASE):
             return (False, 0.0)
-    
+
     # V4: Reject vague temporal words as TIME - they're not clock times
     for pattern in VAGUE_TEMPORAL_PATTERNS:
         if re.match(pattern, value, re.IGNORECASE):
@@ -116,14 +115,14 @@ def _is_valid_time(value: str) -> tuple[bool, float]:
                 reason="not_a_clock_time",
             )
             return (False, 0.0)  # Reject entirely - "night" is not a time
-    
+
     # Proper times: "11:30 PM", "3:45 am", "11 PM"
     if re.match(r'^\d{1,2}:\d{2}\s*(AM|PM|am|pm)?$', value):
         return (True, 0.95)  # High confidence
-    
+
     if re.match(r'^\d{1,2}\s+(AM|PM|am|pm)$', value):
         return (True, 0.9)  # Hour only, still valid
-    
+
     # "about 20 minutes" is a DURATION, not a TIME
     for pattern in DURATION_PATTERNS:
         if re.match(pattern, value, re.IGNORECASE):
@@ -133,18 +132,18 @@ def _is_valid_time(value: str) -> tuple[bool, float]:
                 reason="duration_not_time",
             )
             return (False, 0.0)  # Reject - should be DURATION type
-    
+
     # If no AM/PM and no colon, it's low confidence
     if not re.search(r'(AM|PM|am|pm|:|hour)', value):
         return (True, 0.5)  # Low confidence
-    
+
     return (True, 0.8)
 
 
 def _is_valid_date(value: str) -> tuple[bool, float]:
     """
     V4: Validate a date identifier.
-    
+
     Returns (is_valid, confidence).
     Rejects:
     - Non-date patterns like "40s" (age)
@@ -153,7 +152,7 @@ def _is_valid_date(value: str) -> tuple[bool, float]:
     """
     value = value.strip()
     value_lower = value.lower()
-    
+
     # V4 ALPHA: Reject unanchored relative dates
     # These are relative and cannot be resolved without external context
     unanchored_dates = {
@@ -166,31 +165,31 @@ def _is_valid_date(value: str) -> tuple[bool, float]:
         "later that day", "earlier that day",
         "three months later", "months later", "weeks later", "days later",
     }
-    
+
     if value_lower in unanchored_dates:
         return (False, 0.0)
-    
+
     # Also check for patterns like "X days/weeks/months later"
     if re.match(r'^\w+\s+(days?|weeks?|months?)\s+(later|earlier|before|after)$', value_lower):
         return (False, 0.0)
-    
+
     # Check for non-temporal patterns (age decades)
     for pattern in NOT_TEMPORAL_PATTERNS:
         if re.match(pattern, value, re.IGNORECASE):
             return (False, 0.0)
-    
+
     # Check for vague temporal
     for pattern in VAGUE_TEMPORAL_PATTERNS:
         if re.match(pattern, value, re.IGNORECASE):
             return (True, 0.3)  # Valid but very low confidence
-    
+
     return (True, 0.9)
 
 
 def _looks_like_person_name(text: str, doc) -> bool:
     """
     V4: Check if a string looks like a person name.
-    
+
     Used to filter person names from location identifiers.
     Checks:
     1. If it starts with a title (Officer, Dr., etc.)
@@ -198,7 +197,7 @@ def _looks_like_person_name(text: str, doc) -> bool:
     3. If all tokens are PROPN (proper nouns)
     """
     text_lower = text.lower().strip()
-    
+
     # Title prefixes that indicate a person
     person_titles = {
         "officer", "officers", "deputy", "sergeant", "sgt", "sgt.",
@@ -206,11 +205,11 @@ def _looks_like_person_name(text: str, doc) -> bool:
         "dr", "dr.", "doctor", "nurse", "mr", "mr.", "mrs", "mrs.",
         "ms", "ms.", "miss",
     }
-    
+
     first_word = text_lower.split()[0] if text_lower.split() else ""
     if first_word in person_titles:
         return True
-    
+
     # Check if all words are capitalized (typical of person names)
     words = text.split()
     if all(w[0].isupper() and len(w) > 1 for w in words if w):
@@ -218,38 +217,38 @@ def _looks_like_person_name(text: str, doc) -> bool:
         for ent in doc.ents:
             if ent.label_ == "PERSON" and ent.text.lower() == text_lower:
                 return True
-        
+
         # Single capitalized word - likely a name (surname)
         if len(words) == 1 and not any(kw in text_lower for kw in ["street", "avenue", "hospital", "cafe", "store", "building"]):
             # Could be a standalone surname like "Marcus", "Jenkins"
             for ent in doc.ents:
                 if ent.label_ == "PERSON" and text_lower in ent.text.lower():
                     return True
-    
+
     return False
 
 
 def _deduplicate_identifiers(identifiers: list[Identifier]) -> list[Identifier]:
     """
     V4: Remove duplicate identifiers.
-    
+
     Keeps the first occurrence of each (type, value) pair.
     """
     seen = set()
     result = []
-    
+
     for ident in identifiers:
         key = (ident.type, ident.value.lower().strip())
         if key not in seen:
             seen.add(key)
             result.append(ident)
-    
+
     return result
 
 def extract_identifiers(ctx: TransformContext) -> TransformContext:
     """
     Extract identifiers from segments.
-    
+
     This pass:
     - Uses regex patterns for structured identifiers
     - Uses spaCy NER for names and locations
@@ -267,7 +266,7 @@ def extract_identifiers(ctx: TransformContext) -> TransformContext:
 
     identifiers: list[Identifier] = []
     id_counter = 0
-    
+
     # V4: Create full-document spaCy doc for cross-segment person detection
     nlp = get_nlp()
     full_text = " ".join(seg.text for seg in ctx.segments)
@@ -278,11 +277,11 @@ def extract_identifiers(ctx: TransformContext) -> TransformContext:
         regex_ids = _extract_regex_identifiers(segment.text, segment.id)
         identifiers.extend(regex_ids)
         id_counter += len(regex_ids)
-        
+
         # Extract via NER (with full_doc for cross-segment person detection)
         ner_ids = _extract_ner_identifiers(segment.text, segment.id, full_doc)
 
-        
+
         # Deduplicate against regex matches
         for ner_id in ner_ids:
             # Check if this overlaps with a regex match
@@ -307,19 +306,19 @@ def extract_identifiers(ctx: TransformContext) -> TransformContext:
             after=len(identifiers),
             removed=before_count - len(identifiers),
         )
-    
+
     ctx.identifiers = identifiers
-    
+
     # Count by type
     type_counts = {}
     for ident in identifiers:
         type_counts[ident.type.value] = type_counts.get(ident.type.value, 0) + 1
-    
+
     log.info("extracted",
         total_identifiers=len(identifiers),
         **type_counts,
     )
-    
+
     ctx.add_trace(
         pass_name=PASS_NAME,
         action="extracted_identifiers",
@@ -332,11 +331,11 @@ def extract_identifiers(ctx: TransformContext) -> TransformContext:
 def _extract_regex_identifiers(text: str, segment_id: str) -> list[Identifier]:
     """
     Extract identifiers using regex patterns.
-    
+
     V4: Applies validation to reject artifacts and adjust confidence.
     """
     results: list[Identifier] = []
-    
+
     for id_type, patterns in IDENTIFIER_PATTERNS.items():
         for pattern in patterns:
             try:
@@ -344,7 +343,7 @@ def _extract_regex_identifiers(text: str, segment_id: str) -> list[Identifier]:
                     # Get the captured group or full match
                     value = match.group(1) if match.groups() else match.group()
                     confidence = 0.9  # Default confidence
-                    
+
                     # V4: Validate time identifiers
                     if id_type == IdentifierType.TIME:
                         is_valid, conf = _is_valid_time(value)
@@ -356,7 +355,7 @@ def _extract_regex_identifiers(text: str, segment_id: str) -> list[Identifier]:
                             )
                             continue  # Skip invalid times
                         confidence = conf
-                    
+
                     # V4: Validate date identifiers
                     elif id_type == IdentifierType.DATE:
                         is_valid, conf = _is_valid_date(value)
@@ -368,7 +367,7 @@ def _extract_regex_identifiers(text: str, segment_id: str) -> list[Identifier]:
                             )
                             continue  # Skip invalid dates
                         confidence = conf
-                    
+
                     results.append(Identifier(
                         id=f"id_{len(results):03d}",
                         type=id_type,
@@ -381,25 +380,25 @@ def _extract_regex_identifiers(text: str, segment_id: str) -> list[Identifier]:
                     ))
             except re.error:
                 continue  # Skip invalid patterns
-    
+
     return results
 
 
 def _extract_ner_identifiers(text: str, segment_id: str, full_doc=None) -> list[Identifier]:
     """
     Extract identifiers using spaCy NER.
-    
+
     Args:
         text: Segment text to analyze
         segment_id: ID of the source segment
         full_doc: Optional full-document spaCy doc for cross-segment person detection
     """
     results: list[Identifier] = []
-    
+
     nlp = get_nlp()
     doc = nlp(text)
 
-    
+
     # Map spaCy entity types to our identifier types
     type_map = {
         "PERSON": IdentifierType.NAME,
@@ -409,7 +408,7 @@ def _extract_ner_identifiers(text: str, segment_id: str, full_doc=None) -> list[
         "TIME": IdentifierType.TIME,
         "DATE": IdentifierType.DATE,
     }
-    
+
     # Stopwords - common false positives
     LOCATION_STOPLIST = {
         # Pronouns (spaCy sometimes mis-classifies)
@@ -421,29 +420,29 @@ def _extract_ner_identifiers(text: str, segment_id: str, full_doc=None) -> list[
         "there", "here", "where", "somewhere", "anywhere",
         "scene", "place", "area", "spot",
     }
-    
+
     DATE_STOPLIST = {
         # Age patterns are not dates
         "year-old", "years-old", "month-old", "months-old",
         # Ordinal indicators alone
         "1st", "2nd", "3rd", "4th", "5th",
     }
-    
+
     # Patterns to reject
     AGE_PATTERN = re.compile(r'^\d{1,3}[-\s]?year[-\s]?old', re.IGNORECASE)
     MEDICAL_TERMS = {"ptsd", "adhd", "ocd", "gad", "mdd"}
-    
+
     for ent in doc.ents:
         if ent.label_ not in type_map:
             continue
-            
+
         ent_text_lower = ent.text.lower().strip()
         id_type = type_map[ent.label_]
-        
+
         # Filter 1: Skip very short entities (likely noise)
         if len(ent.text.strip()) < 2:
             continue
-            
+
         # Filter 2: Location stoplist and validation
         if id_type == IdentifierType.LOCATION:
             if ent_text_lower in LOCATION_STOPLIST:
@@ -451,7 +450,7 @@ def _extract_ner_identifiers(text: str, segment_id: str, full_doc=None) -> list[
             # Check if it's just a pronoun based on POS
             if len(list(ent)) == 1 and list(ent)[0].pos_ in ("PRON", "DET"):
                 continue
-            
+
             # V4: Check if this looks like a person name (title + name pattern)
             # e.g., "Marcus", "Officer Jenkins" should not be locations
             # Use full_doc for cross-segment person detection
@@ -464,7 +463,7 @@ def _extract_ner_identifiers(text: str, segment_id: str, full_doc=None) -> list[
                     reason="looks_like_person_name",
                 )
                 continue
-                
+
         # Filter 3: Date validation
         if id_type == IdentifierType.DATE:
             # Skip age patterns
@@ -488,7 +487,7 @@ def _extract_ner_identifiers(text: str, segment_id: str, full_doc=None) -> list[
             is_valid, conf = _is_valid_date(ent.text)
             if not is_valid:
                 continue
-        
+
         # V4: Apply time validation for NER-extracted times
         if id_type == IdentifierType.TIME:
             is_valid, conf = _is_valid_time(ent.text)
@@ -509,7 +508,7 @@ def _extract_ner_identifiers(text: str, segment_id: str, full_doc=None) -> list[
             source_segment_id=segment_id,
             confidence=0.7,  # Lower confidence for NER
         ))
-    
+
     return results
 
 

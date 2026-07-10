@@ -13,13 +13,13 @@ The Two Paths:
 
 Decision Logic:
 1. Check for INVECTIVE (thug, maniac, psychotic) → ABERRATE
-2. Check for CONSPIRACY (cover-up, they always protect) → ABERRATE 
+2. Check for CONSPIRACY (cover-up, they always protect) → ABERRATE
 3. Check if claim is extractable → REPHRASE
 4. Otherwise → ABERRATE (cannot safely transform)
 """
 
 import re
-from typing import Optional, Tuple
+
 from nnrt.core.context import TransformContext
 from nnrt.core.logging import get_pass_logger
 
@@ -74,7 +74,7 @@ TOXIC_COMBINATION_PATTERNS = [
 # Legal terms that can be extracted and attributed
 LEGAL_TERM_EXTRACTIONS = [
     # (pattern, legal_term, attribution_template)
-    (r'\bracial\s+profiling\b', "racial profiling", 
+    (r'\bracial\s+profiling\b', "racial profiling",
      "reporter characterizes the stop as racial profiling"),
     (r'\bexcessive\s+force\b', "excessive force",
      "reporter characterizes the use of force as excessive"),
@@ -139,55 +139,55 @@ INTERPRETATION_EXTRACTIONS = [
 # CORE LOGIC
 # =============================================================================
 
-def _check_aberration(text: str) -> Tuple[bool, Optional[str]]:
+def _check_aberration(text: str) -> tuple[bool, str | None]:
     """
     Check if statement must be aberrated (quarantined).
-    
+
     Returns (is_aberrated, reason) tuple.
     """
     text_lower = text.lower()
-    
+
     # Check invective patterns
     for pattern, reason in INVECTIVE_PATTERNS:
         if re.search(pattern, text_lower):
             return (True, reason)
-    
+
     # Check unfalsifiable patterns
     for pattern, reason in UNFALSIFIABLE_PATTERNS:
         if re.search(pattern, text_lower):
             return (True, reason)
-    
+
     # Check toxic combinations
     for pattern, reason in TOXIC_COMBINATION_PATTERNS:
         if re.search(pattern, text_lower):
             return (True, reason)
-    
+
     return (False, None)
 
 
-def _extract_legal_claim(text: str) -> Tuple[Optional[str], Optional[str]]:
+def _extract_legal_claim(text: str) -> tuple[str | None, str | None]:
     """
     Extract legal characterization and generate attributed form.
-    
+
     Returns (extracted_claim, attributed_text) tuple.
     """
     text_lower = text.lower()
-    
+
     for pattern, legal_term, template in LEGAL_TERM_EXTRACTIONS:
         if re.search(pattern, text_lower):
             return (legal_term, template)
-    
+
     return (None, None)
 
 
-def _extract_interpretation(text: str) -> Tuple[Optional[str], Optional[str]]:
+def _extract_interpretation(text: str) -> tuple[str | None, str | None]:
     """
     Extract interpretation and generate attributed form.
-    
+
     Returns (extracted_claim, attributed_text) tuple.
     """
     text_lower = text.lower()
-    
+
     for pattern, claim_type, template in INTERPRETATION_EXTRACTIONS:
         match = re.search(pattern, text_lower)
         if match:
@@ -198,17 +198,17 @@ def _extract_interpretation(text: str) -> Tuple[Optional[str], Optional[str]]:
             else:
                 attributed = template
             return (claim_type, attributed)
-    
+
     return (None, None)
 
 
 def attribute_statements(ctx: TransformContext) -> TransformContext:
     """
     Transform dangerous epistemic content into attributed forms or aberrate.
-    
+
     This pass runs after p27_epistemic_tag and processes statements that were
     flagged as interpretation, legal_claim, or conspiracy_claim.
-    
+
     For each flagged statement:
     1. Check if it must be aberrated (invective, conspiracy)
     2. If not, extract the claim and generate attributed form
@@ -217,53 +217,53 @@ def attribute_statements(ctx: TransformContext) -> TransformContext:
     if not ctx.atomic_statements:
         log.warning("no_statements", message="No statements to process")
         return ctx
-    
+
     aberrated_count = 0
     attributed_count = 0
     skipped_count = 0
-    
+
     for stmt in ctx.atomic_statements:
         # Only process dangerous epistemic types
         if stmt.epistemic_type not in (
-            "interpretation", "legal_claim", "conspiracy_claim", 
+            "interpretation", "legal_claim", "conspiracy_claim",
             "intent_attribution", "legal_characterization"
         ):
             skipped_count += 1
             continue
-        
+
         # Step 1: Check for aberration
         is_aberrated, reason = _check_aberration(stmt.text)
-        
+
         if is_aberrated:
             stmt.is_aberrated = True
             stmt.aberration_reason = reason
             aberrated_count += 1
-            log.info("aberrated", 
-                statement_id=stmt.id, 
+            log.info("aberrated",
+                statement_id=stmt.id,
                 reason=reason,
                 text_preview=stmt.text[:50])
             continue
-        
+
         # Step 2: Try to extract and attribute
         extracted_claim = None
         attributed_text = None
-        
+
         # Try legal claim extraction first
         if stmt.epistemic_type in ("legal_claim", "legal_characterization"):
             extracted_claim, attributed_text = _extract_legal_claim(stmt.text)
-        
+
         # Then try interpretation extraction
         if not attributed_text and stmt.epistemic_type in ("interpretation", "intent_attribution"):
             extracted_claim, attributed_text = _extract_interpretation(stmt.text)
-        
+
         # Fallback: generic attribution if no specific template matched
         if not attributed_text:
             # Generate generic attribution based on type
             if stmt.epistemic_type in ("legal_claim", "legal_characterization"):
-                attributed_text = f"reporter makes a legal characterization regarding this incident"
+                attributed_text = "reporter makes a legal characterization regarding this incident"
                 extracted_claim = "unspecified legal claim"
             elif stmt.epistemic_type in ("interpretation", "intent_attribution"):
-                attributed_text = f"reporter expresses an interpretation of events"
+                attributed_text = "reporter expresses an interpretation of events"
                 extracted_claim = "unspecified interpretation"
             else:
                 # Conspiracy without invective - still aberrate
@@ -271,28 +271,28 @@ def attribute_statements(ctx: TransformContext) -> TransformContext:
                 stmt.aberration_reason = "conspiracy claim: cannot safely attribute"
                 aberrated_count += 1
                 continue
-        
+
         # Store attribution
         stmt.attributed_text = attributed_text
         stmt.extracted_claim = extracted_claim
         attributed_count += 1
-        
+
         log.debug("attributed",
             statement_id=stmt.id,
             epistemic_type=stmt.epistemic_type,
             extracted_claim=extracted_claim,
             attributed_text=attributed_text[:50] if attributed_text else None)
-    
+
     log.info("attribution_complete",
         total=len(ctx.atomic_statements),
         aberrated=aberrated_count,
         attributed=attributed_count,
         skipped=skipped_count)
-    
+
     ctx.add_trace(
         pass_name=PASS_NAME,
         action="attributed_statements",
         after=f"Aberrated: {aberrated_count}, Attributed: {attributed_count}, Skipped: {skipped_count}",
     )
-    
+
     return ctx

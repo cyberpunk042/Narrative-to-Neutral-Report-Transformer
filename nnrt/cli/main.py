@@ -3,7 +3,6 @@ NNRT CLI — Command-line interface for transformations.
 """
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
@@ -30,31 +29,31 @@ from nnrt.passes import (
     segment,
     tag_spans,
 )
+from nnrt.passes.p27_epistemic_tag import tag_epistemic
+from nnrt.passes.p27b_attribute_statements import attribute_statements
+from nnrt.passes.p35_classify_events import classify_events
+from nnrt.passes.p36_resolve_quotes import resolve_quotes  # V7/Stage 1
+from nnrt.passes.p38_extract_items import extract_items  # V7/Stage 1
 from nnrt.passes.p42_coreference import resolve_coreference
 from nnrt.passes.p43_resolve_actors import resolve_actors
 from nnrt.passes.p44_timeline_v6 import build_enhanced_timeline as build_timeline
 from nnrt.passes.p46_group_statements import group_statements
 from nnrt.passes.p48_classify_evidence import classify_evidence
-from nnrt.passes.p27_epistemic_tag import tag_epistemic
-from nnrt.passes.p27b_attribute_statements import attribute_statements
-from nnrt.passes.p72_safety_scrub import safety_scrub
-from nnrt.passes.p35_classify_events import classify_events
-from nnrt.passes.p36_resolve_quotes import resolve_quotes  # V7/Stage 1
-from nnrt.passes.p38_extract_items import extract_items     # V7/Stage 1
 from nnrt.passes.p55_select import select as select_atoms
+from nnrt.passes.p72_safety_scrub import safety_scrub
 from nnrt.passes.p90_render_structured import render_structured
 
 
 def setup_default_pipeline(engine: Engine, profile: str = "law_enforcement") -> None:
     """Register the default pipeline with specified profile."""
     from nnrt.passes import cleanup_punctuation
-    from nnrt.policy.loader import clear_cache
     from nnrt.policy.engine import set_default_profile
-    
+    from nnrt.policy.loader import clear_cache
+
     # Clear cache and set profile for policy engine
     clear_cache()
     set_default_profile(profile)
-    
+
     default_pipeline = Pipeline(
         id="default",
         name="Default NNRT Pipeline",
@@ -97,28 +96,27 @@ def setup_default_pipeline(engine: Engine, profile: str = "law_enforcement") -> 
 def setup_raw_pipeline(engine: Engine, profile: str = "law_enforcement") -> None:
     """
     Register a RAW pipeline - the original v1 pipeline.
-    
+
     This is the simple/fast neutralization WITHOUT the v2 safety measures:
     - NO atomic decomposition
     - NO statement classification
     - NO provenance linking
     - NO entity/event extraction
-    
+
     Just basic neutralization: normalize → segment → policy → render
-    
+
     Use this for:
     - Fast processing when structured analysis isn't needed
     - Comparing v1 vs v2 output
     - Legacy compatibility
     """
-    from nnrt.passes import cleanup_punctuation
-    from nnrt.passes import extract_identifiers
-    from nnrt.policy.loader import clear_cache
+    from nnrt.passes import cleanup_punctuation, extract_identifiers
     from nnrt.policy.engine import set_default_profile
-    
+    from nnrt.policy.loader import clear_cache
+
     clear_cache()
     set_default_profile(profile)
-    
+
     raw_pipeline = Pipeline(
         id="raw",
         name="Raw NNRT Pipeline (v1 Simple)",
@@ -145,27 +143,27 @@ def setup_raw_pipeline(engine: Engine, profile: str = "law_enforcement") -> None
 def setup_structured_only_pipeline(engine: Engine, profile: str = "law_enforcement") -> None:
     """
     Register the structured pipeline - full v2 with all safety measures.
-    
+
     Identical to default pipeline (full decomposition, classification, etc.)
     The difference is the OUTPUT FORMAT: structured document style instead of prose.
-    
+
     Both produce:
     - rendered_text (neutral prose)
     - atomic_statements
     - entities, events
     - identifiers
     - diagnostics
-    
+
     The UI formats the Neutral Output panel as an "official document" with
     bullet points and sections rather than flowing prose.
     """
     from nnrt.passes import cleanup_punctuation, safety_scrub
-    from nnrt.policy.loader import clear_cache
     from nnrt.policy.engine import set_default_profile
-    
+    from nnrt.policy.loader import clear_cache
+
     clear_cache()
     set_default_profile(profile)
-    
+
     structured_pipeline = Pipeline(
         id="structured_only",
         name="Structured Pipeline (v2 Full)",
@@ -273,7 +271,7 @@ def main() -> int:
         default="strict",
         help="Selection mode: strict (default, camera-friendly only), full (all), timeline, events, recompose",
     )
-    
+
     # Logging configuration
     transform_parser.add_argument(
         "--log-level",
@@ -304,21 +302,21 @@ def main() -> int:
 def run_transform(args: argparse.Namespace) -> int:
     """Run transformation command."""
     # Configure logging first
-    from nnrt.core.logging import configure_logging, LogLevel, LogChannel
-    
+    from nnrt.core.logging import configure_logging
+
     log_level = getattr(args, 'log_level', None)
     log_channel = getattr(args, 'log_channel', None)
-    
+
     channels = None
     if log_channel:
         channels = [ch.strip() for ch in log_channel.split(",")]
-    
+
     configure_logging(
         level=log_level,
         channels=channels,
         force=True,
     )
-    
+
     # Get input text
     if args.input == "-":
         text = sys.stdin.read()
@@ -331,11 +329,11 @@ def run_transform(args: argparse.Namespace) -> int:
     # Setup engine with selected profile
     engine = get_engine()
     profile = getattr(args, 'profile', 'law_enforcement')
-    
+
     # Choose pipeline based on flags
     use_raw = getattr(args, 'raw', False)
     no_prose = getattr(args, 'no_prose', False)
-    
+
     if use_raw:
         setup_raw_pipeline(engine, profile=profile)
         pipeline_id = "raw"
@@ -394,7 +392,7 @@ def run_transform(args: argparse.Namespace) -> int:
 def format_raw_output(result, original_text: str) -> str:
     """
     Format raw pipeline output for debugging.
-    
+
     Shows what the pipeline extracted WITHOUT any rewriting.
     This is the foundation for designing proper structured output.
     """
@@ -411,23 +409,22 @@ def format_raw_output(result, original_text: str) -> str:
         f"SEGMENTS ({len(result.segments)})",
         "=" * 80,
     ]
-    
+
     for i, seg in enumerate(result.segments):
         contexts = ", ".join(seg.contexts) if seg.contexts else "(none)"
         lines.append(f"\n[{i}] {seg.id}")
         lines.append(f"    Text: {seg.text[:100]}{'...' if len(seg.text) > 100 else ''}")
         lines.append(f"    Contexts: {contexts}")
         lines.append(f"    Chars: {seg.start_char}-{seg.end_char}")
-    
+
     # NEW: Atomic Statements section
     lines.append("")
     lines.append("=" * 80)
     lines.append(f"ATOMIC STATEMENTS ({len(result.atomic_statements)})")
     lines.append("=" * 80)
-    
+
     for i, stmt in enumerate(result.atomic_statements[:30]):  # Limit to first 30
         stmt_type = stmt.type_hint.value if hasattr(stmt.type_hint, 'value') else str(stmt.type_hint)
-        flags = f" {stmt.flags}" if stmt.flags else ""
         lines.append(f"\n[{i}] {stmt.id}")
         lines.append(f"    Type: {stmt_type} (confidence: {stmt.confidence:.2f})")
         lines.append(f"    Text: {stmt.text[:80]}{'...' if len(stmt.text) > 80 else ''}")
@@ -438,15 +435,15 @@ def format_raw_output(result, original_text: str) -> str:
             lines.append(f"    Derived from: {stmt.derived_from}")
         if stmt.flags:
             lines.append(f"    Flags: {stmt.flags}")
-    
+
     if len(result.atomic_statements) > 30:
         lines.append(f"\n  ... and {len(result.atomic_statements) - 30} more statements")
-    
+
     lines.append("")
     lines.append("=" * 80)
     lines.append(f"POLICY DECISIONS ({len(result.policy_decisions)})")
     lines.append("=" * 80)
-    
+
     for decision in result.policy_decisions[:50]:  # Limit to first 50
         action = decision.action.value if hasattr(decision.action, 'value') else str(decision.action)
         lines.append(f"\n  [{decision.rule_id}]")
@@ -454,21 +451,21 @@ def format_raw_output(result, original_text: str) -> str:
         lines.append(f"    Reason: {decision.reason}")
         if decision.affected_ids:
             lines.append(f"    Affects: {decision.affected_ids}")
-    
+
     if len(result.policy_decisions) > 50:
         lines.append(f"\n  ... and {len(result.policy_decisions) - 50} more decisions")
-    
+
     lines.append("")
     lines.append("=" * 80)
     lines.append(f"IDENTIFIERS ({len(result.identifiers)})")
     lines.append("=" * 80)
-    
+
     for ident in result.identifiers[:20]:
         lines.append(f"  [{ident.type.value}] {ident.value}")
-    
+
     if len(result.identifiers) > 20:
         lines.append(f"  ... and {len(result.identifiers) - 20} more")
-    
+
     # Summary
     lines.append("")
     lines.append("=" * 80)
@@ -484,7 +481,7 @@ def format_raw_output(result, original_text: str) -> str:
     lines.append("NOTE: In raw mode, no prose output is produced.")
     lines.append("      This is intentional - we're showing WHAT was extracted,")
     lines.append("      not HOW it would be rewritten.")
-    
+
     return "\n".join(lines)
 
 

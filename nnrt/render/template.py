@@ -7,15 +7,13 @@ This is the safest rendering option - fully deterministic.
 
 from __future__ import annotations
 
-from typing import Optional
-
 from nnrt.ir.schema_v0_1 import TransformResult
 
 
 class TemplateRenderer:
     """
     Template-based renderer.
-    
+
     Produces neutral text by applying templates to IR structures.
     Fully deterministic - same IR always produces same output.
     """
@@ -23,10 +21,10 @@ class TemplateRenderer:
     def render(self, result: TransformResult) -> str:
         """
         Render IR to neutral text.
-        
+
         Args:
             result: The TransformResult containing IR
-            
+
         Returns:
             Rendered neutral text
         """
@@ -39,7 +37,7 @@ class TemplateRenderer:
     def render_with_annotations(self, result: TransformResult) -> str:
         """
         Render IR with inline annotations.
-        
+
         Useful for debugging and review.
         """
         if not result.segments:

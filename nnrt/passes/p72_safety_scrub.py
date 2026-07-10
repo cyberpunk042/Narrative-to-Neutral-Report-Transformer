@@ -18,6 +18,7 @@ This pass catches anything that slipped through segment-level rendering.
 """
 
 import re
+
 from nnrt.core.context import TransformContext
 from nnrt.core.logging import get_pass_logger
 
@@ -50,7 +51,7 @@ LEGAL_SCRUB_PATTERNS = [
      "-- reporter alleges assault and battery --"),
     (r'\bobstruction\s+of\s+justice\s+and\s+(witness\s+)?intimidation\b',
      "-- reporter alleges obstruction of justice and intimidation --"),
-    
+
     # =========================================================================
     # FULL SENTENCE PATTERNS - Match before fragments
     # =========================================================================
@@ -60,7 +61,7 @@ LEGAL_SCRUB_PATTERNS = [
      "-- reporter characterizes conduct as police brutality --"),
     (r'\b[Tt]his\s+(was\s+)?(clearly\s+)?a\s+threat\b',
      "-- reporter perceived as threatening --"),
-    
+
     # =========================================================================
     # SINGLE LEGAL TERMS - Match last (only if not already matched above)
     # =========================================================================
@@ -81,7 +82,7 @@ LEGAL_SCRUB_PATTERNS = [
     (r'\bwrongful\s+(termination|arrest|detention)\b',
      "-- reporter characterizes as wrongful --"),
     # Note: standalone "harassment" and "racial profiling" moved to end
-    
+
     # =========================================================================
     # SYSTEMIC CLAIMS - attributed
     # =========================================================================
@@ -95,7 +96,7 @@ LEGAL_SCRUB_PATTERNS = [
      "-- reporter alleges racism --"),
     (r'\bpattern\s+of\s+(abuse|misconduct|violence|brutality)\b',
      "-- reporter alleges pattern of misconduct --"),
-    
+
     # =========================================================================
     # STANDALONE TERMS - Match LAST (only if not already matched above)
     # =========================================================================
@@ -121,7 +122,7 @@ INTENT_SCRUB_PATTERNS = [
      "-- reporter perceived intent --"),
     (r'\btrying\s+to\s+(kill|hurt|harm|intimidate)\b',
      "-- reporter perceived attempt to harm --"),
-    
+
     # Intent attribution
     (r'\b(clearly|obviously|definitely)\s+intended\s+to\b',
      "-- reporter infers intent --"),
@@ -129,7 +130,7 @@ INTENT_SCRUB_PATTERNS = [
      "-- reporter infers deliberate action --"),
     (r'\bintentionally\s+(hurt|harmed|ignored|denied)\b',
      "-- reporter infers intentional action --"),
-    
+
     # Threat characterizations
     (r'\b[Tt]hreat\s+and\s+\w+\s+intimidation\b',
      "-- reporter characterizes as threatening --"),
@@ -184,7 +185,7 @@ INVECTIVE_SCRUB_PATTERNS = [
     (r'\bbrutally\s*', ""),
     (r'\bviciously\s*', ""),
     (r'\bsavagely\s*', ""),
-    # V5 STRESS TEST: Additional invective patterns  
+    # V5 STRESS TEST: Additional invective patterns
     # V7.2 FIX: Added \b at end to prevent matching 'brutal' inside 'brutality'
     (r'\bbrutal\b,?\s*', ""),  # "brutal, psychotic cops" or "brutal cops"
     (r'\bviolent\s+offender\b', "individual with history"),
@@ -199,17 +200,17 @@ INVECTIVE_SCRUB_PATTERNS = [
 def safety_scrub(ctx: TransformContext) -> TransformContext:
     """
     Final safety scrub of rendered text.
-    
+
     Catches and transforms any dangerous content that slipped through
     the segment-level rendering.
     """
     if not ctx.rendered_text:
         return ctx
-    
+
     original = ctx.rendered_text
     scrubbed = original
     scrub_count = 0
-    
+
     def attribution_aware_sub(pattern, replacement, text):
         """
         V7: Substitute pattern with replacement, but SKIP text already inside
@@ -217,20 +218,19 @@ def safety_scrub(ctx: TransformContext) -> TransformContext:
         """
         # Split text into attributed and non-attributed segments
         result = []
-        pos = 0
         count = 0
-        
+
         # Find all attribution spans first
         attribution_spans = []
         for m in re.finditer(r'--[^-]+--', text):
             attribution_spans.append((m.start(), m.end()))
-        
+
         def is_inside_attribution(start, end):
             for attr_start, attr_end in attribution_spans:
                 if start >= attr_start and end <= attr_end:
                     return True
             return False
-        
+
         # Now find all pattern matches and only substitute those outside attributions
         last_end = 0
         for m in re.finditer(pattern, text, re.IGNORECASE):
@@ -240,10 +240,10 @@ def safety_scrub(ctx: TransformContext) -> TransformContext:
                 last_end = m.end()
                 count += 1
             # If inside attribution, skip (include original text later)
-        
+
         result.append(text[last_end:])
         return ''.join(result), count
-    
+
     # Apply legal scrubs
     for pattern, replacement in LEGAL_SCRUB_PATTERNS:
         new_text, count = attribution_aware_sub(pattern, replacement, scrubbed)
@@ -252,7 +252,7 @@ def safety_scrub(ctx: TransformContext) -> TransformContext:
             scrub_count += count
             log.info("legal_scrub", pattern=pattern[:30], count=count)
 
-    
+
     # V5: Apply intent/threat scrubs (with attribution-aware substitution)
     for pattern, replacement in INTENT_SCRUB_PATTERNS:
         new_text, count = attribution_aware_sub(pattern, replacement, scrubbed)
@@ -260,7 +260,7 @@ def safety_scrub(ctx: TransformContext) -> TransformContext:
             scrubbed = new_text
             scrub_count += count
             log.info("intent_scrub", pattern=pattern[:30], count=count)
-    
+
     # Apply conspiracy scrubs (with attribution-aware substitution)
     for pattern, replacement in CONSPIRACY_SCRUB_PATTERNS:
         new_text, count = attribution_aware_sub(pattern, replacement, scrubbed)
@@ -268,7 +268,7 @@ def safety_scrub(ctx: TransformContext) -> TransformContext:
             scrubbed = new_text
             scrub_count += count
             log.info("conspiracy_scrub", pattern=pattern[:30], count=count)
-    
+
     # Apply invective scrubs (these use simple re.subn since they don't add attributions)
     for pattern, replacement in INVECTIVE_SCRUB_PATTERNS:
         new_text, count = re.subn(pattern, replacement, scrubbed, flags=re.IGNORECASE)
@@ -276,56 +276,56 @@ def safety_scrub(ctx: TransformContext) -> TransformContext:
             scrubbed = new_text
             scrub_count += count
             log.info("invective_scrub", pattern=pattern[:30], count=count)
-    
+
     # Always clean up artifacts (article agreement, double spaces, etc.)
     # This must run even if no scrubs were applied, since policy may have
     # created issues like "an person" (when "innocent" was removed)
     scrubbed = _clean_artifacts(scrubbed)
-    
+
     # Always update the rendered text with the cleaned version
     ctx.rendered_text = scrubbed
-    
+
     if scrub_count > 0:
-        log.info("safety_scrub_complete", 
+        log.info("safety_scrub_complete",
             scrubs_applied=scrub_count,
             original_len=len(original),
             scrubbed_len=len(scrubbed))
-        
+
         ctx.add_diagnostic(
             level="info",
             code="V4_SAFETY_SCRUB",
             message=f"Applied {scrub_count} safety scrubs to rendered output",
             source=PASS_NAME,
         )
-    
+
     ctx.add_trace(
         pass_name=PASS_NAME,
         action="safety_scrub",
         after=f"Applied {scrub_count} scrubs" if scrub_count else "No scrubs needed",
     )
-    
+
     return ctx
 
 
 def _clean_artifacts(text: str) -> str:
     """Clean up artifacts from scrubbing."""
     result = text
-    
+
     # NOTE: Removed global double-space replacement here.
     # It was destroying leading indentation (e.g., "  • bullet" -> " • bullet").
     # Internal double spaces are handled in the line-by-line processing below.
-    
+
     # Remove orphaned punctuation
     result = result.replace(" .", ".").replace(" ,", ",")
     result = result.replace(".,", ".").replace(",.", ".")
-    
+
     # Remove empty parentheses/brackets
     result = re.sub(r'\(\s*\)', '', result)
     result = re.sub(r'\[\s*\]', '', result)
-    
+
     # Remove leftover "-- --" patterns
     result = re.sub(r'--\s*--', '', result)
-    
+
     # V7: Fix nested attributions - multiple "--" patterns in same sentence
     # Pattern: "-- reporter X -- reporter Y --" -> "-- reporter X; reporter Y --"
     # Or simply collapse to first attribution
@@ -338,7 +338,7 @@ def _clean_artifacts(text: str) -> str:
             result = result[:match.start()] + combined + result[match.end():]
         else:
             break
-    
+
     # Fix patterns like "-- reporter X as -- reporter Y --" (mid-attribution break)
     result = re.sub(
         r'--\s*(reporter\s+\w+)\s+as\s*--\s*(reporter[^-]+)--',
@@ -346,7 +346,7 @@ def _clean_artifacts(text: str) -> str:
         result,
         flags=re.IGNORECASE
     )
-    
+
     # V7.3 FIX: Clean up double/cascading attributions
     # Pattern: "-- reporter alleges -- reporter alleges X --" → "-- reporter alleges X --"
     result = re.sub(
@@ -355,7 +355,7 @@ def _clean_artifacts(text: str) -> str:
         result,
         flags=re.IGNORECASE
     )
-    
+
     # Pattern: "-- reporter alleges -- reporter alleges cover-up" (without final --)
     result = re.sub(
         r'--\s*reporter\s+(\w+)\s*--\s*reporter\s+\1\s+(\w+)',
@@ -363,7 +363,7 @@ def _clean_artifacts(text: str) -> str:
         result,
         flags=re.IGNORECASE
     )
-    
+
     # Pattern: "-- reporter alleges cover-up and -- reporter alleges cover-up --"
     result = re.sub(
         r'--\s*reporter\s+alleges\s+cover-up\s+and\s*--\s*reporter\s+alleges\s+cover-up\s*--',
@@ -371,7 +371,7 @@ def _clean_artifacts(text: str) -> str:
         result,
         flags=re.IGNORECASE
     )
-    
+
     # General cleanup: multiple "reporter X" in same attribution
     result = re.sub(
         r'(reporter\s+(?:alleges|concludes|characterizes|perceives))\s+reporter\s+(?:alleges|concludes|characterizes|perceives)',
@@ -379,21 +379,21 @@ def _clean_artifacts(text: str) -> str:
         result,
         flags=re.IGNORECASE
     )
-    
+
     # Fix "described as described as" duplication
     result = re.sub(r'\bdescribed as\s+described as\b', 'described as', result, flags=re.IGNORECASE)
-    
+
     # Fix "characterized as characterized as" etc
     result = re.sub(r'\b(characterized|perceived|reported)\s+as\s+\1\s+as\b', r'\1 as', result, flags=re.IGNORECASE)
-    
+
     # Fix article agreement: "an person" → "a person", "a individual" → "an individual"
     # When a word is removed, we may have wrong article
     result = re.sub(r'\ban\s+([bcdfghjklmnpqrstvwxyzBCDFGHJKLMNPQRSTVWXYZ])', r'a \1', result)
     result = re.sub(r'\ba\s+([aeiouAEIOU])', r'an \1', result)
-    
+
     # Remove leftover broken attributions (empty or whitespace only)
     result = re.sub(r'--\s+--', '', result)
-    
+
     # Trim extra whitespace on each line, but PRESERVE newlines AND leading indentation
     # The old code used ' '.join(result.split()) which destroys all newlines
     # Then we used ' '.join(line.split()) which destroys leading indentation
@@ -411,9 +411,9 @@ def _clean_artifacts(text: str) -> str:
             cleaned_content = ' '.join(stripped.split())
             cleaned_lines.append(leading_ws + cleaned_content)
     result = '\n'.join(cleaned_lines)
-    
+
     # Remove excessive blank lines (more than 2 in a row)
     result = re.sub(r'\n{3,}', '\n\n', result)
     result = result.strip()
-    
+
     return result

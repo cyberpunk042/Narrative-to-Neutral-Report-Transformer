@@ -9,14 +9,14 @@ Invariants for event rendering:
 
 from nnrt.validation.invariants import (
     Invariant,
+    InvariantRegistry,
     InvariantResult,
     InvariantSeverity,
-    InvariantRegistry,
 )
 
 # Pronouns that disqualify an actor
 PRONOUNS = {
-    "he", "she", "they", "him", "her", "them", 
+    "he", "she", "they", "him", "her", "them",
     "i", "me", "we", "us", "it", "his", "hers"
 }
 
@@ -29,7 +29,7 @@ FRAGMENT_STARTERS = {
 def check_event_has_actor(event) -> InvariantResult:
     """
     Invariant: Every event must have a resolved actor (not pronoun).
-    
+
     Examples:
         ✅ "Officer Jenkins yelled at Reporter"
         ❌ "He yelled at Reporter" (pronoun)
@@ -38,7 +38,7 @@ def check_event_has_actor(event) -> InvariantResult:
     """
     actor = getattr(event, 'actor_label', None)
     desc = getattr(event, 'description', str(event))[:100]
-    
+
     if not actor:
         return InvariantResult(
             passes=False,
@@ -47,9 +47,9 @@ def check_event_has_actor(event) -> InvariantResult:
             failed_content=desc,
             quarantine_bucket="EVENTS_UNRESOLVED"
         )
-    
+
     actor_lower = actor.lower().strip()
-    
+
     if actor_lower in PRONOUNS:
         return InvariantResult(
             passes=False,
@@ -58,7 +58,7 @@ def check_event_has_actor(event) -> InvariantResult:
             failed_content=desc,
             quarantine_bucket="EVENTS_UNRESOLVED"
         )
-    
+
     # Check for "Individual (Unidentified)" - also not resolved
     if "unidentified" in actor_lower or "unknown" in actor_lower:
         return InvariantResult(
@@ -68,7 +68,7 @@ def check_event_has_actor(event) -> InvariantResult:
             failed_content=desc,
             quarantine_bucket="EVENTS_UNRESOLVED"
         )
-    
+
     # V6: Check for characterization language - not a proper resolved actor
     CHARACTERIZATION_WORDS = {
         "brutal", "psychotic", "thug", "corrupt", "violent", "maniac",
@@ -83,7 +83,7 @@ def check_event_has_actor(event) -> InvariantResult:
                 failed_content=desc,
                 quarantine_bucket="EVENTS_UNRESOLVED"
             )
-    
+
     # V6: Actor should start with proper noun pattern
     # Valid: "Officer X", "Reporter", "Person Name"
     # Invalid: "the car", "it all", etc.
@@ -102,7 +102,7 @@ def check_event_has_actor(event) -> InvariantResult:
                 failed_content=desc,
                 quarantine_bucket="EVENTS_UNRESOLVED"
             )
-    
+
     # V8.1: "this/that + entity class" are valid actors
     # "this unmarked police cruiser" -> valid (vehicle entity class)
     # "this officer" -> valid
@@ -111,7 +111,7 @@ def check_event_has_actor(event) -> InvariantResult:
         "cruiser", "vehicle", "car", "officer", "officers", "person", "woman", "man",
         "police", "patrol", "ambulance", "witness", "bystander",
     }
-    
+
     # Only reject truly invalid actor patterns
     if actor_lower.startswith("it "):
         # "it all started" - not an actor
@@ -122,7 +122,7 @@ def check_event_has_actor(event) -> InvariantResult:
             failed_content=desc,
             quarantine_bucket="EVENTS_UNRESOLVED"
         )
-    
+
     if actor_lower.startswith(("this ", "that ", "these ")):
         # Check if it contains an entity class word
         has_entity_class = any(ec in actor_lower for ec in ENTITY_CLASS_WORDS)
@@ -134,7 +134,7 @@ def check_event_has_actor(event) -> InvariantResult:
                 failed_content=desc,
                 quarantine_bucket="EVENTS_UNRESOLVED"
             )
-    
+
     return InvariantResult(
         passes=True,
         invariant_id="EVENT_HAS_ACTOR",
@@ -145,7 +145,7 @@ def check_event_has_actor(event) -> InvariantResult:
 def check_event_not_fragment(event) -> InvariantResult:
     """
     Invariant: Event description must be complete clause (not fragment).
-    
+
     Examples:
         ✅ "Officer Jenkins grabbed Reporter's arm"
         ❌ "immediately started" (fragment)
@@ -153,7 +153,7 @@ def check_event_not_fragment(event) -> InvariantResult:
     """
     desc = getattr(event, 'description', '')
     words = desc.split()
-    
+
     # Too short = fragment
     if len(words) < 3:
         return InvariantResult(
@@ -163,7 +163,7 @@ def check_event_not_fragment(event) -> InvariantResult:
             failed_content=desc[:100],
             quarantine_bucket="EVENTS_UNRESOLVED"
         )
-    
+
     # Starts with dependent clause marker = fragment
     first_word = words[0].lower().strip('",\'')
     if first_word in FRAGMENT_STARTERS:
@@ -174,7 +174,7 @@ def check_event_not_fragment(event) -> InvariantResult:
             failed_content=desc[:100],
             quarantine_bucket="EVENTS_UNRESOLVED"
         )
-    
+
     return InvariantResult(
         passes=True,
         invariant_id="EVENT_NOT_FRAGMENT",
@@ -185,14 +185,14 @@ def check_event_not_fragment(event) -> InvariantResult:
 def check_event_has_verb(event) -> InvariantResult:
     """
     Invariant: Event must have an action verb.
-    
+
     Examples:
         ✅ "Officer Jenkins grabbed Reporter's arm" (grabbed)
         ❌ "Officer Jenkins with a weapon" (no verb)
     """
     verb = getattr(event, 'action_verb', None)
     desc = getattr(event, 'description', str(event))[:100]
-    
+
     if not verb:
         return InvariantResult(
             passes=False,
@@ -201,7 +201,7 @@ def check_event_has_verb(event) -> InvariantResult:
             failed_content=desc,
             quarantine_bucket="EVENTS_UNRESOLVED"
         )
-    
+
     return InvariantResult(
         passes=True,
         invariant_id="EVENT_HAS_VERB",
@@ -212,7 +212,7 @@ def check_event_has_verb(event) -> InvariantResult:
 # Register all event invariants
 def _register_event_invariants():
     """Register all event invariants with the registry."""
-    
+
     InvariantRegistry.register(Invariant(
         id="EVENT_HAS_ACTOR",
         description="Every event has resolved actor (not pronoun/unidentified)",
@@ -220,7 +220,7 @@ def _register_event_invariants():
         check_fn=check_event_has_actor,
         quarantine_bucket="EVENTS_UNRESOLVED"
     ))
-    
+
     InvariantRegistry.register(Invariant(
         id="EVENT_NOT_FRAGMENT",
         description="Event is complete clause, not fragment",
@@ -228,7 +228,7 @@ def _register_event_invariants():
         check_fn=check_event_not_fragment,
         quarantine_bucket="EVENTS_UNRESOLVED"
     ))
-    
+
     InvariantRegistry.register(Invariant(
         id="EVENT_HAS_VERB",
         description="Event has an action verb",

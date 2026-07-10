@@ -11,15 +11,15 @@ Questions are categorized by priority and type for investigator review.
 """
 
 import re
+from enum import StrEnum
+
 import structlog
-from enum import Enum
-from typing import List, Optional
 from pydantic import BaseModel, Field
 
 log = structlog.get_logger("nnrt.v6.questions")
 
 
-class QuestionPriority(str, Enum):
+class QuestionPriority(StrEnum):
     """Priority level for investigation questions."""
     CRITICAL = "critical"     # Memory gaps, use of force incidents
     HIGH = "high"             # Missing key details
@@ -27,7 +27,7 @@ class QuestionPriority(str, Enum):
     LOW = "low"               # Nice-to-have context
 
 
-class QuestionCategory(str, Enum):
+class QuestionCategory(StrEnum):
     """Category of investigation question."""
     TIMELINE_GAP = "timeline_gap"           # Unexplained time period
     MISSING_ACTOR = "missing_actor"         # Who did this action?
@@ -43,34 +43,34 @@ class QuestionCategory(str, Enum):
 
 class InvestigationQuestion(BaseModel):
     """A generated investigation question."""
-    
+
     id: str = Field(..., description="Unique question ID")
-    
+
     # Question content
     text: str = Field(..., description="The question to ask")
     category: QuestionCategory = Field(..., description="Question type")
     priority: QuestionPriority = Field(..., description="Investigation priority")
-    
+
     # Context
-    source_id: Optional[str] = Field(None, description="ID of source object (gap, statement)")
-    source_type: Optional[str] = Field(None, description="Type of source: 'gap', 'statement', 'event'")
-    related_text: Optional[str] = Field(None, description="Relevant text excerpt")
-    
+    source_id: str | None = Field(None, description="ID of source object (gap, statement)")
+    source_type: str | None = Field(None, description="Type of source: 'gap', 'statement', 'event'")
+    related_text: str | None = Field(None, description="Relevant text excerpt")
+
     # Investigation guidance
     rationale: str = Field("", description="Why this question matters")
-    follow_up_hints: List[str] = Field(default_factory=list, description="Suggested follow-ups")
+    follow_up_hints: list[str] = Field(default_factory=list, description="Suggested follow-ups")
 
 
 class QuestionSet(BaseModel):
     """Collection of generated questions with summary."""
-    
-    questions: List[InvestigationQuestion] = Field(default_factory=list)
-    
+
+    questions: list[InvestigationQuestion] = Field(default_factory=list)
+
     # Summary counts
     total_count: int = Field(0)
     critical_count: int = Field(0)
     high_count: int = Field(0)
-    
+
     # Coverage
     timeline_gap_questions: int = Field(0)
     missing_info_questions: int = Field(0)
@@ -140,31 +140,31 @@ ACTION_PATTERNS = [
 
 
 def generate_questions_from_gaps(
-    time_gaps: List,
-    events: List,
-) -> List[InvestigationQuestion]:
+    time_gaps: list,
+    events: list,
+) -> list[InvestigationQuestion]:
     """Generate questions from detected timeline gaps."""
     questions = []
     q_counter = 0
-    
+
     # Map event IDs to descriptions
-    event_map = {e.id: e for e in events} if events else {}
-    
+    {e.id: e for e in events} if events else {}
+
     for gap in time_gaps:
         if not getattr(gap, 'requires_investigation', False):
             continue
-        
+
         # Use suggested question if available
         suggested = getattr(gap, 'suggested_question', None)
         if suggested:
             question_text = suggested
         else:
             question_text = "What happened during this unaccounted period?"
-        
+
         # Determine priority based on gap type
         gap_type = getattr(gap, 'gap_type', None)
         gap_type_val = gap_type.value if hasattr(gap_type, 'value') else str(gap_type)
-        
+
         if gap_type_val == 'uncertain':
             priority = QuestionPriority.CRITICAL  # Memory gaps are critical
             rationale = "This gap suggests a possible memory discontinuity that may indicate significant events occurred."
@@ -174,13 +174,12 @@ def generate_questions_from_gaps(
         else:
             priority = QuestionPriority.MEDIUM
             rationale = "There is an unexplained time period that may contain relevant information."
-        
+
         # Get related event descriptions
-        related = ""
-        after_id = getattr(gap, 'after_entry_id', None)
-        before_id = getattr(gap, 'before_entry_id', None)
+        getattr(gap, 'after_entry_id', None)
+        getattr(gap, 'before_entry_id', None)
         # These are timeline entry IDs, not event IDs, but include for context
-        
+
         question = InvestigationQuestion(
             id=f"iq_{q_counter:04d}",
             text=question_text,
@@ -197,21 +196,21 @@ def generate_questions_from_gaps(
         )
         questions.append(question)
         q_counter += 1
-    
+
     return questions
 
 
 def generate_questions_from_statements(
-    atomic_statements: List,
-) -> List[InvestigationQuestion]:
+    atomic_statements: list,
+) -> list[InvestigationQuestion]:
     """Generate questions from vague or incomplete statements."""
     questions = []
     q_counter = 0
-    
+
     for stmt in atomic_statements:
         text = getattr(stmt, 'text', str(stmt))
         stmt_id = getattr(stmt, 'id', f"stmt_{q_counter}")
-        
+
         # Check for vague patterns
         for pattern, follow_up in VAGUE_PATTERNS:
             if re.search(pattern, text, re.I):
@@ -228,7 +227,7 @@ def generate_questions_from_statements(
                 questions.append(question)
                 q_counter += 1
                 break  # One question per statement
-        
+
         # Check for passive voice actions without actors
         for pattern in ACTION_PATTERNS:
             if re.search(pattern, text, re.I):
@@ -238,7 +237,7 @@ def generate_questions_from_statements(
                     category=QuestionCategory.MISSING_ACTOR,
                     priority=QuestionPriority.HIGH,
                     source_id=stmt_id,
-                    source_type="statement", 
+                    source_type="statement",
                     related_text=text[:100],
                     rationale="This action lacks a clear subject/actor identification.",
                     follow_up_hints=[
@@ -249,7 +248,7 @@ def generate_questions_from_statements(
                 questions.append(question)
                 q_counter += 1
                 break
-        
+
         # Check for injury-related statements needing follow-up
         for keyword in INJURY_KEYWORDS:
             if keyword in text.lower():
@@ -271,23 +270,23 @@ def generate_questions_from_statements(
                 questions.append(question)
                 q_counter += 1
                 break
-    
+
     return questions
 
 
 def generate_questions_from_events(
-    events: List,
-) -> List[InvestigationQuestion]:
+    events: list,
+) -> list[InvestigationQuestion]:
     """Generate questions from events missing key details."""
     questions = []
     q_counter = 0
-    
+
     for event in events:
         desc = getattr(event, 'description', '')
         event_id = getattr(event, 'id', f"evt_{q_counter}")
         event_type = getattr(event, 'type', None)
         event_type_val = event_type.value if hasattr(event_type, 'value') else str(event_type)
-        
+
         # Check for use of force events without witness info
         if event_type_val in ('use_of_force', 'restraint', 'detention'):
             question = InvestigationQuestion(
@@ -307,43 +306,43 @@ def generate_questions_from_events(
             )
             questions.append(question)
             q_counter += 1
-    
+
     return questions
 
 
 def generate_all_questions(
-    time_gaps: List = None,
-    atomic_statements: List = None,
-    events: List = None,
+    time_gaps: list = None,
+    atomic_statements: list = None,
+    events: list = None,
 ) -> QuestionSet:
     """
     Generate a complete set of investigation questions.
-    
+
     Args:
         time_gaps: TimeGap objects from timeline analysis
         atomic_statements: AtomicStatement objects
         events: Event objects
-        
+
     Returns:
         QuestionSet with all generated questions and summary
     """
     all_questions = []
-    
+
     # Generate from gaps
     if time_gaps:
         gap_questions = generate_questions_from_gaps(time_gaps, events or [])
         all_questions.extend(gap_questions)
-    
+
     # Generate from statements
     if atomic_statements:
         stmt_questions = generate_questions_from_statements(atomic_statements)
         all_questions.extend(stmt_questions)
-    
+
     # Generate from events
     if events:
         event_questions = generate_questions_from_events(events)
         all_questions.extend(event_questions)
-    
+
     # Sort by priority
     priority_order = {
         QuestionPriority.CRITICAL: 0,
@@ -352,7 +351,7 @@ def generate_all_questions(
         QuestionPriority.LOW: 3,
     }
     all_questions.sort(key=lambda q: priority_order.get(q.priority, 99))
-    
+
     # Build summary
     question_set = QuestionSet(
         questions=all_questions,
@@ -360,19 +359,19 @@ def generate_all_questions(
         critical_count=sum(1 for q in all_questions if q.priority == QuestionPriority.CRITICAL),
         high_count=sum(1 for q in all_questions if q.priority == QuestionPriority.HIGH),
         timeline_gap_questions=sum(1 for q in all_questions if q.category == QuestionCategory.TIMELINE_GAP),
-        missing_info_questions=sum(1 for q in all_questions 
-                                   if q.category in (QuestionCategory.MISSING_ACTOR, 
+        missing_info_questions=sum(1 for q in all_questions
+                                   if q.category in (QuestionCategory.MISSING_ACTOR,
                                                      QuestionCategory.MISSING_TIME,
                                                      QuestionCategory.MISSING_LOCATION)),
-        clarification_questions=sum(1 for q in all_questions 
+        clarification_questions=sum(1 for q in all_questions
                                    if q.category == QuestionCategory.VAGUE_DESCRIPTION),
     )
-    
+
     log.info(
         "questions_generated",
         total=question_set.total_count,
         critical=question_set.critical_count,
         high=question_set.high_count,
     )
-    
+
     return question_set

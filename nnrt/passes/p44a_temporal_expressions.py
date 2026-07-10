@@ -20,13 +20,12 @@ Design decisions:
 """
 
 import re
+
 import structlog
-from typing import Optional, Tuple, List
-from datetime import datetime
 
 from nnrt.core.context import TransformContext
-from nnrt.ir.schema_v0_1 import TemporalExpression
 from nnrt.ir.enums import TemporalExpressionType
+from nnrt.ir.schema_v0_1 import TemporalExpression
 from nnrt.nlp.spacy_loader import get_nlp
 
 log = structlog.get_logger("nnrt.p44a_temporal_expressions")
@@ -72,37 +71,37 @@ RELATIVE_PATTERNS = [
     (re.compile(r'\bnext\s+(day|morning|week|month|time)\b', re.I), TemporalExpressionType.RELATIVE, 'sequence'),
     (re.compile(r'\beventually\b', re.I), TemporalExpressionType.RELATIVE, 'sequence'),
     (re.compile(r'\bfinally\b', re.I), TemporalExpressionType.RELATIVE, 'sequence'),
-    
+
     # Duration gaps
-    (re.compile(r'\b(\d+)\s+(minutes?|hours?|days?|weeks?|months?)\s+later\b', re.I), 
+    (re.compile(r'\b(\d+)\s+(minutes?|hours?|days?|weeks?|months?)\s+later\b', re.I),
      TemporalExpressionType.DURATION, 'gap'),
-    (re.compile(r'\babout\s+(\d+)\s+(minutes?|hours?)\s+later\b', re.I), 
+    (re.compile(r'\babout\s+(\d+)\s+(minutes?|hours?)\s+later\b', re.I),
      TemporalExpressionType.DURATION, 'gap'),
-    (re.compile(r'\ba\s+few\s+(minutes?|hours?|days?)\s+later\b', re.I), 
+    (re.compile(r'\ba\s+few\s+(minutes?|hours?|days?)\s+later\b', re.I),
      TemporalExpressionType.DURATION, 'gap'),
-    
+
     # Day boundaries
     (re.compile(r'\bthe\s+next\s+day\b', re.I), TemporalExpressionType.RELATIVE, 'next_day'),
-    (re.compile(r'\bthe\s+following\s+(day|morning|evening|night)\b', re.I), 
+    (re.compile(r'\bthe\s+following\s+(day|morning|evening|night)\b', re.I),
      TemporalExpressionType.RELATIVE, 'next_day'),
-    (re.compile(r'\b(one|two|three|four|five)\s+days?\s+later\b', re.I), 
+    (re.compile(r'\b(one|two|three|four|five)\s+days?\s+later\b', re.I),
      TemporalExpressionType.DURATION, 'days_later'),
-    (re.compile(r'\b(\d+)\s+days?\s+later\b', re.I), 
+    (re.compile(r'\b(\d+)\s+days?\s+later\b', re.I),
      TemporalExpressionType.DURATION, 'days_later'),
-    (re.compile(r'\bthree\s+months?\s+later\b', re.I), 
+    (re.compile(r'\bthree\s+months?\s+later\b', re.I),
      TemporalExpressionType.DURATION, 'months_later'),
-    
+
     # During/simultaneous
     (re.compile(r'\bwhile\b', re.I), TemporalExpressionType.RELATIVE, 'during'),
     (re.compile(r'\bduring\b', re.I), TemporalExpressionType.RELATIVE, 'during'),
     (re.compile(r'\bat\s+the\s+same\s+time\b', re.I), TemporalExpressionType.RELATIVE, 'simultaneous'),
     (re.compile(r'\bmeanwhile\b', re.I), TemporalExpressionType.RELATIVE, 'during'),
-    
+
     # Before markers
     (re.compile(r'\bbefore\s+that\b', re.I), TemporalExpressionType.RELATIVE, 'before'),
     (re.compile(r'\bprior\s+to\b', re.I), TemporalExpressionType.RELATIVE, 'before'),
     (re.compile(r'\bearlier\b', re.I), TemporalExpressionType.RELATIVE, 'before'),
-    
+
     # Vague time references
     (re.compile(r'\bthat\s+night\b', re.I), TemporalExpressionType.VAGUE, 'night'),
     (re.compile(r'\bthat\s+(morning|afternoon|evening)\b', re.I), TemporalExpressionType.VAGUE, 'day_part'),
@@ -118,10 +117,10 @@ MONTH_MAP = {
 }
 
 
-def normalize_time(text: str) -> Optional[str]:
+def normalize_time(text: str) -> str | None:
     """
     Normalize a time string to ISO format (T23:30:00).
-    
+
     Examples:
         "11:30 PM" -> "T23:30:00"
         "3:00 AM"  -> "T03:00:00"
@@ -130,24 +129,24 @@ def normalize_time(text: str) -> Optional[str]:
     match = TIME_PATTERN.search(text)
     if not match:
         return None
-    
+
     hour = int(match.group(1))
     minute = int(match.group(2)) if match.group(2) else 0
     ampm = match.group(3).lower().replace('.', '')
-    
+
     # Convert to 24-hour
     if ampm in ('pm', 'p') and hour != 12:
         hour += 12
     elif ampm in ('am', 'a') and hour == 12:
         hour = 0
-    
+
     return f"T{hour:02d}:{minute:02d}:00"
 
 
-def normalize_date(text: str) -> Optional[str]:
+def normalize_date(text: str) -> str | None:
     """
     Normalize a date string to ISO format (2026-01-10).
-    
+
     Examples:
         "January 10, 2026"   -> "2026-01-10"
         "Jan 10th, 2026"     -> "2026-01-10"
@@ -161,7 +160,7 @@ def normalize_date(text: str) -> Optional[str]:
             day = int(match.group(2))
             year = int(match.group(3))
             return f"{year:04d}-{month:02d}-{day:02d}"
-    
+
     # Check numeric pattern
     match = DATE_PATTERNS[2].search(text)
     if match:
@@ -169,14 +168,14 @@ def normalize_date(text: str) -> Optional[str]:
         day = int(match.group(2))
         year = int(match.group(3))
         return f"{year:04d}-{month:02d}-{day:02d}"
-    
+
     return None
 
 
 def extract_temporal_expressions(ctx: TransformContext) -> TransformContext:
     """
     Extract and normalize temporal expressions from the narrative.
-    
+
     This pass:
     1. Finds DATE/TIME entities using spaCy NER
     2. Detects relative temporal markers
@@ -185,101 +184,101 @@ def extract_temporal_expressions(ctx: TransformContext) -> TransformContext:
     """
     nlp = get_nlp()
     text = ctx.normalized_text or " ".join(s.text for s in ctx.segments)
-    
-    expressions: List[TemporalExpression] = []
+
+    expressions: list[TemporalExpression] = []
     expr_counter = 0
     seen_spans: set = set()  # Avoid duplicates
-    
+
     # =========================================================================
     # Phase 1: Extract from spaCy NER (DATE/TIME entities)
     # =========================================================================
-    
+
     doc = nlp(text)
-    
+
     for ent in doc.ents:
         if ent.label_ in ('DATE', 'TIME'):
             # Skip if we've already processed this span
             span_key = (ent.start_char, ent.end_char)
             if span_key in seen_spans:
                 continue
-            
+
             # =================================================================
             # Filter out false positives (badge numbers, ID numbers, etc.)
             # =================================================================
             ent_text = ent.text.strip()
-            
+
             # Skip pure numeric values that are likely badge/ID numbers
             if ent_text.isdigit():
                 # Check context around the entity for badge-related words
                 context_start = max(0, ent.start_char - 50)
                 context_end = min(len(text), ent.end_char + 20)
                 context = text[context_start:context_end].lower()
-                
+
                 # Skip if near badge/ID indicators
                 if any(indicator in context for indicator in [
                     'badge', 'badge number', 'badge #', 'badge#',
                     'id', 'id number', 'case number', 'case #',
                     'unit', 'unit number', 'officer #',
                 ]):
-                    log.debug("skipping_badge_number", 
-                              text=ent_text, 
+                    log.debug("skipping_badge_number",
+                              text=ent_text,
                               reason="near badge/ID indicator",
                               channel="TEMPORAL")
                     continue
-                
+
                 # Skip 3-5 digit numbers that aren't valid years (1900-2100)
                 if len(ent_text) in (3, 4, 5):
                     try:
                         num = int(ent_text)
                         if not (1900 <= num <= 2100):
-                            log.debug("skipping_numeric_entity", 
-                                      text=ent_text, 
+                            log.debug("skipping_numeric_entity",
+                                      text=ent_text,
                                       reason="not a valid year",
                                       channel="TEMPORAL")
                             continue
                     except ValueError:
                         pass
-            
+
             # Skip medical/diagnostic terms misclassified as dates
             if ent_text.upper() in ('PTSD', 'CPR', 'EMS', 'ICU', 'ER'):
-                log.debug("skipping_medical_term", 
-                          text=ent_text, 
+                log.debug("skipping_medical_term",
+                          text=ent_text,
                           reason="medical abbreviation",
                           channel="TEMPORAL")
                 continue
-            
+
             # Skip temporal expressions inside quoted speech
             # Check if entity is between quotation marks
             before_text = text[max(0, ent.start_char - 30):ent.start_char]
             after_text = text[ent.end_char:min(len(text), ent.end_char + 30)]
-            
+
             # Count quotes before and after
             quotes_before = before_text.count('"') + before_text.count("'") + before_text.count('"') + before_text.count('"')
             quotes_after = after_text.count('"') + after_text.count("'") + after_text.count('"') + after_text.count('"')
-            
+
             # If odd number of quotes before AND after, we're inside a quote
             # Also check for direct quote patterns
             if quotes_before % 2 == 1 and quotes_after % 2 == 1:
-                log.debug("skipping_quoted_temporal", 
-                          text=ent_text, 
+                log.debug("skipping_quoted_temporal",
+                          text=ent_text,
                           reason="inside quotation marks",
                           channel="TEMPORAL")
                 continue
-            
+
             # Also skip single-word vague date references that aren't standalone
             # e.g., "today" in "Not today" or "yesterday" in a sentence without other markers
             if ent_text.lower() in ('today', 'yesterday', 'tomorrow'):
                 # Check if it's part of a longer phrase like "Not today"
                 context = text[max(0, ent.start_char - 10):min(len(text), ent.end_char + 10)].lower()
                 if 'not ' in context or "n't " in context or 'never ' in context:
-                    log.debug("skipping_negated_temporal", 
-                              text=ent_text, 
+                    log.debug("skipping_negated_temporal",
+                              text=ent_text,
                               reason="negated context",
                               channel="TEMPORAL")
                     continue
-            
+
             seen_spans.add(span_key)
-            
+
             # Determine type and normalize
             if ent.label_ == 'TIME':
                 normalized = normalize_time(ent.text)
@@ -315,14 +314,14 @@ def extract_temporal_expressions(ctx: TransformContext) -> TransformContext:
                     else:
                         expr_type = TemporalExpressionType.RELATIVE
                         anchor_type = None
-            
+
             # Find source segment
             segment_id = "seg_0"
             for seg in ctx.segments:
                 if seg.start_char <= ent.start_char < seg.end_char:
                     segment_id = seg.id
                     break
-            
+
             expr = TemporalExpression(
                 id=f"tex_{expr_counter:04d}",
                 original_text=ent.text,
@@ -336,18 +335,18 @@ def extract_temporal_expressions(ctx: TransformContext) -> TransformContext:
             )
             expressions.append(expr)
             expr_counter += 1
-    
+
     # =========================================================================
     # Phase 2: Extract relative markers with custom patterns
     # =========================================================================
-    
-    text_lower = text.lower()
-    
+
+    text.lower()
+
     for pattern, expr_type, anchor_type in RELATIVE_PATTERNS:
         for match in pattern.finditer(text):
             start = match.start()
             end = match.end()
-            
+
             # Skip if overlaps with existing expression
             overlaps = any(
                 (start < e.end_char and end > e.start_char)
@@ -355,19 +354,19 @@ def extract_temporal_expressions(ctx: TransformContext) -> TransformContext:
             )
             if overlaps:
                 continue
-            
+
             span_key = (start, end)
             if span_key in seen_spans:
                 continue
             seen_spans.add(span_key)
-            
+
             # Find source segment
             segment_id = "seg_0"
             for seg in ctx.segments:
                 if seg.start_char <= start < seg.end_char:
                     segment_id = seg.id
                     break
-            
+
             expr = TemporalExpression(
                 id=f"tex_{expr_counter:04d}",
                 original_text=match.group(),
@@ -381,22 +380,22 @@ def extract_temporal_expressions(ctx: TransformContext) -> TransformContext:
             )
             expressions.append(expr)
             expr_counter += 1
-    
+
     # =========================================================================
     # Sort by position in text
     # =========================================================================
-    
+
     expressions.sort(key=lambda e: e.start_char)
-    
+
     # Store results
     ctx.temporal_expressions = expressions
-    
+
     # Log summary
     by_type = {}
     for e in expressions:
         t = e.type.value
         by_type[t] = by_type.get(t, 0) + 1
-    
+
     log.info(
         "temporal_expressions_extracted",
         pass_name=PASS_NAME,
@@ -404,11 +403,11 @@ def extract_temporal_expressions(ctx: TransformContext) -> TransformContext:
         total=len(expressions),
         by_type=by_type,
     )
-    
+
     ctx.add_trace(
         PASS_NAME,
         "expressions_extracted",
         after=f"{len(expressions)} temporal expressions ({by_type})",
     )
-    
+
     return ctx

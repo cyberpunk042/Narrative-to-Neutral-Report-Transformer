@@ -26,9 +26,13 @@ classifiers = [
 dependencies = [
     # Core
     "pydantic>=2.0",
-    # NLP (will be optional in production)
-    # "transformers>=4.35",
-    # "torch>=2.0",
+    # spaCy is the core NLP engine (imported across nnrt/passes and nnrt/nlp);
+    # the language model (en_core_web_sm) is a separate data download.
+    "spacy>=3.7",
+    # structlog is the logging backbone, imported unconditionally in core passes.
+    "structlog>=23.0",
+    # Heavy / optional (local-LLM event extraction) stay in the `nlp` extra:
+    # transformers, torch, accelerate, sentencepiece, google-generativeai.
 ]
 
 [project.optional-dependencies]
@@ -39,16 +43,16 @@ dev = [
     "mypy>=1.0",
 ]
 nlp = [
+    # spaCy is now a core dependency; this extra adds the heavy local-LLM stack.
     "transformers>=4.35",
     "torch>=2.0",
-    "spacy>=3.7",
     "accelerate>=0.25",
     "sentencepiece>=0.1.99",
     "google-generativeai>=0.3",  # V10: LLM-based event extraction
 ]
 production = [
     "pyyaml>=6.0",
-    "structlog>=23.0",
+    # structlog moved to core dependencies (used unconditionally in passes).
 ]
 all = [
     "nnrt[dev,nlp,production]",
@@ -63,9 +67,16 @@ packages = ["nnrt"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+# Dated backup snapshots are dead code kept for reference — not linted.
+extend-exclude = ["*_backup_*.py", "*_backup.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]
+# Deferred (pre-alpha): line-length reflow (E501) and math/NLP-style variable
+# names (N806, e.g. `X`, `IR`) are cosmetic and pervasive; kept out of the gate
+# until a dedicated style pass. All correctness rules (F, E-syntax, I, W, UP)
+# stay enforced.
+ignore = ["E501", "N806"]
 
 [tool.mypy]
 python_version = "3.11"

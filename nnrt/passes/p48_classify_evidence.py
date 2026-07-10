@@ -38,13 +38,13 @@ Algorithm:
 from __future__ import annotations
 
 import re
-import structlog
-from typing import Optional
 from collections import defaultdict
 
+import structlog
+
 from nnrt.core.context import TransformContext
-from nnrt.ir.schema_v0_1 import EvidenceClassification, Entity
-from nnrt.ir.enums import EvidenceType, EntityRole
+from nnrt.ir.enums import EvidenceType
+from nnrt.ir.schema_v0_1 import Entity, EvidenceClassification
 
 log = structlog.get_logger("nnrt.p48_classify_evidence")
 
@@ -218,7 +218,7 @@ EPISTEMIC_RELIABILITY = {
 def classify_evidence(ctx: TransformContext) -> TransformContext:
     """
     Classify atomic statements by evidence type.
-    
+
     This pass:
     1. Classifies each statement's evidence type
     2. Identifies source entities for REPORTED evidence
@@ -229,25 +229,25 @@ def classify_evidence(ctx: TransformContext) -> TransformContext:
         log.info("no_statements", pass_name=PASS_NAME, message="No statements to classify")
         ctx.add_trace(PASS_NAME, "skipped", after="No statements")
         return ctx
-    
+
     classifications: list[EvidenceClassification] = []
     classification_counter = 0
-    
+
     # =========================================================================
     # Phase 1 & 2: Classify Each Statement
     # =========================================================================
-    
+
     for stmt in ctx.atomic_statements:
         evidence_type = _classify_statement_evidence(stmt.text)
         source_entity_id = None
-        
+
         # For REPORTED evidence, find who said it
         if evidence_type == EvidenceType.REPORTED:
             source_entity_id = _find_source_entity(stmt.text, ctx.entities)
-        
+
         # Calculate reliability
         reliability = RELIABILITY_SCORES.get(evidence_type, 0.5)
-        
+
         classification = EvidenceClassification(
             id=f"ev_{classification_counter:04d}",
             statement_id=stmt.id,
@@ -257,17 +257,17 @@ def classify_evidence(ctx: TransformContext) -> TransformContext:
         )
         classifications.append(classification)
         classification_counter += 1
-    
+
     # =========================================================================
     # Phase 3: Detect Corroboration
     # =========================================================================
-    
+
     _detect_corroboration(classifications, ctx.atomic_statements)
-    
+
     # =========================================================================
     # Phase 4: Adjust Reliability Based on Corroboration
     # =========================================================================
-    
+
     for classification in classifications:
         # Boost reliability if corroborated
         if classification.corroborating_ids:
@@ -281,17 +281,17 @@ def classify_evidence(ctx: TransformContext) -> TransformContext:
                 classification.reliability - 0.1 * len(classification.contradicting_ids),
                 0.1
             )
-    
+
     # Store results
     ctx.evidence_classifications = classifications
-    
+
     # Log summary
     type_counts = defaultdict(int)
     for c in classifications:
         type_counts[c.evidence_type.value] += 1
-    
+
     avg_reliability = sum(c.reliability for c in classifications) / len(classifications) if classifications else 0
-    
+
     log.info(
         "evidence_classified",
         pass_name=PASS_NAME,
@@ -300,16 +300,16 @@ def classify_evidence(ctx: TransformContext) -> TransformContext:
         avg_reliability=round(avg_reliability, 2),
         **dict(type_counts),
     )
-    
+
     ctx.add_trace(
         PASS_NAME,
         "evidence_classified",
         after=f"{len(classifications)} statements classified, avg reliability: {avg_reliability:.2f}",
     )
-    
+
     # V4: Run epistemic classification to detect dangerous patterns
     ctx = classify_epistemic_v4(ctx)
-    
+
     return ctx
 
 
@@ -318,25 +318,25 @@ def _classify_statement_evidence(text: str) -> EvidenceType:
     Classify a statement's evidence type based on text patterns.
     """
     text_lower = text.lower()
-    
+
     # Check patterns in priority order
-    
+
     # DOCUMENTARY has highest priority - explicit document references
     if _matches_any(text_lower, DOCUMENTARY_PATTERNS):
         return EvidenceType.DOCUMENTARY
-    
+
     # PHYSICAL - evidence of injuries/damage
     if _matches_any(text_lower, PHYSICAL_PATTERNS):
         return EvidenceType.PHYSICAL
-    
+
     # REPORTED - hearsay markers
     if _matches_any(text_lower, REPORTED_PATTERNS):
         return EvidenceType.REPORTED
-    
+
     # DIRECT_WITNESS - first-person experience
     if _matches_any(text_lower, DIRECT_WITNESS_PATTERNS):
         return EvidenceType.DIRECT_WITNESS
-    
+
     # Default to INFERENCE (reporter's conclusion)
     return EvidenceType.INFERENCE
 
@@ -349,12 +349,12 @@ def _matches_any(text: str, patterns: list[str]) -> bool:
     return False
 
 
-def _classify_epistemic_type(text: str) -> tuple[Optional[str], Optional[str]]:
+def _classify_epistemic_type(text: str) -> tuple[str | None, str | None]:
     """
     V4: Classify the epistemic type of a statement.
-    
+
     Returns (epistemic_type, matched_phrase) or (None, None) if no dangerous patterns found.
-    
+
     This is critical for detecting:
     - Intent attribution (claims about others' mental states)
     - Legal characterization (legal conclusions by non-attorney)
@@ -362,55 +362,55 @@ def _classify_epistemic_type(text: str) -> tuple[Optional[str], Optional[str]]:
     - Narrative glue (filler with no factual content)
     """
     text_lower = text.lower()
-    
+
     # Check INTENT_ATTRIBUTION first - very dangerous
     for pattern in INTENT_ATTRIBUTION_PATTERNS:
         match = re.search(pattern, text_lower, re.IGNORECASE)
         if match:
             return ("intent_attribution", match.group())
-    
+
     # Check LEGAL_CHARACTERIZATION - reporter making legal conclusions
     for pattern in LEGAL_CHARACTERIZATION_PATTERNS:
         match = re.search(pattern, text_lower, re.IGNORECASE)
         if match:
             return ("legal_characterization", match.group())
-    
+
     # Check CONSPIRACY_CLAIM - unfalsifiable allegations
     for pattern in CONSPIRACY_CLAIM_PATTERNS:
         match = re.search(pattern, text_lower, re.IGNORECASE)
         if match:
             return ("conspiracy_claim", match.group())
-    
+
     # Check NARRATIVE_GLUE - filler phrases
     for pattern in NARRATIVE_GLUE_PATTERNS:
         match = re.search(pattern, text_lower, re.IGNORECASE)
         if match:
             return ("narrative_glue", match.group())
-    
+
     return (None, None)
 
 
 def classify_epistemic_v4(ctx: TransformContext) -> TransformContext:
     """
     V4: Classify statements by epistemic type and add diagnostics.
-    
+
     This runs after evidence classification to add epistemic markers
     for dangerous patterns like intent attribution and legal characterization.
     """
     if not ctx.atomic_statements:
         return ctx
-    
+
     intent_count = 0
     legal_count = 0
     conspiracy_count = 0
-    
+
     for stmt in ctx.atomic_statements:
         epistemic_type, matched_phrase = _classify_epistemic_type(stmt.text)
-        
+
         if epistemic_type:
             # Store on the statement (if schema allows) or add diagnostic
             reliability = EPISTEMIC_RELIABILITY.get(epistemic_type, 0.5)
-            
+
             if epistemic_type == "intent_attribution":
                 intent_count += 1
                 ctx.add_diagnostic(
@@ -426,7 +426,7 @@ def classify_epistemic_v4(ctx: TransformContext) -> TransformContext:
                     phrase=matched_phrase,
                     reliability=reliability,
                 )
-            
+
             elif epistemic_type == "legal_characterization":
                 legal_count += 1
                 ctx.add_diagnostic(
@@ -442,7 +442,7 @@ def classify_epistemic_v4(ctx: TransformContext) -> TransformContext:
                     phrase=matched_phrase,
                     reliability=reliability,
                 )
-            
+
             elif epistemic_type == "conspiracy_claim":
                 conspiracy_count += 1
                 ctx.add_diagnostic(
@@ -458,7 +458,7 @@ def classify_epistemic_v4(ctx: TransformContext) -> TransformContext:
                     phrase=matched_phrase,
                     reliability=reliability,
                 )
-    
+
     # Summary logging
     if intent_count or legal_count or conspiracy_count:
         log.info(
@@ -467,32 +467,32 @@ def classify_epistemic_v4(ctx: TransformContext) -> TransformContext:
             legal_characterizations=legal_count,
             conspiracy_claims=conspiracy_count,
         )
-    
+
     return ctx
 
 
-def _find_source_entity(text: str, entities: list[Entity]) -> Optional[str]:
+def _find_source_entity(text: str, entities: list[Entity]) -> str | None:
     """
     Find the source entity for reported evidence.
-    
+
     Looks for entity names mentioned in speech attribution patterns.
     """
     text_lower = text.lower()
-    
+
     # Check for entity names in "X said" or "X told me" patterns
     for entity in entities:
         if not entity.label:
             continue
-        
+
         label_lower = entity.label.lower()
-        
+
         # Full name match before "said/told/claimed"
         for word in label_lower.split():
             if len(word) > 2:  # Skip short words
                 pattern = rf'\b{re.escape(word)}\s+(?:said|told|claimed|stated|reported)\b'
                 if re.search(pattern, text_lower):
                     return entity.id
-    
+
     return None
 
 
@@ -502,12 +502,12 @@ def _detect_corroboration(
 ) -> None:
     """
     Detect corroboration and contradiction between statements.
-    
+
     Uses simple keyword overlap to find related statements.
     """
     # Build statement text lookup
-    stmt_texts = {stmt.id: stmt.text.lower() for stmt in statements}
-    
+    {stmt.id: stmt.text.lower() for stmt in statements}
+
     # Extract key action words from each statement
     action_keywords = {}
     for stmt in statements:
@@ -515,7 +515,7 @@ def _detect_corroboration(
         # Extract verbs/actions (simplified - look for common action words)
         keywords = set()
         action_words = [
-            'grab', 'grabbed', 'push', 'pushed', 'shove', 'shoved', 
+            'grab', 'grabbed', 'push', 'pushed', 'shove', 'shoved',
             'hit', 'struck', 'punch', 'punched', 'kick', 'kicked',
             'arrest', 'arrested', 'detain', 'detained', 'handcuff', 'handcuffed',
             'approach', 'approached',
@@ -527,16 +527,16 @@ def _detect_corroboration(
             if word in text_lower:
                 keywords.add(word)
         action_keywords[stmt.id] = keywords
-    
+
     # Compare pairs of statements
     for i, class1 in enumerate(classifications):
         for j, class2 in enumerate(classifications):
             if i >= j:
                 continue  # Skip self and duplicates
-            
+
             keywords1 = action_keywords.get(class1.statement_id, set())
             keywords2 = action_keywords.get(class2.statement_id, set())
-            
+
             # Check for overlap
             overlap = keywords1 & keywords2
             if len(overlap) >= 1:

@@ -2,7 +2,7 @@
 Pass 25: Annotate Context — Detect segment-level contexts.
 
 This pass analyzes segments and annotates them with context classifications:
-- CHARGE_DESCRIPTION: "charged with", "accused of" 
+- CHARGE_DESCRIPTION: "charged with", "accused of"
 - DIRECT_QUOTE: Content in quotation marks
 - PHYSICAL_FORCE: Observable physical actions
 - PHYSICAL_ATTEMPT: "tried to say/breathe/move"
@@ -157,7 +157,7 @@ SARCASM_PATTERNS = [
 # Pronouns that often lead to ambiguity
 AMBIGUOUS_PRONOUNS = [
     # Multiple pronouns in interactions (who did what to whom?)
-    r"\bhe\s+\w+\s+him\b",          # "he hit him"  
+    r"\bhe\s+\w+\s+him\b",          # "he hit him"
     r"\bshe\s+\w+\s+her\b",          # "she pushed her"
     r"\bthey\s+\w+\s+them\b",        # "they attacked them"
 ]
@@ -165,7 +165,7 @@ AMBIGUOUS_PRONOUNS = [
 # Vague references without clear antecedents
 VAGUE_REFERENCES = [
     r"\bthey\s+said\b",              # "they said I was..." (who is they?)
-    r"\bthey\s+told\s+me\b",         # "they told me to..." 
+    r"\bthey\s+told\s+me\b",         # "they told me to..."
     r"\bsomeone\s+(said|told)\b",    # "someone said..."
     r"\bpeople\s+(said|told)\b",     # "people said..."
     r"\bhe\s+said\s+he\b",           # "he said he would..." (which he?)
@@ -216,46 +216,46 @@ TIME_PATTERNS = [
 def annotate_context(ctx: TransformContext) -> TransformContext:
     """
     Annotate segments with context classifications.
-    
+
     This pass does NOT transform text. It only adds metadata
     that downstream passes can use to make decisions.
-    
+
     V7 / Stage 4: Uses PolicyEngine YAML rules for primary context detection.
     """
     log.verbose("starting_annotation", segments=len(ctx.segments))
-    
+
     total_annotations = 0
     context_counts = {}
-    
+
     # V7 / Stage 4: Get PolicyEngine for YAML-based context detection
     engine = get_policy_engine() if USE_YAML_RULES else None
-    
+
     for segment in ctx.segments:
         text = segment.text
         text_lower = text.lower()
         contexts: list[str] = []
-        
+
         # V7 / Stage 4: Use YAML rules or legacy patterns for primary contexts
         if USE_YAML_RULES and engine:
             contexts = _detect_contexts_yaml(text, engine)
         else:
             contexts = _detect_contexts_legacy(text_lower)
-        
+
         # Check for physical attempt (NOT intent attribution) - not in YAML yet
         if _matches_any(text_lower, PHYSICAL_ATTEMPT_PATTERNS):
             if SegmentContext.PHYSICAL_ATTEMPT.value not in contexts:
                 contexts.append(SegmentContext.PHYSICAL_ATTEMPT.value)
-        
-        # Check for credibility assertions - not in YAML yet 
+
+        # Check for credibility assertions - not in YAML yet
         if _matches_any(text_lower, CREDIBILITY_PATTERNS):
             if SegmentContext.CREDIBILITY_ASSERTION.value not in contexts:
                 contexts.append(SegmentContext.CREDIBILITY_ASSERTION.value)
-        
+
         # Check for official report language - not in YAML yet
         if _matches_any(text_lower, OFFICIAL_REPORT_PATTERNS):
             if SegmentContext.OFFICIAL_REPORT.value not in contexts:
                 contexts.append(SegmentContext.OFFICIAL_REPORT.value)
-        
+
         # Detect direct quotes (straight and curly)
         quote_count = (
             text.count('"') +      # Straight double
@@ -268,11 +268,11 @@ def annotate_context(ctx: TransformContext) -> TransformContext:
         if quote_count >= 2:  # At least one pair of quotes
             contexts.append(SegmentContext.DIRECT_QUOTE.value)
             segment.quote_depth = 1
-        
+
         # ================================================================
         # M3: Meta-Detection — Check for biased language
         # ================================================================
-        
+
         # Check for sarcasm indicators
         has_sarcasm = _matches_any(text_lower, SARCASM_PATTERNS)
         if has_sarcasm:
@@ -285,31 +285,31 @@ def annotate_context(ctx: TransformContext) -> TransformContext:
                 source=PASS_NAME,
                 affected_ids=[segment.id],
             )
-        
+
         # ================================================================
         # M3: Ambiguity Detection
         # ================================================================
-        
+
         # Check for ambiguous pronouns (he hit him, etc.)
         has_ambiguous_pronouns = _matches_any(text_lower, AMBIGUOUS_PRONOUNS)
-        
+
         # Check for vague references (they said, someone told me)
         has_vague_references = _matches_any(text_lower, VAGUE_REFERENCES)
-        
+
         # Check for confusing qualifiers
         has_confusing = _matches_any(text_lower, CONFUSING_QUALIFIERS)
-        
+
         # Combined ambiguity check
         has_ambiguity = has_ambiguous_pronouns or has_vague_references or has_confusing
-        
+
         if has_ambiguity:
             contexts.append(SegmentContext.AMBIGUOUS.value)
-            log.verbose("ambiguity_detected", 
+            log.verbose("ambiguity_detected",
                 segment_id=segment.id,
                 pronouns=has_ambiguous_pronouns,
                 vague=has_vague_references,
             )
-            
+
             # Specific diagnostics
             if has_ambiguous_pronouns:
                 ctx.add_diagnostic(
@@ -319,7 +319,7 @@ def annotate_context(ctx: TransformContext) -> TransformContext:
                     source=PASS_NAME,
                     affected_ids=[segment.id],
                 )
-                
+
                 # Phase 3: Structured Uncertainty
                 ctx.uncertainty.append(UncertaintyMarker(
                     id=f"unc_{uuid4().hex[:8]}",
@@ -337,7 +337,7 @@ def annotate_context(ctx: TransformContext) -> TransformContext:
                     source=PASS_NAME,
                     affected_ids=[segment.id],
                 )
-                
+
                 # Phase 3: Structured Uncertainty
                 ctx.uncertainty.append(UncertaintyMarker(
                     id=f"unc_{uuid4().hex[:8]}",
@@ -347,7 +347,7 @@ def annotate_context(ctx: TransformContext) -> TransformContext:
                     affected_ids=[segment.id],
                     source=PASS_NAME,
                 ))
-        
+
         # Check for biased language (inflammatory, intent, legal conclusions)
         has_biased_content = (
             _matches_any(text_lower, BIASED_INFLAMMATORY) or
@@ -355,7 +355,7 @@ def annotate_context(ctx: TransformContext) -> TransformContext:
             _matches_any(text_lower, BIASED_LEGAL) or
             has_sarcasm  # Sarcasm also counts as needing transformation
         )
-        
+
         # Check for opinion-only content
         is_opinion_only = (
             _matches_any(text_lower, OPINION_MARKERS) and
@@ -363,28 +363,28 @@ def annotate_context(ctx: TransformContext) -> TransformContext:
             not _matches_any(text_lower, INJURY_PATTERNS) and
             not _matches_any(text_lower, TIMELINE_PATTERNS)
         )
-        
+
         if is_opinion_only:
             contexts.append(SegmentContext.OPINION_ONLY.value)
-        
+
         # If NO biased content detected, mark as already neutral
         if not has_biased_content and not is_opinion_only:
             contexts.append(SegmentContext.ALREADY_NEUTRAL.value)
-        
+
         # If no specific context, mark as observation (default)
         if not contexts:
             contexts.append(SegmentContext.OBSERVATION.value)
-        
+
         # Update segment
         segment.contexts = contexts
         total_annotations += len(contexts)
-        
+
         # Track context distribution
         for c in contexts:
             context_counts[c] = context_counts.get(c, 0) + 1
-        
+
         log.debug("segment_annotated", segment_id=segment.id, contexts=contexts)
-        
+
         # Add trace
         ctx.add_trace(
             pass_name=PASS_NAME,
@@ -392,7 +392,7 @@ def annotate_context(ctx: TransformContext) -> TransformContext:
             after=f"{segment.id}: {contexts}",
             affected_ids=[segment.id],
         )
-    
+
     # ================================================================
     # M3: Global meta-detection — Is the entire input neutral?
     # ================================================================
@@ -407,12 +407,12 @@ def annotate_context(ctx: TransformContext) -> TransformContext:
             message="Input appears to be already neutral. No transformation needed.",
             source=PASS_NAME,
         )
-    
+
     # ================================================================
     # M3: Cross-Segment Contradiction Detection
     # ================================================================
     _detect_contradictions(ctx)
-    
+
     log.info("annotated",
         segments=len(ctx.segments),
         total_annotations=total_annotations,
@@ -420,21 +420,21 @@ def annotate_context(ctx: TransformContext) -> TransformContext:
         uncertainties=len(ctx.uncertainty),
     )
     log.debug("context_distribution", **context_counts)
-    
+
     ctx.add_trace(
         pass_name=PASS_NAME,
         action="completed",
         after=f"{len(ctx.segments)} segments, {total_annotations} context annotations" +
               (" (all neutral)" if all_neutral else ""),
     )
-    
+
     return ctx
 
 
 def _detect_contradictions(ctx: TransformContext) -> None:
     """
     Detect contradictions across segments.
-    
+
     This looks for:
     1. Negation followed by affirmation ("never touched" then "after I pushed")
     2. Physical impossibilities ("handcuffed" then "punched him")
@@ -443,21 +443,20 @@ def _detect_contradictions(ctx: TransformContext) -> None:
     segments = ctx.segments
     if len(segments) < 2:
         return
-    
+
     # Track state across segments
     was_handcuffed = False
-    was_on_ground = False
     negated_actions: list[str] = []
-    
+
     for i, segment in enumerate(segments):
         text_lower = segment.text.lower()
-        
+
         # Track physical states
         if _matches_any(text_lower, STATE_HANDCUFFED):
             was_handcuffed = True
         if _matches_any(text_lower, STATE_ON_GROUND):
-            was_on_ground = True
-        
+            pass
+
         # Track negations ("I never touched", "I didn't hit")
         if _matches_any(text_lower, NEGATION_PATTERNS):
             # What was negated?
@@ -467,9 +466,9 @@ def _detect_contradictions(ctx: TransformContext) -> None:
                 negated_actions.append("hit")
             if "push" in text_lower:
                 negated_actions.append("push")
-        
+
         # Check for contradictions with earlier state
-        
+
         # Type 1: Said handcuffed, but then did action requiring hands
         if was_handcuffed and _matches_any(text_lower, INCOMPATIBLE_WITH_RESTRAINED):
             segment.contexts.append(SegmentContext.CONTRADICTS_PREVIOUS.value)
@@ -480,7 +479,7 @@ def _detect_contradictions(ctx: TransformContext) -> None:
                 source=PASS_NAME,
                 affected_ids=[segment.id],
             )
-            
+
             # Phase 3: Structured Uncertainty
             ctx.uncertainty.append(UncertaintyMarker(
                 id=f"unc_{uuid4().hex[:8]}",
@@ -490,7 +489,7 @@ def _detect_contradictions(ctx: TransformContext) -> None:
                 affected_ids=[segment.id],
                 source=PASS_NAME,
             ))
-        
+
         # Type 2: Said "never touched" but then "after I pushed"
         for negated in negated_actions:
             if negated == "touch" and ("pushed" in text_lower or "shoved" in text_lower):
@@ -521,7 +520,7 @@ def _detect_contradictions(ctx: TransformContext) -> None:
                     source=PASS_NAME,
                     affected_ids=[segment.id],
                 )
-                
+
                 # Phase 3: Structured Uncertainty
                 ctx.uncertainty.append(UncertaintyMarker(
                     id=f"unc_{uuid4().hex[:8]}",
@@ -548,15 +547,15 @@ def _matches_any(text: str, patterns: list[str]) -> bool:
 def _detect_contexts_yaml(text: str, engine) -> list[str]:
     """
     V7 / Stage 4: Detect contexts using PolicyEngine YAML rules.
-    
+
     Uses apply_context_rules() which reads from _context/*.yaml files.
     Maps YAML context values to SegmentContext enum values.
     """
     contexts: list[str] = []
-    
+
     # Get contexts from PolicyEngine
     yaml_contexts = engine.apply_context_rules(text)
-    
+
     # Map YAML context names to SegmentContext values
     context_map = {
         "physical_force": SegmentContext.PHYSICAL_FORCE.value,
@@ -576,38 +575,38 @@ def _detect_contexts_yaml(text: str, engine) -> list[str]:
         "arrest": SegmentContext.CHARGE_DESCRIPTION.value,
         "custody": SegmentContext.CHARGE_DESCRIPTION.value,
     }
-    
+
     # Map and deduplicate
     for yaml_ctx in yaml_contexts:
         mapped = context_map.get(yaml_ctx)
         if mapped and mapped not in contexts:
             contexts.append(mapped)
-    
+
     return contexts
 
 
 def _detect_contexts_legacy(text_lower: str) -> list[str]:
     """
     DEPRECATED: Legacy context detection using Python patterns.
-    
+
     This function will be removed once YAML rules are fully validated.
     """
     contexts: list[str] = []
-    
+
     # Check for charge/accusation context
     if _matches_any(text_lower, CHARGE_PATTERNS):
         contexts.append(SegmentContext.CHARGE_DESCRIPTION.value)
-    
+
     # Check for physical force
     if _matches_any(text_lower, PHYSICAL_FORCE_PATTERNS):
         contexts.append(SegmentContext.PHYSICAL_FORCE.value)
-    
+
     # Check for injury description
     if _matches_any(text_lower, INJURY_PATTERNS):
         contexts.append(SegmentContext.INJURY_DESCRIPTION.value)
-    
+
     # Check for timeline markers
     if _matches_any(text_lower, TIMELINE_PATTERNS):
         contexts.append(SegmentContext.TIMELINE.value)
-    
+
     return contexts

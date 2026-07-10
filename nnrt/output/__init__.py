@@ -1,11 +1,11 @@
 """Output formatters for NNRT."""
 
 from nnrt.output.structured import (
-    StructuredOutput,
-    StatementOutput,
-    UncertaintyOutput,
     EntityOutput,
     EventOutput,
+    StatementOutput,
+    StructuredOutput,
+    UncertaintyOutput,
     build_structured_output,
 )
 

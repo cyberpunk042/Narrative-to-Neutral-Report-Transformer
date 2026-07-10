@@ -17,6 +17,7 @@ Per LLM policy:
 from __future__ import annotations
 
 import os
+
 from nnrt.core.context import TransformContext
 from nnrt.core.logging import get_pass_logger
 from nnrt.policy.engine import get_policy_engine
@@ -33,7 +34,7 @@ def _use_llm_render() -> bool:
 def render(ctx: TransformContext) -> TransformContext:
     """
     Render IR to neutral text.
-    
+
     Mode selection:
     - Set NNRT_USE_LLM=1 to enable LLM rendering
     - Default is template-based rendering
@@ -49,11 +50,11 @@ def render(ctx: TransformContext) -> TransformContext:
         return ctx
 
     use_llm = _use_llm_render() and _llm_available()
-    log.info("starting", 
+    log.info("starting",
         mode="llm" if use_llm else "template",
         segments=len(ctx.segments),
     )
-    
+
     if use_llm:
         return _render_llm(ctx)
     else:
@@ -72,10 +73,10 @@ def _llm_available() -> bool:
 def _render_llm(ctx: TransformContext) -> TransformContext:
     """Render using constrained LLM."""
     from nnrt.render.constrained import ConstrainedLLMRenderer
-    
+
     renderer = ConstrainedLLMRenderer()
     rendered_segments: list[str] = []
-    
+
     for segment in ctx.segments:
         # Get related IR components
         segment_spans = [s for s in ctx.spans if s.segment_id == segment.id]
@@ -85,11 +86,11 @@ def _render_llm(ctx: TransformContext) -> TransformContext:
         segment_events = [e for e in ctx.events if any(
             s in [sp.id for sp in segment_spans] for s in e.source_spans
         )]
-        
+
         # First apply policy rules to get fallback
         engine = get_policy_engine()
         fallback_text, _, _ = engine.apply_rules(segment.text)
-        
+
         # Then render with LLM (falls back if validation fails)
         rendered = renderer.render(
             segment=segment,
@@ -98,33 +99,33 @@ def _render_llm(ctx: TransformContext) -> TransformContext:
             events=segment_events,
             fallback_text=fallback_text,
         )
-        
+
         rendered = _clean_text(rendered)
         if rendered.strip():
             rendered_segments.append(rendered)
             log.debug("llm_segment_rendered", segment_id=segment.id)
-    
+
     ctx.rendered_text = " ".join(rendered_segments)
-    
+
     log.info("completed",
         mode="llm",
         segments_rendered=len(rendered_segments),
         output_chars=len(ctx.rendered_text),
     )
-    
+
     ctx.add_trace(
         pass_name=PASS_NAME,
         action="rendered_llm",
         after=f"{len(rendered_segments)} segments via LLM",
     )
-    
+
     return ctx
 
 
 def _render_template(ctx: TransformContext) -> TransformContext:
     """
     Render using template-based policy rules.
-    
+
     ARCHITECTURE NOTE (Post-Refactor):
     - Policy rules are the SINGLE source of transformation decisions
     - Context annotations (from p25_annotate_context) inform rule conditions
@@ -134,9 +135,9 @@ def _render_template(ctx: TransformContext) -> TransformContext:
     - transforms[] records individual changes for diff visualization
     """
     from nnrt.ir.schema_v0_1 import SegmentTransform
-    
+
     engine = get_policy_engine()
-    
+
     rendered_segments: list[str] = []
     total_transforms = 0
 
@@ -151,15 +152,15 @@ def _render_template(ctx: TransformContext) -> TransformContext:
             segment.text, segment.contexts
         )
         total_transforms += len(decisions)
-        
+
         # Store per-segment neutral text for traceability
         cleaned_rendered = _clean_text(rendered)
         if cleaned_rendered != segment.text:
             segment.neutral_text = cleaned_rendered
-        
+
         # Store applied rule IDs for traceability
         segment.applied_rules = [d.rule_id for d in decisions]
-        
+
         # NEW: Store transform details for diff visualization
         for td in transform_details:
             segment.transforms.append(SegmentTransform(
@@ -171,7 +172,7 @@ def _render_template(ctx: TransformContext) -> TransformContext:
                 reason_message=td.reason_message,
                 policy_rule_id=td.rule_id,
             ))
-        
+
         # Record decisions for each affected span (for downstream traceability)
         segment_spans = [s for s in ctx.spans if s.segment_id == segment.id]
         for decision in decisions:
@@ -179,24 +180,24 @@ def _render_template(ctx: TransformContext) -> TransformContext:
             for span in segment_spans:
                 if span.id in decision.affected_ids:
                     ctx.set_span_decision(span.id, decision)
-        
+
         # Add to combined output
         if cleaned_rendered.strip():
             rendered_segments.append(cleaned_rendered)
-            log.debug("segment_rendered", 
-                segment_id=segment.id, 
+            log.debug("segment_rendered",
+                segment_id=segment.id,
                 transforms=len(decisions),
             )
 
     ctx.rendered_text = " ".join(rendered_segments)
-    
+
     log.info("completed",
         mode="template",
         segments_rendered=len(rendered_segments),
         total_transforms=total_transforms,
         output_chars=len(ctx.rendered_text),
     )
-    
+
     ctx.add_trace(
         pass_name=PASS_NAME,
         action="rendered_template",
@@ -209,43 +210,43 @@ def _render_template(ctx: TransformContext) -> TransformContext:
 def _clean_text(text: str) -> str:
     """
     Clean up artifacts from transformations.
-    
+
     V5: Enhanced grammar fixes for common neutralization artifacts.
     """
     result = text
-    
+
     # Remove double spaces
     while "  " in result:
         result = result.replace("  ", " ")
-    
+
     # Remove orphaned punctuation
     result = result.replace(" .", ".").replace(" ,", ",")
     result = result.replace("..", ".").replace(",,", ",")
-    
+
     # V5: Fix sentence start artifacts
     result = result.replace("He  ", "He ").replace("She  ", "She ")
     result = result.replace("They  ", "They ").replace("I  ", "I ")
-    
+
     # V5: Fix common pronoun/article issues
     result = result.replace(" a a ", " a ")
     result = result.replace(" an an ", " an ")
     result = result.replace(" the the ", " the ")
-    
+
     # V5: Fix dangling connectors
     result = result.replace(", and,", " and")
     result = result.replace(", but,", " but")
     result = result.replace(", or,", " or")
-    
+
     # V5: Fix leading punctuation on sentences
     while result.startswith(", ") or result.startswith(". "):
         result = result[2:]
-    
+
     # Trim
     result = result.strip()
-    
+
     # Ensure proper sentence ending
     if result and result[-1] not in ".!?":
         result += "."
-    
+
     return result
 

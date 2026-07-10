@@ -23,12 +23,12 @@ Design decisions:
 from __future__ import annotations
 
 import re
+
 import structlog
-from typing import Optional, List
 
 from nnrt.core.context import TransformContext
-from nnrt.ir.schema_v0_1 import TimeGap, TimelineEntry
 from nnrt.ir.enums import TimeGapType
+from nnrt.ir.schema_v0_1 import TimeGap, TimelineEntry
 
 log = structlog.get_logger("nnrt.p44d_timeline_gaps")
 
@@ -38,59 +38,59 @@ PASS_NAME = "p44d_timeline_gaps"
 MIN_GAP_MINUTES = 5
 
 
-def _parse_duration_from_marker(marker_text: str) -> Optional[int]:
+def _parse_duration_from_marker(marker_text: str) -> int | None:
     """Extract duration in minutes from a marker like '20 minutes later'."""
     if not marker_text:
         return None
-    
+
     lower = marker_text.lower()
-    
+
     # Try "X minutes later"
     match = re.search(r'(\d+)\s*minutes?', lower)
     if match:
         return int(match.group(1))
-    
+
     # Try "X hours later"
     match = re.search(r'(\d+)\s*hours?', lower)
     if match:
         return int(match.group(1)) * 60
-    
+
     # "A few minutes" ≈ 5 minutes
     if 'few minutes' in lower:
         return 5
-    
+
     # "A few hours" ≈ 3 hours
     if 'few hours' in lower:
         return 180
-    
+
     return None
 
 
-def _is_explained_gap(entry_after: TimelineEntry) -> tuple[bool, Optional[str], Optional[int]]:
+def _is_explained_gap(entry_after: TimelineEntry) -> tuple[bool, str | None, int | None]:
     """Check if the gap before this entry is explained by a marker."""
     if entry_after.relative_time:
         # Has a relative time marker
         duration = _parse_duration_from_marker(entry_after.relative_time)
         return True, entry_after.relative_time, duration
-    
+
     return False, None, None
 
 
 def _calculate_gap_minutes(
     entry_a: TimelineEntry,
     entry_b: TimelineEntry,
-) -> Optional[int]:
+) -> int | None:
     """Calculate gap in minutes between two entries."""
     # If both have estimated_minutes_from_start, use that
-    if (entry_a.estimated_minutes_from_start is not None and 
+    if (entry_a.estimated_minutes_from_start is not None and
         entry_b.estimated_minutes_from_start is not None):
         return entry_b.estimated_minutes_from_start - entry_a.estimated_minutes_from_start
-    
+
     # If day_offset differs, calculate day-based gap
     if entry_a.day_offset != entry_b.day_offset:
         days_diff = entry_b.day_offset - entry_a.day_offset
         return days_diff * 24 * 60  # Minutes in days
-    
+
     return None
 
 
@@ -106,7 +106,7 @@ def _get_event_description(entry: TimelineEntry, ctx: TransformContext) -> str:
 def detect_timeline_gaps(ctx: TransformContext) -> TransformContext:
     """
     Detect and classify gaps in the timeline.
-    
+
     This pass:
     1. Analyzes pairs of adjacent timeline entries
     2. Classifies gaps as EXPLAINED, UNEXPLAINED, or DAY_BOUNDARY
@@ -114,27 +114,27 @@ def detect_timeline_gaps(ctx: TransformContext) -> TransformContext:
     4. Links gaps to timeline entries
     """
     timeline = ctx.timeline
-    
+
     if len(timeline) < 2:
-        log.info("insufficient_entries", pass_name=PASS_NAME, 
+        log.info("insufficient_entries", pass_name=PASS_NAME,
                 message=f"Only {len(timeline)} entries, no gaps to detect")
         ctx.add_trace(PASS_NAME, "skipped", after=f"Only {len(timeline)} entries")
         return ctx
-    
-    gaps: List[TimeGap] = []
+
+    gaps: list[TimeGap] = []
     gap_counter = 0
-    
+
     # =========================================================================
     # Analyze each pair of adjacent entries
     # =========================================================================
-    
+
     # Build lookup for events to check segment relationships
     event_lookup = {e.id: e for e in ctx.events}
-    
+
     for i in range(len(timeline) - 1):
         entry_a = timeline[i]
         entry_b = timeline[i + 1]
-        
+
         # =================================================================
         # Smart gap filtering: Skip gaps between clause fragments
         # =================================================================
@@ -150,7 +150,7 @@ def detect_timeline_gaps(ctx: TransformContext) -> TransformContext:
                 seg_b = getattr(event_b, 'source_segment_id', None)
                 if seg_a and seg_b and seg_a == seg_b:
                     same_segment = True
-                
+
                 # Check if descriptions overlap significantly (clause fragments)
                 desc_a = (event_a.description or '').lower()
                 desc_b = (event_b.description or '').lower()
@@ -163,15 +163,15 @@ def detect_timeline_gaps(ctx: TransformContext) -> TransformContext:
                     longer = max(desc_a, desc_b, key=len)
                     if len(shorter) > 10 and shorter in longer:
                         same_segment = True
-        
+
         # Check if gap is explained by a marker
         is_explained, explanation, duration = _is_explained_gap(entry_b)
-        
+
         # Calculate gap duration if possible
         gap_minutes = _calculate_gap_minutes(entry_a, entry_b)
         if gap_minutes is None and duration:
             gap_minutes = duration
-        
+
         # Check for memory gap markers in either event
         memory_gap_markers = [
             'woke up', 'came to', 'found myself', 'don\'t remember',
@@ -179,7 +179,7 @@ def detect_timeline_gaps(ctx: TransformContext) -> TransformContext:
             'regained consciousness', 'blacked out', 'passed out',
             'no memory', 'have no memory', 'lost consciousness',
         ]
-        
+
         def has_memory_gap(entry):
             if not entry.event_id:
                 return False
@@ -188,9 +188,9 @@ def detect_timeline_gaps(ctx: TransformContext) -> TransformContext:
                 return False
             desc = (event.description or '').lower()
             return any(marker in desc for marker in memory_gap_markers)
-        
+
         has_memory_marker = has_memory_gap(entry_b) or has_memory_gap(entry_a)
-        
+
         # Classify the gap
         if entry_a.day_offset != entry_b.day_offset:
             gap_type = TimeGapType.DAY_BOUNDARY
@@ -211,7 +211,7 @@ def detect_timeline_gaps(ctx: TransformContext) -> TransformContext:
             # Only flag if BOTH have explicit time sources (indicates contradiction)
             # or if there's a large segment gap (different parts of narrative)
             both_explicit = (
-                entry_a.time_source.value == 'explicit' and 
+                entry_a.time_source.value == 'explicit' and
                 entry_b.time_source.value == 'explicit'
             )
             if both_explicit:
@@ -235,13 +235,13 @@ def detect_timeline_gaps(ctx: TransformContext) -> TransformContext:
         else:
             gap_type = TimeGapType.NONE
             requires_investigation = False
-        
+
         # Generate question for unexplained gaps
         suggested_question = None
         if requires_investigation:
             desc_a = _get_event_description(entry_a, ctx)
             desc_b = _get_event_description(entry_b, ctx)
-            
+
             if gap_type == TimeGapType.DAY_BOUNDARY:
                 suggested_question = (
                     f"What happened after '{desc_a}' and before you '{desc_b}' "
@@ -256,7 +256,7 @@ def detect_timeline_gaps(ctx: TransformContext) -> TransformContext:
                 suggested_question = (
                     f"What happened between '{desc_a}' and '{desc_b}'?"
                 )
-        
+
         # Only create gap objects for significant gaps
         if gap_type not in (TimeGapType.NONE,):
             gap = TimeGap(
@@ -270,23 +270,23 @@ def detect_timeline_gaps(ctx: TransformContext) -> TransformContext:
                 suggested_question=suggested_question,
             )
             gaps.append(gap)
-            
+
             # Link gap to the entry that follows it
             entry_b.gap_before_id = gap.id
-            
+
             gap_counter += 1
-    
+
     # Store results
     ctx.time_gaps = gaps
-    
+
     # Log summary
     by_type = {}
     for g in gaps:
         t = g.gap_type.value
         by_type[t] = by_type.get(t, 0) + 1
-    
+
     needing_investigation = sum(1 for g in gaps if g.requires_investigation)
-    
+
     log.info(
         "gaps_detected",
         pass_name=PASS_NAME,
@@ -295,11 +295,11 @@ def detect_timeline_gaps(ctx: TransformContext) -> TransformContext:
         by_type=by_type,
         requiring_investigation=needing_investigation,
     )
-    
+
     ctx.add_trace(
         PASS_NAME,
         "gaps_detected",
         after=f"{len(gaps)} gaps ({by_type}), {needing_investigation} need investigation",
     )
-    
+
     return ctx

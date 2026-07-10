@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Optional
 from uuid import uuid4
 
 from nnrt.ir.enums import PolicyAction
@@ -36,7 +35,7 @@ class RuleMatch:
 class TransformDetail:
     """
     Detailed record of a text transformation for diff visualization.
-    
+
     Contains all information needed to show what changed, where, and why.
     """
     original_text: str      # Text that was changed
@@ -51,7 +50,7 @@ class TransformDetail:
 class PolicyEngine:
     """
     Deterministic policy rule engine.
-    
+
     Evaluates rules against text and produces explicit policy decisions.
     Rules are loaded from YAML configuration files.
     """
@@ -59,11 +58,11 @@ class PolicyEngine:
     def __init__(self, ruleset_name: str = "base") -> None:
         """
         Initialize the policy engine.
-        
+
         Args:
             ruleset_name: Name of the ruleset to load
         """
-        self._ruleset: Optional[PolicyRuleset] = None
+        self._ruleset: PolicyRuleset | None = None
         self._ruleset_name = ruleset_name
 
     @property
@@ -76,32 +75,32 @@ class PolicyEngine:
     def find_matches(self, text: str) -> list[RuleMatch]:
         """
         Find all rule matches in text.
-        
+
         Args:
             text: Text to search
-            
+
         Returns:
             List of matches, sorted by priority then position
         """
         matches: list[RuleMatch] = []
-        
+
         for rule in self.ruleset.get_rules_sorted():
             rule_matches = self._match_rule(rule, text)
             matches.extend(rule_matches)
-        
+
         # Sort by priority (desc) then position (asc)
         matches.sort(key=lambda m: (-m.rule.priority, m.start))
-        
+
         return matches
 
     def _match_rule(self, rule: PolicyRule, text: str) -> list[RuleMatch]:
         """Match a single rule against text."""
         matches: list[RuleMatch] = []
         search_text = text if rule.match.case_sensitive else text.lower()
-        
+
         for pattern in rule.match.patterns:
             search_pattern = pattern if rule.match.case_sensitive else pattern.lower()
-            
+
             if rule.match.type == MatchType.KEYWORD:
                 # Word boundary matching
                 regex = re.compile(rf'\b{re.escape(search_pattern)}\b', re.IGNORECASE)
@@ -114,7 +113,7 @@ class PolicyEngine:
                             start=m.start(),
                             end=m.end(),
                         ))
-                        
+
             elif rule.match.type == MatchType.PHRASE:
                 # Exact phrase matching
                 idx = 0
@@ -132,7 +131,7 @@ class PolicyEngine:
                             end=match_end,
                         ))
                     idx = pos + 1
-                    
+
             elif rule.match.type == MatchType.REGEX:
                 # Regex matching
                 try:
@@ -146,7 +145,7 @@ class PolicyEngine:
                         ))
                 except re.error:
                     pass  # Invalid regex, skip
-                    
+
             elif rule.match.type == MatchType.QUOTED:
                 # Match quoted text
                 for quote_pattern in [r'"([^"]*)"', r"'([^']*)'", r'"([^"]*)"']:
@@ -158,23 +157,23 @@ class PolicyEngine:
                             start=m.start(),
                             end=m.end(),
                         ))
-        
+
         return matches
-    
+
     def _check_exempt_following(
         self, text: str, match_end: int, exempt_following: list[str]
     ) -> bool:
         """
         Check if the match is followed by an exempt word.
-        
+
         Returns True if exempt (should skip this match), False if not exempt.
         """
         if not exempt_following:
             return False
-        
+
         # Look at the next 30 characters after the match
         lookahead = text[match_end:match_end + 30].lower().strip()
-        
+
         # Check if any exempt word appears at the start of lookahead
         for exempt in exempt_following:
             exempt_lower = exempt.lower()
@@ -182,7 +181,7 @@ class PolicyEngine:
                 # Verify it's a word boundary (not part of a longer word)
                 if len(lookahead) == len(exempt_lower) or not lookahead[len(exempt_lower)].isalpha():
                     return True
-        
+
         return False
 
     def _check_context(
@@ -191,92 +190,92 @@ class PolicyEngine:
         """Check if match has required context words nearby."""
         if not context:
             return True
-        
+
         # Look in a window around the match
         window_start = max(0, start - 50)
         window_end = min(len(text), end + 50)
         window = text[window_start:window_end].lower()
-        
+
         return any(ctx.lower() in window for ctx in context)
-    
+
     def _check_condition(
         self, rule: PolicyRule, segment_contexts: list[str]
     ) -> bool:
         """
         Check if a rule's condition is met given segment contexts.
-        
+
         Returns True if rule should be applied, False if it should be skipped.
         """
         condition = rule.condition
         if condition is None:
             return True  # No condition = always apply
-        
+
         # Check context_includes: ALL must be present
         if condition.context_includes:
             for ctx in condition.context_includes:
                 if ctx not in segment_contexts:
                     return False
-        
+
         # Check context_excludes: NONE must be present
         if condition.context_excludes:
             for ctx in condition.context_excludes:
                 if ctx in segment_contexts:
                     return False
-        
+
         return True
 
     def apply_rules(self, text: str) -> tuple[str, list[PolicyDecision], list[TransformDetail]]:
         """
         Apply all matching rules to text.
-        
+
         Args:
             text: Text to transform
-            
+
         Returns:
             Tuple of (transformed_text, policy_decisions, transform_details)
         """
         return self.apply_rules_with_context(text, [])
-    
+
     def apply_rules_with_context(
         self, text: str, segment_contexts: list[str]
     ) -> tuple[str, list[PolicyDecision], list[TransformDetail]]:
         """
         Apply all matching rules to text, respecting segment contexts.
-        
+
         Uses Token Group Merging with Protected Ranges:
         - First, identify PRESERVE matches (quotes, etc.) and protect their ranges
         - Any match inside a protected range is skipped
         - Group adjacent non-protected matches with same target
         - Merge each group into a single transformation
-        
+
         Args:
             text: Text to transform
             segment_contexts: Context annotations for this segment
-            
+
         Returns:
             Tuple of (transformed_text, policy_decisions)
         """
         decisions: list[PolicyDecision] = []
         matches = self.find_matches(text)
-        
+
         # Filter matches by condition
         valid_matches: list[RuleMatch] = []
         for match in matches:
             if self._check_condition(match.rule, segment_contexts):
                 valid_matches.append(match)
-        
+
         # STEP 1: Find protected ranges from PRESERVE rules
         # These are ranges (like quote content) that should not be modified
         protected_ranges: list[tuple[int, int]] = []
         preserve_decisions: list[PolicyDecision] = []
-        
+
         for match in valid_matches:
             if match.rule.action == RuleAction.PRESERVE:
                 protected_ranges.append((match.start, match.end))
                 preserve_decisions.append(self._create_decision(match))
-        
+
         decisions.extend(preserve_decisions)
-        
+
         # STEP 2: Filter out matches that fall inside protected ranges
         unprotected_matches: list[RuleMatch] = []
         for match in valid_matches:
@@ -284,7 +283,7 @@ class PolicyEngine:
                 continue  # Already handled
             if not self._is_protected(match.start, match.end, protected_ranges):
                 unprotected_matches.append(match)
-        
+
         # STEP 2.5: Consume spans - prevent overlapping matches
         # Sort by priority (high first), then by length (long first for ties)
         # When multiple rules match overlapping text, highest priority wins
@@ -294,60 +293,60 @@ class PolicyEngine:
         # Only text-modifying rules (REMOVE, REPLACE, REFRAME, STRIP) consume spans.
         # V7.1 FIX: Added GROUP to this list - GROUP rules categorize but don't transform text.
         # V7.2 FIX: Added EXTRACT - extraction rules also don't modify text.
-        
+
         CLASSIFICATION_ACTIONS = {RuleAction.DETECT, RuleAction.CLASSIFY, RuleAction.DISQUALIFY, RuleAction.GROUP, RuleAction.EXTRACT}
-        
+
         sorted_by_priority = sorted(
             unprotected_matches,
             key=lambda m: (-m.rule.priority, -(m.end - m.start))
         )
-        
+
         consumed_chars: set[int] = set()
         non_overlapping_matches: list[RuleMatch] = []
-        
+
         for match in sorted_by_priority:
             # Classification rules don't consume spans (they just read for classification)
             if match.rule.action in CLASSIFICATION_ACTIONS:
                 non_overlapping_matches.append(match)
                 continue
-            
+
             # For text-modifying rules, check if span is already consumed
             match_chars = set(range(match.start, match.end))
             if match_chars & consumed_chars:
                 # Overlap detected - skip this lower-priority match
                 continue
-            
+
             # No overlap - accept this match and consume its characters
             non_overlapping_matches.append(match)
             consumed_chars.update(match_chars)
-        
+
         # STEP 3: Group adjacent non-overlapping matches with same target
         match_groups = self._group_adjacent_matches(text, non_overlapping_matches)
-        
+
         # Build transformations from groups
         transformations: list[tuple[int, int, str, list[PolicyRule]]] = []
-        
+
         for group in match_groups:
             # All matches in group have same replacement - use first
             first_match = group[0]
             replacement = self._get_replacement(first_match)
-            
+
             if replacement is not None:
                 # Span covers entire group (first start to last end)
                 group_start = min(m.start for m in group)
                 group_end = max(m.end for m in group)
-                
+
                 transformations.append((
                     group_start,
                     group_end,
                     replacement,
                     [m.rule for m in group],
                 ))
-            
+
             # Create decisions for each match in group
             for match in group:
                 decisions.append(self._create_decision(match))
-        
+
         # Build TransformDetail records for diff visualization
         transform_details: list[TransformDetail] = []
         for start, end, replacement, rules in transformations:
@@ -363,69 +362,69 @@ class PolicyEngine:
                 reason_message=primary_rule.description or f"Applied rule: {primary_rule.id}",
                 rule_id=primary_rule.id,
             ))
-        
+
         # Apply transformations in reverse order (to preserve positions)
         result = text
         for start, end, replacement, rules in sorted(
             transformations, key=lambda t: t[0], reverse=True
         ):
             result = result[:start] + replacement + result[end:]
-        
+
         return result, decisions, transform_details
-    
+
     def _group_adjacent_matches(
         self, text: str, matches: list[RuleMatch]
     ) -> list[list[RuleMatch]]:
         """
         Group adjacent matches that have the same replacement target.
-        
+
         Two matches are considered adjacent if they're separated only by whitespace.
         Matches with the same target (replacement text) are merged into groups.
-        
+
         Returns list of groups, where each group's matches should be merged.
         """
         if not matches:
             return []
-        
+
         # Sort by position
         sorted_matches = sorted(matches, key=lambda m: m.start)
-        
+
         # Get replacement for each match
-        match_replacements: list[tuple[RuleMatch, Optional[str]]] = [
+        match_replacements: list[tuple[RuleMatch, str | None]] = [
             (m, self._get_replacement(m)) for m in sorted_matches
         ]
-        
+
         groups: list[list[RuleMatch]] = []
         consumed_positions: set[int] = set()
-        
+
         for i, (match, replacement) in enumerate(match_replacements):
             if i in consumed_positions:
                 continue
-            
+
             if replacement is None:
                 # Non-modifying matches stay solo
                 groups.append([match])
                 consumed_positions.add(i)
                 continue
-            
+
             # Start a new group with this match
             current_group = [match]
             consumed_positions.add(i)
             current_end = match.end
-            
+
             # Look ahead for adjacent matches with same replacement
             for j in range(i + 1, len(match_replacements)):
                 if j in consumed_positions:
                     continue
-                    
+
                 next_match, next_replacement = match_replacements[j]
-                
+
                 # Check if adjacent (only whitespace between)
                 gap = text[current_end:next_match.start]
                 if gap.strip() != "":
                     # Non-whitespace gap - not adjacent
                     break
-                
+
                 # Check if same replacement target
                 if next_replacement == replacement:
                     current_group.append(next_match)
@@ -434,17 +433,17 @@ class PolicyEngine:
                 else:
                     # Different replacement - can't merge
                     break
-            
+
             groups.append(current_group)
-        
+
         return groups
-    
+
     def _is_protected(
         self, start: int, end: int, protected_ranges: list[tuple[int, int]]
     ) -> bool:
         """
         Check if a span falls inside any protected range.
-        
+
         A span is protected if it overlaps with (is contained in) a protected range.
         Protected ranges come from PRESERVE rules (e.g., quote content).
         """
@@ -456,10 +455,10 @@ class PolicyEngine:
                 return True  # Partially overlapping
         return False
 
-    def _get_replacement(self, match: RuleMatch) -> Optional[str]:
+    def _get_replacement(self, match: RuleMatch) -> str | None:
         """Get the replacement text for a match."""
         rule = match.rule
-        
+
         if rule.action == RuleAction.REMOVE:
             return ""
         elif rule.action == RuleAction.STRIP:
@@ -478,7 +477,7 @@ class PolicyEngine:
             return None  # Just flag, don't modify
         elif rule.action == RuleAction.REFUSE:
             return None  # Handled separately
-        
+
         return None
 
     def _create_decision(self, match: RuleMatch) -> PolicyDecision:
@@ -492,7 +491,7 @@ class PolicyEngine:
             action = PolicyAction.FLAG
         elif match.rule.action == RuleAction.REFUSE:
             action = PolicyAction.REFUSE
-        
+
         return PolicyDecision(
             id=str(uuid4()),
             rule_id=match.rule.id,
@@ -508,7 +507,7 @@ class PolicyEngine:
     # =========================================================================
     # Semantic Matching Methods (Phase D: Policy Engine Evolution)
     # =========================================================================
-    
+
     def find_semantic_matches(
         self,
         entities: list,  # list[Entity]
@@ -517,22 +516,22 @@ class PolicyEngine:
     ) -> list[RuleMatch]:
         """
         Find semantic rule matches using the Entity/Event graph.
-        
+
         This enables policies like:
         - "REDACT entities with role=VICTIM"
         - "FLAG events with actor.role=AUTHORITY"
         - "PRESERVE entities with type=PERSON"
-        
+
         Args:
             entities: Entities from p32
             events: Events from p34
             segment_text: Original segment text (for position info)
-            
+
         Returns:
             List of semantic matches
         """
         matches: list[RuleMatch] = []
-        
+
         for rule in self.ruleset.get_rules_sorted():
             if rule.match.type == MatchType.ENTITY_ROLE:
                 matches.extend(self._match_entity_role(rule, entities, segment_text))
@@ -540,12 +539,12 @@ class PolicyEngine:
                 matches.extend(self._match_entity_type(rule, entities, segment_text))
             elif rule.match.type == MatchType.EVENT_TYPE:
                 matches.extend(self._match_event_type(rule, events, segment_text))
-        
+
         # Sort by priority (desc)
         matches.sort(key=lambda m: -m.rule.priority)
-        
+
         return matches
-    
+
     def _match_entity_role(
         self,
         rule: PolicyRule,
@@ -554,10 +553,10 @@ class PolicyEngine:
     ) -> list[RuleMatch]:
         """Match entities by their role."""
         matches: list[RuleMatch] = []
-        
+
         for entity in entities:
             entity_role = entity.role.value if hasattr(entity.role, 'value') else str(entity.role)
-            
+
             for pattern in rule.match.patterns:
                 if pattern.lower() == entity_role.lower():
                     # Create match representing this entity
@@ -568,9 +567,9 @@ class PolicyEngine:
                         start=0,  # Position info from entity mentions if available
                         end=len(matched_text),
                     ))
-        
+
         return matches
-    
+
     def _match_entity_type(
         self,
         rule: PolicyRule,
@@ -579,10 +578,10 @@ class PolicyEngine:
     ) -> list[RuleMatch]:
         """Match entities by their type."""
         matches: list[RuleMatch] = []
-        
+
         for entity in entities:
             entity_type = entity.type.value if hasattr(entity.type, 'value') else str(entity.type)
-            
+
             for pattern in rule.match.patterns:
                 if pattern.lower() == entity_type.lower():
                     matched_text = entity.label or f"Entity({entity.id})"
@@ -592,9 +591,9 @@ class PolicyEngine:
                         start=0,
                         end=len(matched_text),
                     ))
-        
+
         return matches
-    
+
     def _match_event_type(
         self,
         rule: PolicyRule,
@@ -603,10 +602,10 @@ class PolicyEngine:
     ) -> list[RuleMatch]:
         """Match events by their type."""
         matches: list[RuleMatch] = []
-        
+
         for event in events:
             event_type = event.type.value if hasattr(event.type, 'value') else str(event.type)
-            
+
             for pattern in rule.match.patterns:
                 if pattern.lower() == event_type.lower():
                     matched_text = event.description or f"Event({event.id})"
@@ -616,7 +615,7 @@ class PolicyEngine:
                         start=0,
                         end=len(matched_text),
                     ))
-        
+
         return matches
 
     def evaluate_semantic(
@@ -627,30 +626,30 @@ class PolicyEngine:
     ) -> list[PolicyDecision]:
         """
         Evaluate semantic rules and return policy decisions.
-        
+
         This is the entry point for semantic policy evaluation.
-        
+
         Args:
             entities: Entities to evaluate
             events: Events to evaluate
             segment_text: Original segment text
-            
+
         Returns:
             List of policy decisions
         """
         matches = self.find_semantic_matches(entities, events, segment_text)
         decisions = []
-        
+
         for match in matches:
             decision = self._create_decision(match)
             decisions.append(decision)
-        
+
         return decisions
 
     # =========================================================================
     # V7 / Stage 1: Classification Methods
     # =========================================================================
-    
+
     def apply_classification_rules(
         self,
         text: str,
@@ -658,14 +657,14 @@ class PolicyEngine:
     ) -> list[dict]:
         """
         Apply classification rules and return classification results.
-        
+
         Does NOT modify atoms directly - returns a list of classification
         results that the caller can apply to atom fields.
-        
+
         Args:
             text: Text to classify (e.g., event.description)
             atom_type: Type of atom being classified ("event", "entity", "quote")
-            
+
         Returns:
             List of dicts with:
             - field: Which field to set
@@ -675,25 +674,25 @@ class PolicyEngine:
             - source: Which rule triggered this
         """
         results: list[dict] = []
-        
+
         # Find all classification rule matches
         for rule in self.ruleset.get_rules_sorted():
             if rule.action not in [RuleAction.CLASSIFY, RuleAction.DISQUALIFY, RuleAction.DETECT]:
                 continue
-            
+
             if not rule.classification:
                 continue  # Classification rules need a classification output
-            
+
             rule_matches = self._match_rule(rule, text)
-            
+
             for match in rule_matches:
                 classification = rule.classification
-                
+
                 # Build reason from template
                 reason = classification.reason or ""
                 if "{matched}" in reason:
                     reason = reason.replace("{matched}", match.matched_text)
-                
+
                 result = {
                     "field": classification.field,
                     "value": classification.value,
@@ -702,103 +701,103 @@ class PolicyEngine:
                     "source": rule.id,
                     "matched_text": match.matched_text,
                 }
-                
+
                 # For DISQUALIFY, force is_camera_friendly to False
                 if rule.action == RuleAction.DISQUALIFY:
                     result["field"] = "is_camera_friendly"
                     result["value"] = False
-                
+
                 # For DETECT, force value to True
                 if rule.action == RuleAction.DETECT:
                     result["value"] = True
-                
+
                 results.append(result)
-        
+
         return results
-    
+
     def apply_strip_rules(self, text: str) -> str:
         """
         Apply STRIP rules to neutralize text.
-        
+
         STRIP rules remove words/phrases but keep the sentence intact.
         Used for creating neutralized_description from description.
-        
+
         Args:
             text: Text to neutralize
-            
+
         Returns:
             Neutralized text with stripped words removed
         """
         result = text
-        
+
         # Collect all STRIP rule matches
         strip_matches: list[tuple[int, int, str]] = []  # (start, end, rule_id)
-        
+
         for rule in self.ruleset.get_rules_sorted():
             if rule.action != RuleAction.STRIP:
                 continue
-            
+
             rule_matches = self._match_rule(rule, result)
             for match in rule_matches:
                 strip_matches.append((match.start, match.end, rule.id))
-        
+
         if not strip_matches:
             return text  # No changes
-        
+
         # Sort by position descending (apply from end to preserve positions)
         strip_matches.sort(key=lambda x: x[0], reverse=True)
-        
+
         for start, end, rule_id in strip_matches:
             # Remove the matched text
             before = result[:start]
             after = result[end:]
-            
+
             # Clean up: remove double spaces, adjust spacing
             combined = before + after
             # Remove double spaces
             while "  " in combined:
                 combined = combined.replace("  ", " ")
-            
+
             result = combined.strip()
-        
+
         return result
-    
+
     # =========================================================================
     # V7 / Stage 4: Context, Grouping, and Extraction Actions
     # =========================================================================
     # These methods enable pattern migration from Python to YAML.
     # Each method returns results that the caller can apply to segments/atoms.
     # =========================================================================
-    
-    def apply_context_rules(self, text: str, domain: Optional[str] = None) -> list[str]:
+
+    def apply_context_rules(self, text: str, domain: str | None = None) -> list[str]:
         """
         Apply CONTEXT rules to detect segment contexts.
-        
+
         Context rules detect patterns that indicate segment type/nature,
         replacing hardcoded Python patterns like PHYSICAL_FORCE_PATTERNS.
-        
+
         Args:
             text: Text to analyze
             domain: Optional domain to filter rules
-            
+
         Returns:
             List of context values to add to segment.contexts
         """
         contexts: list[str] = []
-        
+
         for rule in self.ruleset.get_rules_sorted():
             if rule.action != RuleAction.CONTEXT:
                 continue
-            
+
             # Filter by domain if specified
             if domain and rule.domain and rule.domain != domain:
                 continue
-            
+
             if not rule.classification:
                 continue
-            
+
             rule_matches = self._match_rule(rule, text)
-            
+
             if rule_matches:
                 # Get context values from classification
                 value = rule.classification.value
@@ -806,7 +805,7 @@ class PolicyEngine:
                     contexts.extend(value)
                 elif isinstance(value, str):
                     contexts.append(value)
-        
+
         # Deduplicate while preserving order
         seen = set()
         result = []
@@ -814,20 +813,20 @@ class PolicyEngine:
             if ctx not in seen:
                 seen.add(ctx)
                 result.append(ctx)
-        
+
         return result
-    
-    def apply_group_rules(self, text: str, domain: Optional[str] = None) -> Optional[str]:
+
+    def apply_group_rules(self, text: str, domain: str | None = None) -> str | None:
         """
         Apply GROUP rules to determine statement group.
-        
+
         Group rules classify statements into semantic groups,
         replacing hardcoded Python patterns like ENCOUNTER_PATTERNS.
-        
+
         Args:
             text: Text to analyze
             domain: Optional domain to filter rules
-            
+
         Returns:
             Group name if matched, None otherwise.
             Returns highest-priority match only.
@@ -835,34 +834,34 @@ class PolicyEngine:
         for rule in self.ruleset.get_rules_sorted():
             if rule.action != RuleAction.GROUP:
                 continue
-            
+
             # Filter by domain if specified
             if domain and rule.domain and rule.domain != domain:
                 continue
-            
+
             if not rule.classification:
                 continue
-            
+
             rule_matches = self._match_rule(rule, text)
-            
+
             if rule_matches:
                 # Return the first (highest priority) group match
                 return rule.classification.value
-        
+
         return None
-    
-    def apply_extract_rules(self, text: str, domain: Optional[str] = None) -> list[dict]:
+
+    def apply_extract_rules(self, text: str, domain: str | None = None) -> list[dict]:
         """
         Apply EXTRACT rules to populate extraction fields.
-        
+
         Extract rules detect patterns that indicate entity roles,
         temporal expressions, etc., replacing hardcoded Python patterns
         like MEDICAL_ROLE_PATTERNS.
-        
+
         Args:
             text: Text to analyze
             domain: Optional domain to filter rules
-            
+
         Returns:
             List of extraction results with:
             - field: Which field to populate
@@ -872,28 +871,28 @@ class PolicyEngine:
             - matched_text: What text matched
         """
         results: list[dict] = []
-        
+
         for rule in self.ruleset.get_rules_sorted():
             if rule.action != RuleAction.EXTRACT:
                 continue
-            
+
             # Filter by domain if specified
             if domain and rule.domain and rule.domain != domain:
                 continue
-            
+
             if not rule.classification:
                 continue
-            
+
             rule_matches = self._match_rule(rule, text)
-            
+
             for match in rule_matches:
                 classification = rule.classification
-                
+
                 # Build reason from template
                 reason = classification.reason or ""
                 if "{matched}" in reason:
                     reason = reason.replace("{matched}", match.matched_text)
-                
+
                 results.append({
                     "field": classification.field,
                     "value": classification.value,
@@ -902,39 +901,39 @@ class PolicyEngine:
                     "matched_text": match.matched_text,
                     "reason": reason or f"matched:{match.matched_text}",
                 })
-        
+
         return results
-    
+
     def get_rules_by_tag(self, tag: str) -> list[PolicyRule]:
         """Get all rules with a specific tag."""
         return self.ruleset.get_rules_by_tag(tag)
-    
+
     def get_rules_by_domain(self, domain: str) -> list[PolicyRule]:
         """Get all rules for a specific domain."""
         return self.ruleset.get_rules_by_domain(domain)
-    
+
     def get_classification_rules(self) -> list[PolicyRule]:
         """Get all classification rules (CLASSIFY, DISQUALIFY, DETECT, STRIP)."""
         return [
             r for r in self.ruleset.get_rules_sorted()
             if r.action in [RuleAction.CLASSIFY, RuleAction.DISQUALIFY, RuleAction.DETECT, RuleAction.STRIP]
         ]
-    
+
     def get_context_rules(self) -> list[PolicyRule]:
         """Get all CONTEXT rules."""
         return [r for r in self.ruleset.get_rules_sorted() if r.action == RuleAction.CONTEXT]
-    
+
     def get_group_rules(self) -> list[PolicyRule]:
         """Get all GROUP rules."""
         return [r for r in self.ruleset.get_rules_sorted() if r.action == RuleAction.GROUP]
-    
+
     def get_extract_rules(self) -> list[PolicyRule]:
         """Get all EXTRACT rules."""
         return [r for r in self.ruleset.get_rules_sorted() if r.action == RuleAction.EXTRACT]
 
 
 # Default engine instance and profile configuration
-_engine: Optional[PolicyEngine] = None
+_engine: PolicyEngine | None = None
 _default_profile: str = "law_enforcement"
 
 
@@ -950,9 +949,9 @@ def get_default_profile() -> str:
     return _default_profile
 
 
-def get_policy_engine(ruleset: Optional[str] = None) -> PolicyEngine:
+def get_policy_engine(ruleset: str | None = None) -> PolicyEngine:
     """Get or create a policy engine.
-    
+
     Args:
         ruleset: Profile/ruleset name to use. If None, uses default profile.
     """

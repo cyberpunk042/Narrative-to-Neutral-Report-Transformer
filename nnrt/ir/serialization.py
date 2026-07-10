@@ -2,9 +2,7 @@
 IR Serialization — JSON import/export for IR artifacts.
 """
 
-import json
 from pathlib import Path
-from typing import Union
 
 from nnrt.ir.schema_v0_1 import TransformResult
 
@@ -19,13 +17,13 @@ def from_json(json_str: str) -> TransformResult:
     return TransformResult.model_validate_json(json_str)
 
 
-def save(result: TransformResult, path: Union[str, Path]) -> None:
+def save(result: TransformResult, path: str | Path) -> None:
     """Save a TransformResult to a JSON file."""
     path = Path(path)
     path.write_text(to_json(result))
 
 
-def load(path: Union[str, Path]) -> TransformResult:
+def load(path: str | Path) -> TransformResult:
     """Load a TransformResult from a JSON file."""
     path = Path(path)
     return from_json(path.read_text())
