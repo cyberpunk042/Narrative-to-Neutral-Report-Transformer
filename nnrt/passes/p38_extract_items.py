@@ -21,8 +21,7 @@ Logic migrated from V1 structured.py lines 828-1031.
 """
 
 import re
-from typing import List, Set, Dict, Any
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from nnrt.core.context import TransformContext
 from nnrt.core.logging import get_pass_logger
@@ -107,33 +106,33 @@ QUOTE_PATTERNS = [
 def extract_items(ctx: TransformContext) -> TransformContext:
     """
     Extract and categorize items allegedly found during searches.
-    
+
     V7 / Stage 1: Migrates item discovery logic from V1 renderer
     to populate ItemDiscovered objects during pipeline processing.
-    
+
     Adds items to ctx.discovered_items (new field).
     """
     # Build full text from atomic statements
     all_text_parts = []
-    
+
     if ctx.atomic_statements:
         for stmt in ctx.atomic_statements:
             text = getattr(stmt, 'text', str(stmt))
             all_text_parts.append(text)
-    
+
     if ctx.events:
         for event in ctx.events:
             if event.description:
                 all_text_parts.append(event.description)
-    
+
     full_text = ' '.join(all_text_parts)
-    
+
     if not full_text.strip():
         log.debug("no_text", message="No text to extract items from")
         return ctx
-    
+
     # Extract items by category
-    discovered_sets: Dict[str, Set[str]] = {
+    discovered_sets: dict[str, set[str]] = {
         'personal_effects': set(),
         'work_items': set(),
         'valuables': set(),
@@ -142,37 +141,37 @@ def extract_items(ctx: TransformContext) -> TransformContext:
         'weapons': set(),
         'other': set(),
     }
-    
-    item_contexts: Dict[str, str] = {}  # item -> context sentence
+
+    item_contexts: dict[str, str] = {}  # item -> context sentence
     item_counter = 0
-    
+
     for pattern in DISCOVERY_PATTERNS:
         for match in re.finditer(pattern, full_text, re.IGNORECASE):
             items_text = match.group(1)
             context = match.group(0)
-            
+
             # Skip false positives
             if any(items_text.strip().lower().startswith(fp) for fp in FALSE_POSITIVE_STARTS):
                 continue
-            
+
             # Parse individual items
             items = re.split(r',\s*(?:and\s+)?|\s+and\s+', items_text)
-            
+
             for item in items:
                 item = item.strip().lower()
-                
+
                 # Skip empty or too short
                 if not item or len(item) < 2:
                     continue
-                
+
                 # Skip if too long (not a real item)
                 if len(item) > 60:
                     continue
-                
+
                 # Skip sentence-like content
                 if any(word in item for word in SENTENCE_WORDS):
                     continue
-                
+
                 # V7 FIX: Skip quote fragments and speech-like content
                 is_quote = False
                 for pattern in QUOTE_PATTERNS:
@@ -181,22 +180,22 @@ def extract_items(ctx: TransformContext) -> TransformContext:
                         break
                 if is_quote:
                     continue
-                
+
                 # Remove possessives
                 item = re.sub(r'^my\s+', '', item)
                 item = re.sub(r'^his\s+', '', item)
                 item = re.sub(r'^her\s+', '', item)
                 item = re.sub(r'^their\s+', '', item)
-                
+
                 # Classify the item
                 category = _classify_item(item)
                 if category:
                     discovered_sets[category].add(item)
                     item_contexts[item] = context
-    
+
     # Create ItemDiscovered objects
-    discovered_items: List[ItemDiscovered] = []
-    
+    discovered_items: list[ItemDiscovered] = []
+
     for category, items in discovered_sets.items():
         for item_desc in items:
             item_counter += 1
@@ -208,63 +207,63 @@ def extract_items(ctx: TransformContext) -> TransformContext:
                 confidence=0.85 if category != 'other' else 0.6,
                 needs_clarification=(category == 'unspecified_substances'),
             ))
-    
+
     # Store in context (using a new field or extending existing)
     # For now, store as attribute
     ctx.discovered_items = discovered_items
-    
+
     log.info(
         "extracted_items",
         total=len(discovered_items),
         categories={cat: len(items) for cat, items in discovered_sets.items() if items},
     )
-    
+
     ctx.add_trace(
         pass_name=PASS_NAME,
         action="extract_items",
         after=f"Extracted {len(discovered_items)} items from text",
     )
-    
+
     return ctx
 
 
 def _classify_item(item: str) -> str:
     """
     Classify an item into a category.
-    
+
     Returns category name or 'other' for uncategorized.
     """
     item_lower = item.lower()
-    
+
     # Check VAGUE SUBSTANCES first (drugs, pills, etc.)
     if any(term in item_lower for term in VAGUE_SUBSTANCE_TERMS):
         return 'unspecified_substances'
-    
+
     # Then check SPECIFIC contraband (cocaine, heroin, meth)
     if any(term in item_lower for term in CONTRABAND_TERMS):
         return 'contraband'
-    
+
     # Weapons
     if any(term in item_lower for term in WEAPON_TERMS):
         return 'weapons'
-    
+
     # Work items
     if any(term in item_lower for term in WORK_ITEMS):
         return 'work_items'
-    
+
     # Personal effects
     if any(term in item_lower for term in PERSONAL_EFFECTS):
         # Cash/money go to valuables
         if 'cash' in item_lower or 'money' in item_lower or 'tips' in item_lower:
             return 'valuables'
         return 'personal_effects'
-    
+
     # Valuables (catch remaining money terms)
     if 'cash' in item_lower or 'money' in item_lower or 'tip' in item_lower:
         return 'valuables'
-    
+
     # Only add to "other" if it looks like a real item
     if len(item) < 30:
         return 'other'
-    
+
     return None  # Skip this item

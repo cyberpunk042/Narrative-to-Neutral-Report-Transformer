@@ -212,7 +212,7 @@ Regex patterns and NER are over-matching.
    - Semantic clustering pass (new p29_group_statements?)
    - Timeline extraction and ordering
    - Evidence classification
-   
+
 2. **Improved Entity Resolution**
    - Coreference resolution within narrative
    - Canonical entity merging

@@ -285,15 +285,15 @@ class TransformResult(BaseModel):
 1. **Actor-based clustering**:
    - Group by primary entity (who is speaking/acting)
    - "What Jenkins did", "What Rodriguez did"
-   
+
 2. **Topic-based clustering**:
    - Semantic similarity via sentence embeddings
    - spaCy vectors or sentence-transformers
-   
+
 3. **Evidence-type clustering**:
    - Medical statements group together
    - Witness statements group together
-   
+
 4. **Timeline-based clustering**:
    - Events at same time group together
 
@@ -309,11 +309,11 @@ class TransformResult(BaseModel):
    - Is it "X told me..."? → REPORTED
    - Is it medical/official? → DOCUMENTARY
    - Is it "I think/believe"? → INFERENCE
-   
+
 2. Compute reliability:
    - Direct + corroborated = high
    - Reported + uncorroborated = low
-   
+
 3. Flag potential issues:
    - Contradictions
    - Impossible sequences
@@ -447,22 +447,22 @@ After v3, the example input should produce:
 
 1. **OBSERVATIONS**: 15+ (not just 1)
    - "I was terrified", "I froze", "I screamed"...
-   
+
 2. **ENTITIES**: Clean, no duplicates
    - Officer Jenkins (badge: 4821, role: AUTHORITY)
    - NOT: "4821" as separate entity
-   
+
 3. **LOCATIONS**: Only real places
    - Main Street, Oak Avenue, Riverside Cafe
    - NOT: "me", "their", "his"
-   
+
 4. **GROUPS**: 5-7 semantic clusters
    - Initial Encounter
    - Use of Force
    - Witness Accounts
    - Medical Documentation
    - Official Response
-   
+
 5. **TIMELINE**: Ordered events with times
 
 ---

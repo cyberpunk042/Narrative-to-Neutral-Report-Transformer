@@ -8,7 +8,6 @@ Includes quote-aware merging to keep quoted content together.
 from __future__ import annotations
 
 import re
-from uuid import uuid4
 
 from nnrt.core.context import TransformContext
 from nnrt.core.logging import get_pass_logger
@@ -25,7 +24,7 @@ QUOTE_PATTERN = re.compile(r'"[^"]*"')
 def segment(ctx: TransformContext) -> TransformContext:
     """
     Segment normalized text into sentences using spaCy.
-    
+
     This pass:
     - Uses spaCy's sentence segmentation
     - Merges segments that are inside quotes (quote-aware)
@@ -49,7 +48,7 @@ def segment(ctx: TransformContext) -> TransformContext:
     quote_ranges: list[tuple[int, int]] = []
     for match in QUOTE_PATTERN.finditer(text):
         quote_ranges.append((match.start(), match.end()))
-    
+
     log.debug("found_quotes", quote_count=len(quote_ranges))
 
     # Process with spaCy (centralized loader)
@@ -60,12 +59,12 @@ def segment(ctx: TransformContext) -> TransformContext:
     raw_segments: list[tuple[str, int, int]] = []
     for sent in doc.sents:
         raw_segments.append((sent.text.strip(), sent.start_char, sent.end_char))
-    
+
     log.debug("spacy_segments", raw_count=len(raw_segments))
 
     # Merge segments that are inside the same quote
     merged_segments = _merge_quoted_segments(text, raw_segments, quote_ranges)
-    
+
     merges_performed = len(raw_segments) - len(merged_segments)
     if merges_performed > 0:
         log.verbose("quote_merges", merges=merges_performed)
@@ -85,13 +84,13 @@ def segment(ctx: TransformContext) -> TransformContext:
         log.debug("created_segment", segment_id=f"seg_{i:03d}", chars=len(seg_text))
 
     ctx.segments = segments
-    
+
     log.info(
-        "segmented", 
+        "segmented",
         segment_count=len(segments),
         quote_merges=merges_performed,
     )
-    
+
     ctx.add_trace(
         pass_name=PASS_NAME,
         action="segmented_text",
@@ -108,11 +107,11 @@ def _merge_quoted_segments(
 ) -> list[tuple[str, int, int]]:
     """
     Merge adjacent segments that overlap with the same quote.
-    
+
     This ensures quoted content like:
         He said "First sentence. Second sentence."
     becomes a single segment, not split at the period.
-    
+
     A segment overlaps a quote if any part of it is inside the quote.
     """
     if not segments or not quote_ranges:
@@ -120,10 +119,10 @@ def _merge_quoted_segments(
 
     result: list[tuple[str, int, int]] = []
     i = 0
-    
+
     while i < len(segments):
         seg_text, seg_start, seg_end = segments[i]
-        
+
         # Check if this segment OVERLAPS with any quote
         # (not just starts inside - a segment can start before quote but end inside it)
         overlapping_quote = None
@@ -134,23 +133,23 @@ def _merge_quoted_segments(
             if seg_end > q_start and seg_start < q_end:
                 overlapping_quote = (q_start, q_end)
                 break
-        
+
         if overlapping_quote is None:
             # No overlap with any quote - keep as-is
             result.append((seg_text, seg_start, seg_end))
             i += 1
             continue
-        
+
         # This segment overlaps a quote - we need to merge with all segments
         # that are part of this quote until we fully exit
         q_start, q_end = overlapping_quote
         merged_start = seg_start
         merged_end = seg_end
-        
+
         # Keep merging while next segment is also within or overlapping this quote
         while i + 1 < len(segments):
             next_text, next_start, next_end = segments[i + 1]
-            
+
             # Check if next segment overlaps or is inside the same quote
             # Next segment is part of quote if it starts before quote ends
             if next_start < q_end:
@@ -159,12 +158,12 @@ def _merge_quoted_segments(
                 i += 1
             else:
                 break
-        
+
         # Extract the merged text from the original (to preserve spacing)
         merged_text = full_text[merged_start:merged_end].strip()
         result.append((merged_text, merged_start, merged_end))
         i += 1
-    
+
     return result
 
 

@@ -9,7 +9,7 @@ This module compares multiple accounts of the same incident to identify:
 
 Usage:
     from nnrt.v6.comparison import compare_narratives, ComparisonResult
-    
+
     result = compare_narratives([
         ("complainant", complainant_result),
         ("officer", officer_result),
@@ -18,16 +18,17 @@ Usage:
 """
 
 import re
-import structlog
-from enum import Enum
-from typing import List, Optional, Tuple, Dict, Any
-from pydantic import BaseModel, Field
 from difflib import SequenceMatcher
+from enum import StrEnum
+from typing import Any
+
+import structlog
+from pydantic import BaseModel, Field
 
 log = structlog.get_logger("nnrt.v6.comparison")
 
 
-class ComparisonType(str, Enum):
+class ComparisonType(StrEnum):
     """Type of comparison finding."""
     AGREEMENT = "agreement"           # Multiple sources agree
     CONTRADICTION = "contradiction"   # Sources contradict
@@ -36,7 +37,7 @@ class ComparisonType(str, Enum):
     OMISSION = "omission"             # One source omits something
 
 
-class SeverityLevel(str, Enum):
+class SeverityLevel(StrEnum):
     """Severity of a contradiction or discrepancy."""
     CRITICAL = "critical"   # Major factual contradiction
     SIGNIFICANT = "significant"  # Important difference
@@ -45,55 +46,55 @@ class SeverityLevel(str, Enum):
 
 class NarrativeSource(BaseModel):
     """A source narrative for comparison."""
-    
+
     label: str = Field(..., description="Source identifier: 'complainant', 'officer', etc.")
-    events: List[Any] = Field(default_factory=list, description="Extracted events")
-    statements: List[Any] = Field(default_factory=list, description="Atomic statements")
-    entities: List[Any] = Field(default_factory=list, description="Entities mentioned")
-    timeline: List[Any] = Field(default_factory=list, description="Timeline entries")
-    raw_text: Optional[str] = Field(None, description="Original narrative text")
+    events: list[Any] = Field(default_factory=list, description="Extracted events")
+    statements: list[Any] = Field(default_factory=list, description="Atomic statements")
+    entities: list[Any] = Field(default_factory=list, description="Entities mentioned")
+    timeline: list[Any] = Field(default_factory=list, description="Timeline entries")
+    raw_text: str | None = Field(None, description="Original narrative text")
 
 
 class ComparisonFinding(BaseModel):
     """A single comparison finding between narratives."""
-    
+
     id: str = Field(..., description="Finding ID")
     type: ComparisonType = Field(..., description="Type of finding")
     severity: SeverityLevel = Field(SeverityLevel.MINOR, description="Severity level")
-    
+
     # What was compared
     topic: str = Field(..., description="What this is about: 'time of incident', 'use of force'")
-    
+
     # Source information
-    sources_involved: List[str] = Field(..., description="Labels of sources involved")
-    source_excerpts: Dict[str, str] = Field(default_factory=dict, description="Relevant text from each source")
-    
+    sources_involved: list[str] = Field(..., description="Labels of sources involved")
+    source_excerpts: dict[str, str] = Field(default_factory=dict, description="Relevant text from each source")
+
     # Analysis
     description: str = Field(..., description="What the finding means")
-    details: Optional[str] = Field(None, description="Additional details")
-    
+    details: str | None = Field(None, description="Additional details")
+
     # For contradictions
-    suggested_resolution: Optional[str] = Field(None, description="How to investigate this")
+    suggested_resolution: str | None = Field(None, description="How to investigate this")
 
 
 class ComparisonResult(BaseModel):
     """Complete comparison result between multiple narratives."""
-    
+
     source_count: int = Field(0, description="Number of sources compared")
-    source_labels: List[str] = Field(default_factory=list)
-    
+    source_labels: list[str] = Field(default_factory=list)
+
     # Findings by type
-    findings: List[ComparisonFinding] = Field(default_factory=list)
-    
+    findings: list[ComparisonFinding] = Field(default_factory=list)
+
     # Summary counts
     agreement_count: int = Field(0)
     contradiction_count: int = Field(0)
     unique_claim_count: int = Field(0)
     timeline_discrepancy_count: int = Field(0)
-    
+
     # Critical issues
-    critical_findings: List[str] = Field(default_factory=list, description="IDs of critical findings")
-    
+    critical_findings: list[str] = Field(default_factory=list, description="IDs of critical findings")
+
     # Overall assessment
     overall_consistency: float = Field(0.0, ge=0.0, le=1.0, description="0-1 consistency score")
 
@@ -121,7 +122,7 @@ def _normalize_for_comparison(text: str) -> str:
     return text
 
 
-def _extract_key_facts(statements: List[Any]) -> List[Tuple[str, str]]:
+def _extract_key_facts(statements: list[Any]) -> list[tuple[str, str]]:
     """Extract key facts from statements as (normalized, original) pairs."""
     facts = []
     for stmt in statements:
@@ -132,18 +133,18 @@ def _extract_key_facts(statements: List[Any]) -> List[Tuple[str, str]]:
     return facts
 
 
-def _find_matching_fact(fact: str, other_facts: List[Tuple[str, str]], 
-                        threshold: float = 0.7) -> Optional[Tuple[str, float]]:
+def _find_matching_fact(fact: str, other_facts: list[tuple[str, str]],
+                        threshold: float = 0.7) -> tuple[str, float] | None:
     """Find a matching fact in another source's facts."""
     best_match = None
     best_score = 0.0
-    
+
     for other_norm, other_orig in other_facts:
         score = _text_similarity(fact, other_norm)
         if score > best_score and score >= threshold:
             best_score = score
             best_match = other_orig
-    
+
     return (best_match, best_score) if best_match else None
 
 
@@ -176,26 +177,26 @@ INJURY_PATTERNS = [
 ]
 
 
-def _categorize_claim(text: str) -> Optional[str]:
+def _categorize_claim(text: str) -> str | None:
     """Categorize a claim by type."""
     lower = text.lower()
-    
+
     for pattern in TIME_PATTERNS:
         if re.search(pattern, lower, re.I):
             return "time"
-    
+
     for pattern in FORCE_PATTERNS:
         if re.search(pattern, lower, re.I):
             return "force"
-    
+
     for pattern in INJURY_PATTERNS:
         if re.search(pattern, lower, re.I):
             return "injury"
-    
+
     for pattern in LOCATION_PATTERNS:
         if re.search(pattern, lower, re.I):
             return "location"
-    
+
     return None
 
 
@@ -203,16 +204,16 @@ def _categorize_claim(text: str) -> Optional[str]:
 # Comparison Functions
 # =============================================================================
 
-def _compare_events(sources: List[NarrativeSource]) -> List[ComparisonFinding]:
+def _compare_events(sources: list[NarrativeSource]) -> list[ComparisonFinding]:
     """Compare events across sources."""
     findings = []
     finding_counter = 0
-    
+
     if len(sources) < 2:
         return findings
-    
+
     # Extract event descriptions from each source
-    source_events: Dict[str, List[str]] = {}
+    source_events: dict[str, list[str]] = {}
     for source in sources:
         descs = []
         for event in source.events:
@@ -220,15 +221,15 @@ def _compare_events(sources: List[NarrativeSource]) -> List[ComparisonFinding]:
             if desc:
                 descs.append(desc)
         source_events[source.label] = descs
-    
+
     # Compare first source's events against others
     primary = sources[0]
     primary_descs = source_events.get(primary.label, [])
-    
+
     for desc in primary_descs:
         normalized = _normalize_for_comparison(desc)
         category = _categorize_claim(desc)
-        
+
         # Check if this event appears in other sources
         matches = {}
         for source in sources[1:]:
@@ -238,14 +239,14 @@ def _compare_events(sources: List[NarrativeSource]) -> List[ComparisonFinding]:
                 if similarity > 0.6:
                     matches[source.label] = (other_desc, similarity)
                     break
-        
+
         if matches:
             # Agreement found
             all_labels = [primary.label] + list(matches.keys())
             excerpts = {primary.label: desc[:100]}
             for label, (match_text, _) in matches.items():
                 excerpts[label] = match_text[:100]
-            
+
             finding = ComparisonFinding(
                 id=f"cf_{finding_counter:04d}",
                 type=ComparisonType.AGREEMENT,
@@ -260,7 +261,7 @@ def _compare_events(sources: List[NarrativeSource]) -> List[ComparisonFinding]:
         else:
             # Unique claim - only in primary source
             severity = SeverityLevel.SIGNIFICANT if category == "force" else SeverityLevel.MINOR
-            
+
             finding = ComparisonFinding(
                 id=f"cf_{finding_counter:04d}",
                 type=ComparisonType.UNIQUE_CLAIM,
@@ -273,25 +274,25 @@ def _compare_events(sources: List[NarrativeSource]) -> List[ComparisonFinding]:
             )
             findings.append(finding)
             finding_counter += 1
-    
+
     return findings
 
 
-def _compare_timelines(sources: List[NarrativeSource]) -> List[ComparisonFinding]:
+def _compare_timelines(sources: list[NarrativeSource]) -> list[ComparisonFinding]:
     """Compare timeline sequences across sources."""
     findings = []
     finding_counter = 0
-    
+
     if len(sources) < 2:
         return findings
-    
+
     # Compare event sequences
     primary = sources[0]
     primary_events = [getattr(e, 'description', str(e))[:30] for e in primary.events[:5]]
-    
+
     for source in sources[1:]:
         other_events = [getattr(e, 'description', str(e))[:30] for e in source.events[:5]]
-        
+
         # Simple sequence comparison - check if order differs
         # This is a simplified check; full implementation would use timeline entries
         if len(primary_events) >= 2 and len(other_events) >= 2:
@@ -301,11 +302,11 @@ def _compare_timelines(sources: List[NarrativeSource]) -> List[ComparisonFinding
                     if i < j:  # evt1 comes before evt2 in primary
                         # Check if order is reversed in other
                         try:
-                            idx1_other = next((k for k, e in enumerate(other_events) 
+                            idx1_other = next((k for k, e in enumerate(other_events)
                                              if _text_similarity(evt1, e) > 0.5), -1)
-                            idx2_other = next((k for k, e in enumerate(other_events) 
+                            idx2_other = next((k for k, e in enumerate(other_events)
                                              if _text_similarity(evt2, e) > 0.5), -1)
-                            
+
                             if idx1_other >= 0 and idx2_other >= 0 and idx1_other > idx2_other:
                                 finding = ComparisonFinding(
                                     id=f"cf_tl_{finding_counter:04d}",
@@ -324,26 +325,26 @@ def _compare_timelines(sources: List[NarrativeSource]) -> List[ComparisonFinding
                                 finding_counter += 1
                         except StopIteration:
                             pass
-    
+
     return findings
 
 
-def _find_contradictions(sources: List[NarrativeSource]) -> List[ComparisonFinding]:
+def _find_contradictions(sources: list[NarrativeSource]) -> list[ComparisonFinding]:
     """Find contradicting statements between sources."""
     findings = []
     finding_counter = 0
-    
+
     if len(sources) < 2:
         return findings
-    
+
     # Extract facts from each source
-    source_facts: Dict[str, List[Tuple[str, str]]] = {}
+    source_facts: dict[str, list[tuple[str, str]]] = {}
     for source in sources:
         source_facts[source.label] = _extract_key_facts(source.statements)
-    
+
     # Look for potential contradictions
     # This is a simplified implementation - real contradictions require semantic understanding
-    
+
     # Examples of contradiction patterns:
     contradiction_pairs = [
         (r'\bI was standing\b', r'\bI was sitting\b'),
@@ -352,16 +353,16 @@ def _find_contradictions(sources: List[NarrativeSource]) -> List[ComparisonFindi
         (r'\bone officer\b', r'\b(two|three|multiple) officers\b'),
         (r'\bbefore\s+midnight\b', r'\bafter\s+midnight\b'),
     ]
-    
+
     for source1 in sources:
         facts1 = source_facts.get(source1.label, [])
-        
+
         for source2 in sources:
             if source2.label <= source1.label:
                 continue  # Avoid duplicate comparisons
-            
+
             facts2 = source_facts.get(source2.label, [])
-            
+
             for norm1, orig1 in facts1:
                 for pattern1, pattern2 in contradiction_pairs:
                     if re.search(pattern1, orig1, re.I):
@@ -383,19 +384,19 @@ def _find_contradictions(sources: List[NarrativeSource]) -> List[ComparisonFindi
                                 )
                                 findings.append(finding)
                                 finding_counter += 1
-    
+
     return findings
 
 
 def compare_narratives(
-    sources: List[Tuple[str, Any]],
+    sources: list[tuple[str, Any]],
 ) -> ComparisonResult:
     """
     Compare multiple narrative accounts.
-    
+
     Args:
         sources: List of (label, TransformResult) tuples
-        
+
     Returns:
         ComparisonResult with all findings
     """
@@ -411,37 +412,37 @@ def compare_narratives(
             raw_text=getattr(result, 'raw_text', None),
         )
         narrative_sources.append(source)
-    
+
     # Run comparisons
     all_findings = []
-    
+
     # Compare events (agreements, unique claims)
     event_findings = _compare_events(narrative_sources)
     all_findings.extend(event_findings)
-    
+
     # Compare timelines (sequence discrepancies)
     timeline_findings = _compare_timelines(narrative_sources)
     all_findings.extend(timeline_findings)
-    
+
     # Find contradictions
     contradiction_findings = _find_contradictions(narrative_sources)
     all_findings.extend(contradiction_findings)
-    
+
     # Calculate summary
     agreements = [f for f in all_findings if f.type == ComparisonType.AGREEMENT]
     contradictions = [f for f in all_findings if f.type == ComparisonType.CONTRADICTION]
     unique_claims = [f for f in all_findings if f.type == ComparisonType.UNIQUE_CLAIM]
     timeline_discrepancies = [f for f in all_findings if f.type == ComparisonType.TIMELINE_DISCREPANCY]
-    
+
     # Critical findings
     critical = [f.id for f in all_findings if f.severity == SeverityLevel.CRITICAL]
-    
+
     # Overall consistency (simplified)
     total_comparisons = len(all_findings) or 1
     consistent = len(agreements)
-    inconsistent = len(contradictions) + len(timeline_discrepancies)
+    len(contradictions) + len(timeline_discrepancies)
     consistency_score = consistent / total_comparisons if total_comparisons > 0 else 0.5
-    
+
     result = ComparisonResult(
         source_count=len(sources),
         source_labels=[label for label, _ in sources],
@@ -453,7 +454,7 @@ def compare_narratives(
         critical_findings=critical,
         overall_consistency=round(consistency_score, 2),
     )
-    
+
     log.info(
         "narratives_compared",
         sources=len(sources),
@@ -462,33 +463,33 @@ def compare_narratives(
         contradictions=len(contradictions),
         consistency=result.overall_consistency,
     )
-    
+
     return result
 
 
 def format_comparison_report(result: ComparisonResult) -> str:
     """Format a comparison result as a readable report."""
     lines = []
-    
+
     lines.append("═" * 70)
     lines.append("              MULTI-NARRATIVE COMPARISON REPORT")
     lines.append("═" * 70)
     lines.append("")
-    
+
     # Summary
-    lines.append(f"📊 SUMMARY")
+    lines.append("📊 SUMMARY")
     lines.append(f"   Sources Compared: {result.source_count} ({', '.join(result.source_labels)})")
     lines.append(f"   Total Findings: {len(result.findings)}")
     lines.append(f"   Overall Consistency: {result.overall_consistency:.0%}")
     lines.append("")
-    
+
     # Stats by type
     lines.append(f"   ✅ Agreements: {result.agreement_count}")
     lines.append(f"   ❌ Contradictions: {result.contradiction_count}")
     lines.append(f"   ⚠️ Unique Claims: {result.unique_claim_count}")
     lines.append(f"   🔄 Timeline Discrepancies: {result.timeline_discrepancy_count}")
     lines.append("")
-    
+
     # Critical issues first
     if result.critical_findings:
         lines.append("─" * 70)
@@ -497,7 +498,7 @@ def format_comparison_report(result: ComparisonResult) -> str:
         for finding_id in result.critical_findings:
             finding = next((f for f in result.findings if f.id == finding_id), None)
             if finding:
-                lines.append(f"")
+                lines.append("")
                 lines.append(f"  [{finding.type.value.upper()}] {finding.topic}")
                 lines.append(f"  {finding.description}")
                 for source, excerpt in finding.source_excerpts.items():
@@ -505,7 +506,7 @@ def format_comparison_report(result: ComparisonResult) -> str:
                 if finding.suggested_resolution:
                     lines.append(f"  💡 {finding.suggested_resolution}")
         lines.append("")
-    
+
     # All findings by type
     for finding_type, icon in [
         (ComparisonType.CONTRADICTION, "❌"),
@@ -518,17 +519,17 @@ def format_comparison_report(result: ComparisonResult) -> str:
             lines.append("─" * 70)
             lines.append(f"{icon} {finding_type.value.upper().replace('_', ' ')}S ({len(type_findings)})")
             lines.append("─" * 70)
-            
+
             for finding in type_findings[:5]:  # Limit display
-                lines.append(f"")
+                lines.append("")
                 lines.append(f"  {finding.description}")
                 for source, excerpt in finding.source_excerpts.items():
                     lines.append(f"    • {source}: \"{excerpt[:50]}...\"")
-            
+
             if len(type_findings) > 5:
                 lines.append(f"  ... and {len(type_findings) - 5} more")
             lines.append("")
-    
+
     lines.append("═" * 70)
-    
+
     return "\n".join(lines)

@@ -11,7 +11,7 @@ from nnrt.core.contracts import Validator
 class IdempotenceValidator(Validator):
     """
     Validates that transformation is idempotent.
-    
+
     Running the same input twice should produce equivalent output.
     This validator checks structural equivalence, not exact match.
     """
@@ -23,7 +23,7 @@ class IdempotenceValidator(Validator):
     def validate(self, ctx: TransformContext) -> list[str]:
         """
         Check idempotence (placeholder).
-        
+
         Full implementation would run transformation twice
         and compare IR structures.
         """

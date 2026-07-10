@@ -18,14 +18,14 @@ log = get_pass_logger(PASS_NAME)
 def package(ctx: TransformContext) -> TransformContext:
     """
     Package the final output.
-    
+
     This pass:
     - Validates the IR
     - Sets final status
     - Prepares output for return
     """
     log.verbose("starting_packaging")
-    
+
     # Basic validation
     errors: list[str] = []
 

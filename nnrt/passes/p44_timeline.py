@@ -33,13 +33,12 @@ Design principles:
 from __future__ import annotations
 
 import re
+
 import structlog
-from typing import Optional
-from datetime import datetime
 
 from nnrt.core.context import TransformContext
-from nnrt.ir.schema_v0_1 import TimelineEntry, Identifier, Event
 from nnrt.ir.enums import IdentifierType
+from nnrt.ir.schema_v0_1 import TimelineEntry
 from nnrt.nlp.spacy_loader import get_nlp
 
 log = structlog.get_logger("nnrt.p44_timeline")
@@ -143,24 +142,24 @@ FIRST_PERSON_REPLACEMENTS = [
 def _neutralize_timeline_text(text: str):
     """
     Neutralize timeline entry text.
-    
+
     Returns (neutralized_text, should_skip).
     If should_skip is True, the entry contains un-neutralizable content.
     """
     if not text:
         return text, False
-    
+
     # Check if entry should be skipped entirely
     text_lower = text.lower()
     for pattern in SKIP_PATTERNS:
         if re.search(pattern, text_lower, re.IGNORECASE):
             return text, True  # Skip this entry
-    
+
     # Apply neutralization patterns
     clean_text = text
     for pattern, replacement in NEUTRALIZE_PATTERNS:
         clean_text = re.sub(pattern, replacement, clean_text, flags=re.IGNORECASE)
-    
+
     # Apply first-person normalization
     for pattern, replacement in FIRST_PERSON_REPLACEMENTS:
         if pattern.startswith('^'):
@@ -168,22 +167,22 @@ def _neutralize_timeline_text(text: str):
             clean_text = re.sub(pattern, replacement, clean_text)
         else:
             clean_text = re.sub(pattern, replacement, clean_text)
-    
+
     # Fix awkward double-Reporter constructions
     clean_text = re.sub(r"Reporter's Reporter", "Reporter's", clean_text)
     clean_text = re.sub(r'Reporter Reporter', 'Reporter', clean_text)
     clean_text = re.sub(r"Am Reporter\b", "Am I", clean_text)  # Keep question format
-    
+
     # Remove double spaces
     clean_text = re.sub(r'\s+', ' ', clean_text).strip()
-    
+
     return clean_text, False
 
 
 def build_timeline(ctx: TransformContext) -> TransformContext:
     """
     Build a timeline of events in chronological order.
-    
+
     This pass:
     1. Collects absolute times from identifiers
     2. Detects relative time markers
@@ -194,19 +193,19 @@ def build_timeline(ctx: TransformContext) -> TransformContext:
         log.info("no_events", pass_name=PASS_NAME, message="No events to order")
         ctx.add_trace(PASS_NAME, "skipped", after="No events")
         return ctx
-    
-    nlp = get_nlp()
+
+    get_nlp()
     timeline_entries: list[TimelineEntry] = []
     entry_counter = 0
-    
+
     # =========================================================================
     # Phase 1: Collect Absolute Times from Identifiers
     # =========================================================================
-    
+
     # Group time/date identifiers by segment
     times_by_segment: dict[str, list[str]] = {}
     dates_by_segment: dict[str, list[str]] = {}
-    
+
     for ident in ctx.identifiers:
         if ident.type == IdentifierType.TIME:
             seg_id = ident.source_segment_id
@@ -218,46 +217,46 @@ def build_timeline(ctx: TransformContext) -> TransformContext:
             if seg_id not in dates_by_segment:
                 dates_by_segment[seg_id] = []
             dates_by_segment[seg_id].append(ident.value)
-    
+
     # =========================================================================
     # Phase 2: Detect Relative Time Markers
     # =========================================================================
-    
+
     # Analyze the full text for relative markers
     full_text = ctx.normalized_text or " ".join(s.text for s in ctx.segments)
     text_lower = full_text.lower()
-    
+
     # Find positions of relative markers
     relative_markers: list[tuple[int, str, str]] = []  # (position, marker_type, matched_text)
-    
+
     for pattern in SEQUENCE_PATTERNS:
         for match in re.finditer(pattern, text_lower, re.IGNORECASE):
             relative_markers.append((match.start(), "sequence", match.group()))
-    
+
     for pattern in BEFORE_PATTERNS:
         for match in re.finditer(pattern, text_lower, re.IGNORECASE):
             relative_markers.append((match.start(), "before", match.group()))
-    
+
     for pattern, marker_type in TIME_GAP_PATTERNS:
         for match in re.finditer(pattern, text_lower, re.IGNORECASE):
             relative_markers.append((match.start(), "gap", match.group()))
-    
+
     for pattern in DURING_PATTERNS:
         for match in re.finditer(pattern, text_lower, re.IGNORECASE):
             relative_markers.append((match.start(), "during", match.group()))
-    
+
     relative_markers.sort(key=lambda x: x[0])
-    
+
     # =========================================================================
     # Phase 3: Create Timeline Entries for Events
     # =========================================================================
-    
+
     # For each event, determine its temporal position
     for idx, event in enumerate(ctx.events):
         # Find the segment this event is in (use source_spans if available)
         event_segment_id = None
         event_position = -1  # Will be estimated from text
-        
+
         # Try to find position from source spans
         for span_id in event.source_spans:
             for span in ctx.spans:
@@ -268,7 +267,7 @@ def build_timeline(ctx: TransformContext) -> TransformContext:
                             event_position = seg.start_char
                             break
                     break
-        
+
         # If no position from spans, estimate from event description in text
         if event_position < 0 and event.description:
             # Search for a keyword from the description in the text
@@ -279,17 +278,17 @@ def build_timeline(ctx: TransformContext) -> TransformContext:
                     if pos >= 0:
                         event_position = pos
                         break
-        
+
         # Fallback: use index-based estimation
         if event_position < 0:
             # Estimate based on narrative order: divide text evenly
             event_position = (idx * len(full_text)) // max(len(ctx.events), 1)
-        
+
         # Get absolute time for this event
         # Only associate a time if the event is NEAR the time identifier
         absolute_time = None
         event_date = None
-        
+
         # Check if there's a time identifier near this event position
         for ident in ctx.identifiers:
             if ident.type == IdentifierType.TIME:
@@ -300,7 +299,7 @@ def build_timeline(ctx: TransformContext) -> TransformContext:
             elif ident.type == IdentifierType.DATE:
                 if 0 <= (event_position - ident.start_char) < 50:
                     event_date = ident.value
-        
+
         # Find any relative marker that precedes this event
         relative_time = None
         if idx > 0:  # Not the first event
@@ -308,7 +307,7 @@ def build_timeline(ctx: TransformContext) -> TransformContext:
             relative_time = _find_relative_marker_before_position(
                 event_position, relative_markers
             )
-        
+
         # Calculate confidence
         if absolute_time:
             confidence = 0.95
@@ -316,14 +315,14 @@ def build_timeline(ctx: TransformContext) -> TransformContext:
             confidence = 0.8
         else:
             confidence = 0.5  # Just narrative order
-        
+
         # V7 / Stage 0: Check for unresolved pronouns in event description
         event_desc = event.description.lower() if event.description else ""
         has_pronouns = any(p in event_desc.split() for p in {'he', 'she', 'they', 'him', 'her', 'them', 'his', 'their'})
-        
+
         # V7 / Stage 1: Neutralize the timeline description
         neutralized_desc, should_skip = _neutralize_timeline_text(event.description)
-        
+
         # V7 / Stage 0: Determine display quality
         if should_skip:
             display_qual = "fragment"  # Entry contains un-neutralizable content
@@ -335,7 +334,7 @@ def build_timeline(ctx: TransformContext) -> TransformContext:
             display_qual = "low"
         else:
             display_qual = "normal"
-        
+
         # V7 / Stage 1: Set resolved_description to neutralized text
         # Only set if text was actually neutralized or has no pronouns
         resolved_desc = None
@@ -344,7 +343,7 @@ def build_timeline(ctx: TransformContext) -> TransformContext:
                 resolved_desc = neutralized_desc  # Text was neutralized
             elif not has_pronouns:
                 resolved_desc = event.description  # Original is already clean
-        
+
         entry = TimelineEntry(
             id=f"tl_{entry_counter:04d}",
             event_id=event.id,
@@ -360,48 +359,48 @@ def build_timeline(ctx: TransformContext) -> TransformContext:
         )
         timeline_entries.append(entry)
         entry_counter += 1
-    
+
     # =========================================================================
     # Phase 4: Compute Final Sequence Order
     # =========================================================================
-    
+
     # For narratives that span multiple days, we can't just sort by time.
     # Instead, we use NARRATIVE ORDER as the primary sequence, with
     # absolute times as anchors for reference.
     #
     # The timeline preserves narrative order but enriches with time info.
-    
+
     def sort_key(entry: TimelineEntry) -> tuple:
         # Primary: original narrative order (already set as sequence_order)
         # Secondary: time value for entries that share the same narrative position
         time_value = 999
         if entry.absolute_time:
             time_value = _parse_time_for_sort(entry.absolute_time)
-        
+
         return (entry.sequence_order, time_value)
-    
+
     # Sort and reassign sequence numbers (mostly preserves narrative order)
     timeline_entries.sort(key=sort_key)
     for new_order, entry in enumerate(timeline_entries):
         entry.sequence_order = new_order
-    
+
     # =========================================================================
     # Build Relations (before/after links)
     # =========================================================================
-    
+
     for i, entry in enumerate(timeline_entries):
         if i > 0:
             entry.after_entry_ids = [timeline_entries[i-1].id]
         if i < len(timeline_entries) - 1:
             entry.before_entry_ids = [timeline_entries[i+1].id]
-    
+
     # Store results
     ctx.timeline = timeline_entries
-    
+
     # Log summary
     with_time = sum(1 for e in timeline_entries if e.absolute_time)
     with_relative = sum(1 for e in timeline_entries if e.relative_time)
-    
+
     log.info(
         "timeline_built",
         pass_name=PASS_NAME,
@@ -410,71 +409,71 @@ def build_timeline(ctx: TransformContext) -> TransformContext:
         with_absolute_time=with_time,
         with_relative_time=with_relative,
     )
-    
+
     ctx.add_trace(
         PASS_NAME,
         "timeline_ordered",
         after=f"{len(timeline_entries)} events ordered ({with_time} with times, {with_relative} with relative markers)",
     )
-    
+
     return ctx
 
 
 def _find_relative_marker_before_position(
     position: int,
     markers: list[tuple[int, str, str]],
-) -> Optional[str]:
+) -> str | None:
     """
     Find a relative time marker that appears before a given position.
-    
+
     Returns the marker text closest to (but before) the position.
     """
     best_marker = None
     best_pos = -1
-    
+
     for marker_pos, marker_type, marker_text in markers:
         # Marker should be before position but not too far (within 100 chars)
         if marker_pos < position and (position - marker_pos) < 100:
             if marker_pos > best_pos:  # Prefer closest marker
                 best_pos = marker_pos
                 best_marker = marker_text
-    
+
     return best_marker
 
 
 def _parse_time_for_sort(time_str: str) -> int:
     """
     Parse a time string into minutes from midnight for sorting.
-    
+
     Returns 0-1440 for times, 999 if can't parse.
     """
     time_lower = time_str.lower().strip()
-    
+
     # Try HH:MM AM/PM format
     match = re.match(r'(\d{1,2}):(\d{2})\s*(am|pm)?', time_lower)
     if match:
         hour = int(match.group(1))
         minute = int(match.group(2))
         ampm = match.group(3)
-        
+
         if ampm == 'pm' and hour != 12:
             hour += 12
         elif ampm == 'am' and hour == 12:
             hour = 0
-        
+
         return hour * 60 + minute
-    
+
     # Try just HH AM/PM format
     match = re.match(r'(\d{1,2})\s*(am|pm)', time_lower)
     if match:
         hour = int(match.group(1))
         ampm = match.group(2)
-        
+
         if ampm == 'pm' and hour != 12:
             hour += 12
         elif ampm == 'am' and hour == 12:
             hour = 0
-        
+
         return hour * 60
-    
+
     return 999  # Can't parse

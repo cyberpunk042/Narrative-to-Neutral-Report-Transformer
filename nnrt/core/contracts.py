@@ -31,7 +31,7 @@ class Validator(ABC):
     def validate(self, ctx: TransformContext) -> list[str]:
         """
         Validate the context.
-        
+
         Returns:
             List of error messages (empty if valid)
         """

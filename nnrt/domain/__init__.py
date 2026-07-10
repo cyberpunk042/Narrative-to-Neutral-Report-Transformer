@@ -11,23 +11,23 @@ A domain contains:
 - Transformation rules
 """
 
-from nnrt.domain.schema import (
-    Domain,
-    DomainVocabulary,
-    VocabularyTerm,
-    EntityRolePattern,
-    EventTypeDefinition,
-    ClassificationConfig,
-    TransformationRule,
-)
-from nnrt.domain.loader import load_domain, get_domain
 from nnrt.domain.integration import (
     domain_to_ruleset,
+    get_camera_friendly_verbs,
     get_domain_ruleset,
-    get_vocabulary_replacements,
     get_entity_role_keywords,
     get_event_type_verbs,
-    get_camera_friendly_verbs,
+    get_vocabulary_replacements,
+)
+from nnrt.domain.loader import get_domain, load_domain
+from nnrt.domain.schema import (
+    ClassificationConfig,
+    Domain,
+    DomainVocabulary,
+    EntityRolePattern,
+    EventTypeDefinition,
+    TransformationRule,
+    VocabularyTerm,
 )
 
 __all__ = [

@@ -8,33 +8,30 @@ Philosophy: Nothing renders unless it passes invariants.
 - Invalid content → Quarantine bucket with explicit issues
 """
 
-from nnrt.validation.invariants import (
-    Invariant,
-    InvariantResult,
-    InvariantSeverity,
-    InvariantRegistry,
-    QuarantineItem,
-)
-
 from nnrt.validation.event_invariants import (
     check_event_has_actor,
-    check_event_not_fragment,
     check_event_has_verb,
+    check_event_not_fragment,
 )
-
+from nnrt.validation.invariants import (
+    Invariant,
+    InvariantRegistry,
+    InvariantResult,
+    InvariantSeverity,
+    QuarantineItem,
+)
+from nnrt.validation.provenance_invariants import (
+    check_medical_has_attribution,
+    check_verified_has_evidence,
+)
 from nnrt.validation.quote_invariants import (
     check_quote_has_speaker,
-)
-
-from nnrt.validation.provenance_invariants import (
-    check_verified_has_evidence,
-    check_medical_has_attribution,
 )
 
 __all__ = [
     # Core
     "Invariant",
-    "InvariantResult", 
+    "InvariantResult",
     "InvariantSeverity",
     "InvariantRegistry",
     "QuarantineItem",

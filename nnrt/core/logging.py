@@ -6,7 +6,7 @@ Provides semantic logging channels with level-based filtering:
 - TRANSFORM: individual transformations
 - EXTRACT: entity/identifier extraction
 - POLICY: rule matching
-- RENDER: template/LLM rendering  
+- RENDER: template/LLM rendering
 - SYSTEM: errors, warnings, status
 
 Log Levels:
@@ -26,13 +26,12 @@ from __future__ import annotations
 import logging
 import os
 import sys
-from datetime import datetime
-from enum import IntEnum, Enum
-from typing import Any, Optional, Union
 from contextvars import ContextVar
+from datetime import datetime
+from enum import IntEnum, StrEnum
+from typing import Any
 
 import structlog
-
 
 # =============================================================================
 # Enums
@@ -44,9 +43,9 @@ class LogLevel(IntEnum):
     INFO = 1
     VERBOSE = 2
     DEBUG = 3
-    
+
     @classmethod
-    def from_string(cls, s: str) -> "LogLevel":
+    def from_string(cls, s: str) -> LogLevel:
         """Parse log level from string."""
         mapping = {
             "silent": cls.SILENT,
@@ -60,7 +59,7 @@ class LogLevel(IntEnum):
         return mapping.get(s.lower(), cls.INFO)
 
 
-class LogChannel(str, Enum):
+class LogChannel(StrEnum):
     """Semantic log channels."""
     PIPELINE = "PIPELINE"     # Pass orchestration
     TRANSFORM = "TRANSFORM"   # Individual transformations
@@ -68,14 +67,14 @@ class LogChannel(str, Enum):
     POLICY = "POLICY"         # Rule matching
     RENDER = "RENDER"         # Template/LLM rendering
     SYSTEM = "SYSTEM"         # Errors, warnings, status
-    
+
     @classmethod
-    def all(cls) -> list["LogChannel"]:
+    def all(cls) -> list[LogChannel]:
         """Return all channels."""
         return list(cls)
-    
+
     @classmethod
-    def from_string(cls, s: str) -> Optional["LogChannel"]:
+    def from_string(cls, s: str) -> LogChannel | None:
         """Parse channel from string."""
         try:
             return cls(s.upper())
@@ -100,14 +99,14 @@ _config = {
 
 
 def configure_logging(
-    level: Union[LogLevel, str, None] = None,
+    level: LogLevel | str | None = None,
     format: str = None,
-    channels: list[Union[LogChannel, str]] = None,
+    channels: list[LogChannel | str] = None,
     force: bool = False,
 ) -> None:
     """
     Configure the logging system.
-    
+
     Args:
         level: Log level (LogLevel enum or string)
         format: Output format ("console" or "json")
@@ -115,21 +114,21 @@ def configure_logging(
         force: Force reconfiguration if already configured
     """
     global _config
-    
+
     if _config["configured"] and not force:
         return
-    
+
     # Parse level from env or argument
     if level is None:
         level_str = os.environ.get("NNRT_LOG_LEVEL", "info")
         level = LogLevel.from_string(level_str)
     elif isinstance(level, str):
         level = LogLevel.from_string(level)
-    
+
     # Parse format from env or argument
     if format is None:
         format = os.environ.get("NNRT_LOG_FORMAT", "console")
-    
+
     # Parse channels from env or argument
     if channels is None:
         channels_str = os.environ.get("NNRT_LOG_CHANNELS", "")
@@ -153,11 +152,11 @@ def configure_logging(
             else:
                 parsed_channels.append(ch)
         channels = parsed_channels
-    
+
     _config["level"] = level
     _config["format"] = format
     _config["channels"] = set(channels)
-    
+
     # Set up standard library logging
     stdlib_level = {
         LogLevel.SILENT: logging.CRITICAL + 10,  # Above critical = nothing
@@ -165,14 +164,14 @@ def configure_logging(
         LogLevel.VERBOSE: logging.DEBUG,
         LogLevel.DEBUG: logging.DEBUG,
     }.get(level, logging.INFO)
-    
+
     logging.basicConfig(
         format="%(message)s",
         stream=sys.stdout,
         level=stdlib_level,
         force=True,
     )
-    
+
     # Configure structlog processors
     shared_processors = [
         structlog.contextvars.merge_contextvars,
@@ -183,7 +182,7 @@ def configure_logging(
         structlog.processors.UnicodeDecoder(),
         _add_channel_processor,
     ]
-    
+
     if format == "json":
         processors = shared_processors + [
             structlog.processors.format_exc_info,
@@ -193,7 +192,7 @@ def configure_logging(
         processors = shared_processors + [
             structlog.dev.ConsoleRenderer(colors=True),
         ]
-    
+
     structlog.configure(
         processors=processors,
         wrapper_class=structlog.stdlib.BoundLogger,
@@ -201,7 +200,7 @@ def configure_logging(
         logger_factory=structlog.stdlib.LoggerFactory(),
         cache_logger_on_first_use=True,
     )
-    
+
     _config["configured"] = True
 
 
@@ -218,7 +217,7 @@ def _add_channel_processor(logger, method_name, event_dict):
 class ChannelLogger:
     """
     A logger bound to a specific channel.
-    
+
     Provides level-aware logging methods:
     - info(): Key milestones (level >= INFO)
     - verbose(): Detailed operations (level >= VERBOSE)
@@ -226,7 +225,7 @@ class ChannelLogger:
     - error(): Always logged (unless SILENT)
     - warning(): Always logged (unless SILENT)
     """
-    
+
     def __init__(
         self,
         channel: LogChannel,
@@ -237,16 +236,16 @@ class ChannelLogger:
         self.name = name or f"nnrt.{channel.value.lower()}"
         self.pass_name = pass_name
         self._logger = structlog.get_logger(self.name)
-    
+
     def _should_log(self, msg_level: LogLevel) -> bool:
         """Check if this message should be logged based on config."""
         # Check channel filter
         if self.channel not in _config["channels"]:
             return False
-        
+
         # Check level
         return _config["level"] >= msg_level
-    
+
     def _make_event(self, event: str, **kwargs) -> dict:
         """Build the event dict with channel and pass info."""
         data = {
@@ -255,45 +254,45 @@ class ChannelLogger:
         }
         if self.pass_name:
             data["pass"] = self.pass_name
-        
+
         # Add request context if available
         ctx = _request_context.get()
         if ctx:
             data.update(ctx)
-        
+
         return data
-    
+
     def info(self, event: str, **kwargs) -> None:
         """Log at INFO level (key milestones)."""
         if not self._should_log(LogLevel.INFO):
             return
         self._logger.info(event, **self._make_event(event, **kwargs))
-    
+
     def verbose(self, event: str, **kwargs) -> None:
         """Log at VERBOSE level (detailed operations)."""
         if not self._should_log(LogLevel.VERBOSE):
             return
         self._logger.debug(event, **self._make_event(event, level="verbose", **kwargs))
-    
+
     def debug(self, event: str, **kwargs) -> None:
         """Log at DEBUG level (everything)."""
         if not self._should_log(LogLevel.DEBUG):
             return
         self._logger.debug(event, **self._make_event(event, level="debug", **kwargs))
-    
+
     def error(self, event: str, **kwargs) -> None:
         """Log an error (always logged unless SILENT)."""
         if _config["level"] == LogLevel.SILENT:
             return
         self._logger.error(event, **self._make_event(event, **kwargs))
-    
+
     def warning(self, event: str, **kwargs) -> None:
         """Log a warning (always logged unless SILENT)."""
         if _config["level"] == LogLevel.SILENT:
             return
         self._logger.warning(event, **self._make_event(event, **kwargs))
-    
-    def bind(self, **kwargs) -> "ChannelLogger":
+
+    def bind(self, **kwargs) -> ChannelLogger:
         """Create a new logger with additional bound context."""
         new_logger = ChannelLogger(
             channel=self.channel,
@@ -308,37 +307,37 @@ class ChannelLogger:
 # Logger Factory Functions
 # =============================================================================
 
-def get_logger(channel: Union[LogChannel, str] = LogChannel.SYSTEM) -> ChannelLogger:
+def get_logger(channel: LogChannel | str = LogChannel.SYSTEM) -> ChannelLogger:
     """
     Get a channel-specific logger.
-    
+
     Args:
         channel: The log channel (default: SYSTEM)
-        
+
     Returns:
         A ChannelLogger instance
     """
     configure_logging()
-    
+
     if isinstance(channel, str):
         channel = LogChannel.from_string(channel) or LogChannel.SYSTEM
-    
+
     return ChannelLogger(channel=channel)
 
 
 def get_pass_logger(pass_name: str, channel: LogChannel = None) -> ChannelLogger:
     """
     Get a logger for a specific pipeline pass.
-    
+
     Args:
         pass_name: The pass name (e.g., "p32_extract_entities")
         channel: The log channel (auto-detected if None)
-        
+
     Returns:
         A ChannelLogger bound to the pass
     """
     configure_logging()
-    
+
     # Auto-detect channel from pass name
     if channel is None:
         channel_map = {
@@ -362,7 +361,7 @@ def get_pass_logger(pass_name: str, channel: LogChannel = None) -> ChannelLogger
         }
         prefix = pass_name[:3]
         channel = channel_map.get(prefix, LogChannel.PIPELINE)
-    
+
     return ChannelLogger(
         channel=channel,
         name=f"nnrt.{pass_name}",
@@ -393,25 +392,25 @@ def clear_request_context() -> None:
 class TransformLogger:
     """
     Context-aware logger for transformation pipeline.
-    
+
     Binds request context for all log messages.
     Maintains backward compatibility with existing engine.py usage.
     """
-    
+
     def __init__(self, request_id: str):
         self.request_id = request_id
         self._pipeline_log = get_logger(LogChannel.PIPELINE)
         self._start_time = datetime.now()
         self._pass_times: dict[str, float] = {}
-        
+
         # Bind request ID to context
         bind_request_context(request_id=request_id)
-    
-    def bind(self, **kwargs: Any) -> "TransformLogger":
+
+    def bind(self, **kwargs: Any) -> TransformLogger:
         """Bind additional context."""
         bind_request_context(**kwargs)
         return self
-    
+
     def pass_start(self, pass_name: str) -> None:
         """Log the start of a pipeline pass."""
         self._pass_times[pass_name] = datetime.now().timestamp()
@@ -419,19 +418,19 @@ class TransformLogger:
             "pass_started",
             pass_name=pass_name,
         )
-    
+
     def pass_end(self, pass_name: str, **metrics: Any) -> None:
         """Log the end of a pipeline pass with timing."""
         start = self._pass_times.get(pass_name, datetime.now().timestamp())
         duration_ms = (datetime.now().timestamp() - start) * 1000
-        
+
         self._pipeline_log.info(
             "pass_completed",
             pass_name=pass_name,
             duration_ms=round(duration_ms, 2),
             **metrics,
         )
-    
+
     def pass_error(self, pass_name: str, error: Exception) -> None:
         """Log a pass error."""
         self._pipeline_log.error(
@@ -440,21 +439,21 @@ class TransformLogger:
             error=str(error),
             error_type=type(error).__name__,
         )
-    
+
     def transform_complete(self, status: str, **metrics: Any) -> None:
         """Log transformation completion with summary."""
         total_ms = (datetime.now() - self._start_time).total_seconds() * 1000
-        
+
         self._pipeline_log.info(
             "transform_complete",
             status=status,
             total_duration_ms=round(total_ms, 2),
             **metrics,
         )
-        
+
         # Clear request context
         clear_request_context()
-    
+
     def policy_match(self, rule_id: str, action: str, matched_text: str) -> None:
         """Log a policy rule match."""
         log = get_logger(LogChannel.POLICY)
@@ -464,7 +463,7 @@ class TransformLogger:
             action=action,
             matched_text=matched_text[:50],
         )
-    
+
     def identifier_found(self, id_type: str, value: str, confidence: float) -> None:
         """Log an extracted identifier."""
         log = get_logger(LogChannel.EXTRACT)
@@ -480,7 +479,7 @@ class TransformLogger:
 # Convenience Functions
 # =============================================================================
 
-_default_logger: Optional[ChannelLogger] = None
+_default_logger: ChannelLogger | None = None
 
 
 def log() -> ChannelLogger:

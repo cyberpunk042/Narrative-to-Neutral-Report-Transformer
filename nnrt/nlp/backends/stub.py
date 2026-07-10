@@ -6,14 +6,14 @@ Used to validate pipeline architecture without real NLP models.
 
 from __future__ import annotations
 
-from nnrt.ir.enums import EntityRole, EntityType, EventType, SpanLabel
+from nnrt.ir.enums import SpanLabel
 from nnrt.nlp.interfaces import (
-    EntityExtractResult,
     EntityExtractor,
-    EventExtractResult,
+    EntityExtractResult,
     EventExtractor,
-    SpanTagResult,
+    EventExtractResult,
     SpanTagger,
+    SpanTagResult,
 )
 
 

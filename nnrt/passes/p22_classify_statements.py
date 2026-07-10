@@ -13,6 +13,7 @@ This enriches the IR with epistemic metadata for structured output.
 from __future__ import annotations
 
 import re
+
 from nnrt.core.context import TransformContext
 from nnrt.core.logging import get_pass_logger
 from nnrt.ir.enums import SegmentContext, StatementType
@@ -38,11 +39,11 @@ OBSERVATION_PATTERNS = [
     r"\bI\s+witnessed\b",
     r"\bI\s+smelled\b",
     r"\bI\s+tasted\b",
-    
+
     # Experiential states (NEW)
     r"\bI\s+was\s+(?:so\s+)?(?:terrified|scared|frightened|afraid|shocked|stunned|confused|exhausted|tired|hurt|injured|bleeding|crying|shaking)\b",
     r"\bI\s+felt\s+(?:scared|afraid|terrified|pain|hurt|confused|shocked)\b",
-    
+
     # Physical reactions (NEW)
     r"\bI\s+froze\b",
     r"\bI\s+jumped\b",
@@ -53,7 +54,7 @@ OBSERVATION_PATTERNS = [
     r"\bI\s+backed\b",
     r"\bI\s+ducked\b",
     r"\bI\s+flinched\b",
-    
+
     # Speech acts (NEW) - reporter's own speech is observation
     r"\bI\s+said\b",
     r"\bI\s+asked\b",
@@ -68,7 +69,7 @@ OBSERVATION_PATTERNS = [
     r"\bI\s+explained\b",
     r"\bI\s+replied\b",
     r"\bI\s+answered\b",
-    
+
     # Actions taken (NEW)
     r"\bI\s+tried\s+to\s+(?:explain|cooperate|comply|help)\b",
     r"\bI\s+went\b",
@@ -79,7 +80,7 @@ OBSERVATION_PATTERNS = [
     r"\bI\s+waited\b",
     r"\bI\s+filed\b",  # filed a complaint
     r"\bI\s+received\b",
-    
+
     # Bodily experience (NEW)
     r"\bmy\s+(?:wrists?|arms?|legs?|face|head|body)\s+(?:was|were)\s+(?:hurt|injured|bleeding|bruised|cut|swollen)\b",
     r"\bI\s+have\s+(?:scars?|bruises?|injuries?)\b",
@@ -108,7 +109,7 @@ INTERPRETATION_PATTERNS = [
 def classify_statements(ctx: TransformContext) -> TransformContext:
     """
     Classify each segment by epistemic status.
-    
+
     Priority:
     1. QUOTE - if segment is a direct quote
     2. OBSERVATION - if explicit witness language
@@ -116,62 +117,62 @@ def classify_statements(ctx: TransformContext) -> TransformContext:
     4. CLAIM - default (assertion without explicit witness)
     """
     classified = 0
-    
+
     for segment in ctx.segments:
         text = segment.text
         text_lower = text.lower()
-        
+
         # Priority 1: Check if already marked as direct quote
         if SegmentContext.DIRECT_QUOTE.value in segment.contexts:
             segment.statement_type = StatementType.QUOTE
             segment.statement_confidence = 0.95
             classified += 1
             continue
-        
+
         # Priority 2: Check for explicit observation
         if _matches_any(text_lower, OBSERVATION_PATTERNS):
             segment.statement_type = StatementType.OBSERVATION
             segment.statement_confidence = 0.85
             classified += 1
             continue
-        
+
         # Priority 3: Check for interpretation
         if _matches_any(text_lower, INTERPRETATION_PATTERNS):
             segment.statement_type = StatementType.INTERPRETATION
             segment.statement_confidence = 0.80
             classified += 1
             continue
-        
+
         # Default: CLAIM (assertion without explicit witness)
         segment.statement_type = StatementType.CLAIM
         segment.statement_confidence = 0.70
         classified += 1
-    
+
     # Add trace
     ctx.add_trace(
         pass_name=PASS_NAME,
         action="classified",
         after=f"{classified} segments classified",
     )
-    
+
     # Log summary
     type_counts = {}
     for seg in ctx.segments:
         t = seg.statement_type.value
         type_counts[t] = type_counts.get(t, 0) + 1
-    
+
     log.info("classified",
         segments=classified,
         **type_counts,
     )
     log.debug("distribution", **type_counts)
-    
+
     ctx.add_trace(
         pass_name=PASS_NAME,
         action="summary",
         after=str(type_counts),
     )
-    
+
     return ctx
 
 

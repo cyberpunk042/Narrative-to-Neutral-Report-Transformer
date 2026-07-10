@@ -9,12 +9,11 @@ The engine is NOT where domain logic lives.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Optional
 
 from nnrt.core.context import TransformContext, TransformRequest
 from nnrt.ir.schema_v0_1 import TransformResult, TransformStatus
-
 
 # Type alias for a pass function
 PassFn = Callable[[TransformContext], TransformContext]
@@ -32,7 +31,7 @@ class Pipeline:
 class Engine:
     """
     Pipeline orchestrator.
-    
+
     Runs passes in order, handles errors, and packages results.
     """
 
@@ -50,15 +49,15 @@ class Engine:
     def transform(
         self,
         request: TransformRequest,
-        pipeline_id: Optional[str] = None,
+        pipeline_id: str | None = None,
     ) -> TransformResult:
         """
         Run a transformation.
-        
+
         Args:
             request: The transformation request
             pipeline_id: Which pipeline to use (default: 'default')
-            
+
         Returns:
             TransformResult with IR, trace, and diagnostics
         """
@@ -90,7 +89,7 @@ class Engine:
                 tlog.pass_start(pass_name)
                 ctx = pass_fn(ctx)
                 tlog.pass_end(pass_name)
-                
+
                 # Check for refusal
                 if ctx.status == TransformStatus.REFUSED:
                     ctx.add_trace(
@@ -98,7 +97,7 @@ class Engine:
                         action="pipeline_halted",
                     )
                     break
-                    
+
             except Exception as e:
                 tlog.pass_error(pass_name, e)
                 ctx.status = TransformStatus.ERROR
@@ -127,7 +126,7 @@ class Engine:
 
 
 # Global engine instance
-_engine: Optional[Engine] = None
+_engine: Engine | None = None
 
 
 def get_engine() -> Engine:
@@ -138,14 +137,14 @@ def get_engine() -> Engine:
     return _engine
 
 
-def transform(text: str, pipeline_id: Optional[str] = None) -> TransformResult:
+def transform(text: str, pipeline_id: str | None = None) -> TransformResult:
     """
     Convenience function for simple transformations.
-    
+
     Args:
         text: Raw narrative text
         pipeline_id: Which pipeline to use
-        
+
     Returns:
         TransformResult
     """

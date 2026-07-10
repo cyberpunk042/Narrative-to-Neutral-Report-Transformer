@@ -13,8 +13,7 @@ This pass:
 
 from nnrt.core.context import TransformContext
 from nnrt.core.logging import get_pass_logger
-from nnrt.ir.enums import DiagnosticLevel
-from nnrt.policy.engine import PolicyEngine, get_policy_engine
+from nnrt.policy.engine import get_policy_engine
 
 PASS_NAME = "p50_policy"
 log = get_pass_logger(PASS_NAME)
@@ -23,7 +22,7 @@ log = get_pass_logger(PASS_NAME)
 def evaluate_policy(ctx: TransformContext) -> TransformContext:
     """
     Evaluate policy rules against segments.
-    
+
     This pass:
     - Loads the configured policy ruleset
     - Finds matches in each segment
@@ -32,32 +31,32 @@ def evaluate_policy(ctx: TransformContext) -> TransformContext:
     """
     # Get the policy engine
     engine = get_policy_engine()
-    
-    log.verbose("starting_evaluation", 
+
+    log.verbose("starting_evaluation",
         segments=len(ctx.segments),
         rules_loaded=len(engine.ruleset.rules) if engine.ruleset else 0,
     )
-    
+
     # Evaluate each segment
     total_matches = 0
     refusal_count = 0
-    
+
     for segment in ctx.segments:
         matches = engine.find_matches(segment.text)
         total_matches += len(matches)
-        
+
         if matches:
-            log.debug("segment_matches", 
-                segment_id=segment.id, 
+            log.debug("segment_matches",
+                segment_id=segment.id,
                 match_count=len(matches),
             )
-        
+
         # Record decisions
         for match in matches:
             decision = engine._create_decision(match)
             decision.affected_ids = [segment.id]
             ctx.policy_decisions.append(decision)
-            
+
             # Log each match
             log.verbose("rule_matched",
                 rule_id=match.rule.id,
@@ -65,7 +64,7 @@ def evaluate_policy(ctx: TransformContext) -> TransformContext:
                 matched_text=match.matched_text[:30],
                 segment_id=segment.id,
             )
-            
+
             # Add diagnostic if rule specifies one
             if match.rule.diagnostic:
                 ctx.add_diagnostic(
@@ -84,7 +83,7 @@ def evaluate_policy(ctx: TransformContext) -> TransformContext:
                     source=PASS_NAME,
                     affected_ids=[segment.id],
                 )
-        
+
         # Check for refusal
         if engine.should_refuse(matches):
             refusal_count += 1
@@ -99,18 +98,18 @@ def evaluate_policy(ctx: TransformContext) -> TransformContext:
                 source=PASS_NAME,
                 affected_ids=[segment.id],
             )
-    
+
     log.info("evaluated",
         total_matches=total_matches,
         decisions=len(ctx.policy_decisions),
         refusals=refusal_count,
     )
-    
+
     ctx.add_trace(
         pass_name=PASS_NAME,
         action="evaluated_policy",
         after=f"{total_matches} matches, {len(ctx.policy_decisions)} decisions",
     )
-    
+
     return ctx
 

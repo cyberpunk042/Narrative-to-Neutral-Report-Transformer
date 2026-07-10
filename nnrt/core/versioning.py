@@ -28,7 +28,7 @@ IR_VERSION = __ir_version__
 def check_ir_compatibility(ir_version: str) -> bool:
     """
     Check if an IR version is compatible with this package.
-    
+
     Currently requires exact match on major.minor.
     """
     current_parts = IR_VERSION.split(".")

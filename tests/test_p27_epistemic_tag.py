@@ -6,15 +6,15 @@ with their epistemic type (direct_event, self_report, interpretation, etc.)
 """
 
 import pytest
-from nnrt.passes.p27_epistemic_tag import (
 
-    _classify_epistemic,
-    _classify_polarity,
-    SELF_REPORT_PATTERNS,
+from nnrt.passes.p27_epistemic_tag import (
+    CONSPIRACY_PATTERNS,
     INTERPRETATION_PATTERNS,
     LEGAL_CLAIM_PATTERNS,
-    CONSPIRACY_PATTERNS,
     MEDICAL_FINDING_PATTERNS,
+    SELF_REPORT_PATTERNS,
+    _classify_epistemic,
+    _classify_polarity,
 )
 
 pytestmark = pytest.mark.unit
@@ -22,11 +22,11 @@ pytestmark = pytest.mark.unit
 
 class TestClassifyEpistemic:
     """Tests for _classify_epistemic function."""
-    
+
     # =========================================================================
     # direct_event: Physical actions observable by camera
     # =========================================================================
-    
+
     @pytest.mark.parametrize("text", [
         "Officer grabbed my arm",
         "He twisted it behind my back",
@@ -41,11 +41,11 @@ class TestClassifyEpistemic:
         """Physical actions should classify as direct_event."""
         epistemic_type, evidence_source, confidence = _classify_epistemic(text)
         assert epistemic_type == "direct_event", f"'{text}' should be direct_event, got {epistemic_type}"
-    
+
     # =========================================================================
     # self_report: Internal states (fear, pain, trauma)
     # =========================================================================
-    
+
     @pytest.mark.parametrize("text", [
         "I was so scared I froze in place",
         "I screamed in pain",
@@ -62,11 +62,11 @@ class TestClassifyEpistemic:
         # V5: self_report split into sub-types
         valid_types = {'self_report', 'state_acute', 'state_injury', 'state_psychological', 'state_socioeconomic'}
         assert epistemic_type in valid_types, f"'{text}' should be self_report or sub-type, got {epistemic_type}"
-    
+
     # =========================================================================
     # V5: inference - Intent attribution, motive claims
     # =========================================================================
-    
+
     @pytest.mark.parametrize("text", [
         "He obviously wanted to hurt me",
         "She was clearly trying to intimidate me",
@@ -79,11 +79,11 @@ class TestClassifyEpistemic:
         """Intent attributions should classify as inference (V5)."""
         epistemic_type, evidence_source, confidence = _classify_epistemic(text)
         assert epistemic_type == "inference", f"'{text}' should be inference, got {epistemic_type}"
-    
+
     # =========================================================================
     # legal_claim: Legal characterizations
     # =========================================================================
-    
+
     @pytest.mark.parametrize("text", [
         "This was racial profiling",
         "They used excessive force",
@@ -99,11 +99,11 @@ class TestClassifyEpistemic:
         # V5 P2: legal_claim split into sub-types for taxonomy purity
         valid_types = {'legal_claim', 'legal_claim_direct', 'legal_claim_admin', 'legal_claim_causation', 'legal_claim_attorney'}
         assert epistemic_type in valid_types, f"'{text}' should be legal_claim or sub-type, got {epistemic_type}"
-    
+
     # =========================================================================
     # conspiracy_claim: Unfalsifiable allegations
     # =========================================================================
-    
+
     @pytest.mark.parametrize("text", [
         "They always protect their own",
         "This proves there's a massive cover-up",
@@ -116,11 +116,11 @@ class TestClassifyEpistemic:
         """Conspiracy claims should classify as conspiracy_claim."""
         epistemic_type, evidence_source, confidence = _classify_epistemic(text)
         assert epistemic_type == "conspiracy_claim", f"'{text}' should be conspiracy_claim, got {epistemic_type}"
-    
+
     # =========================================================================
     # medical_finding: Doctor statements, diagnoses
     # =========================================================================
-    
+
     @pytest.mark.parametrize("text", [
         "Dr. Foster documented bruises on both wrists",
         "She documented bruises",
@@ -136,20 +136,20 @@ class TestClassifyEpistemic:
 
 class TestClassifyPolarity:
     """Tests for _classify_polarity function."""
-    
+
     def test_denied_polarity(self):
         """Denials should be classified correctly."""
         assert _classify_polarity("I did not resist arrest") == "denied"
         assert _classify_polarity("He never apologized") == "denied"
         assert _classify_polarity("They didn't have any reason") == "denied"
-    
+
     def test_uncertain_polarity(self):
         """Uncertainty should be classified correctly."""
         assert _classify_polarity("I think he grabbed me") == "uncertain"
         assert _classify_polarity("I believe they lied") == "uncertain"
         assert _classify_polarity("It seemed like they wanted to hurt me") == "uncertain"
         assert _classify_polarity("Maybe they were conspiring") == "uncertain"
-    
+
     def test_asserted_polarity_default(self):
         """Default should be asserted."""
         assert _classify_polarity("Officer grabbed my arm") == "asserted"
@@ -158,23 +158,23 @@ class TestClassifyPolarity:
 
 class TestPatternCoverage:
     """Tests to ensure patterns cover expected cases."""
-    
+
     def test_self_report_patterns_exist(self):
         """Ensure SELF_REPORT_PATTERNS is non-empty."""
         assert len(SELF_REPORT_PATTERNS) > 0
-    
+
     def test_interpretation_patterns_exist(self):
         """Ensure INTERPRETATION_PATTERNS is non-empty."""
         assert len(INTERPRETATION_PATTERNS) > 0
-    
+
     def test_legal_claim_patterns_exist(self):
         """Ensure LEGAL_CLAIM_PATTERNS is non-empty."""
         assert len(LEGAL_CLAIM_PATTERNS) > 0
-    
+
     def test_conspiracy_patterns_exist(self):
         """Ensure CONSPIRACY_PATTERNS is non-empty."""
         assert len(CONSPIRACY_PATTERNS) > 0
-    
+
     def test_medical_finding_patterns_exist(self):
         """Ensure MEDICAL_FINDING_PATTERNS is non-empty."""
         assert len(MEDICAL_FINDING_PATTERNS) > 0
@@ -182,15 +182,15 @@ class TestPatternCoverage:
 
 class TestEdgeCases:
     """Tests for statements containing multiple epistemic markers.
-    
+
     These test the classifier's priority ordering. More specific/dangerous
     types should win over general ones.
     """
-    
+
     def test_intentional_excessive_force_is_legal_claim(self):
-        """'He intentionally used excessive force' - has both interpretation 
+        """'He intentionally used excessive force' - has both interpretation
         ('intentionally') and legal_claim ('excessive force').
-        
+
         EXPECTED: legal_claim (or sub-type) wins because it's more legally dangerous.
         """
         text = "He intentionally used excessive force"
@@ -200,7 +200,7 @@ class TestEdgeCases:
         valid_types = {'legal_claim', 'legal_claim_direct', 'legal_claim_admin', 'legal_claim_causation', 'legal_claim_attorney'}
         assert epistemic_type in valid_types, \
             f"'{text}' should be legal_claim (not interpretation), got {epistemic_type}"
-    
+
     def test_clearly_racial_profiling_is_legal_claim(self):
         """'This was clearly racial profiling' - has interpretation marker
         ('clearly') but is a legal claim ('racial profiling').
@@ -210,7 +210,7 @@ class TestEdgeCases:
         valid_types = {'legal_claim', 'legal_claim_direct', 'legal_claim_admin', 'legal_claim_causation', 'legal_claim_attorney'}
         assert epistemic_type in valid_types, \
             f"'{text}' should be legal_claim or sub-type, got {epistemic_type}"
-    
+
     def test_deliberately_violated_rights_is_legal_claim(self):
         """'He deliberately violated my rights' - interpretation + legal.
         """
@@ -219,7 +219,7 @@ class TestEdgeCases:
         valid_types = {'legal_claim', 'legal_claim_direct', 'legal_claim_admin', 'legal_claim_causation', 'legal_claim_attorney'}
         assert epistemic_type in valid_types, \
             f"'{text}' should be legal_claim or sub-type, got {epistemic_type}"
-    
+
     def test_brutally_assaulted_is_legal_not_interpretation(self):
         """'They brutally assaulted me' - has invective ('brutally') and
         could be seen as interpretation, but 'assault' is legal language.
@@ -231,7 +231,7 @@ class TestEdgeCases:
         valid_types = {'legal_claim', 'legal_claim_direct', 'direct_event'}
         assert epistemic_type in valid_types, \
             f"'{text}' should be legal_claim, legal_claim_direct, or direct_event, got {epistemic_type}"
-    
+
     def test_scared_during_assault_is_self_report(self):
         """'I was so scared during the assault' - has self_report ('scared')
         and legal language ('assault'). Self-report of fear is primary.
@@ -242,7 +242,7 @@ class TestEdgeCases:
         valid_types = {"self_report", "state_acute", "legal_claim"}
         assert epistemic_type in valid_types, \
             f"'{text}' should be state_acute, self_report, or legal_claim, got {epistemic_type}"
-    
+
     def test_conspiracy_with_legal_claim(self):
         """'The cover-up proves police brutality' - conspiracy + legal.
         Conspiracy should win as it's more dangerous.

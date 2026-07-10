@@ -3,16 +3,14 @@ Unit tests for V6 Multi-Narrative Comparison.
 """
 
 import pytest
-from nnrt.v6.comparison import (
 
-    compare_narratives,
-    format_comparison_report,
+from nnrt.v6.comparison import (
     ComparisonResult,
     ComparisonType,
-    SeverityLevel,
     NarrativeSource,
     _text_similarity,
-    _compare_events,
+    compare_narratives,
+    format_comparison_report,
 )
 
 pytestmark = pytest.mark.stress
@@ -43,16 +41,16 @@ class MockStatement:
 
 class TestTextSimilarity:
     """Tests for text similarity function."""
-    
+
     def test_identical_texts(self):
         """Identical texts should have similarity 1.0."""
         assert _text_similarity("hello world", "hello world") == 1.0
-    
+
     def test_different_texts(self):
         """Completely different texts should have low similarity."""
         score = _text_similarity("hello", "goodbye")
         assert score < 0.5
-    
+
     def test_similar_texts(self):
         """Similar texts should have high similarity."""
         score = _text_similarity(
@@ -60,7 +58,7 @@ class TestTextSimilarity:
             "the officer grabbed my arm tightly"
         )
         assert score > 0.6
-    
+
     def test_empty_text(self):
         """Empty text should return 0."""
         assert _text_similarity("", "hello") == 0.0
@@ -69,13 +67,13 @@ class TestTextSimilarity:
 
 class TestCompareNarratives:
     """Tests for narrative comparison."""
-    
+
     def test_empty_sources(self):
         """Empty sources list should return empty result."""
         result = compare_narratives([])
         assert result.source_count == 0
         assert len(result.findings) == 0
-    
+
     def test_single_source(self):
         """Single source should have no comparisons."""
         result = compare_narratives([
@@ -83,7 +81,7 @@ class TestCompareNarratives:
         ])
         assert result.source_count == 1
         # No findings since nothing to compare against
-    
+
     def test_finds_agreements(self):
         """Should find agreements between similar events."""
         complainant = MockTransformResult(
@@ -92,15 +90,15 @@ class TestCompareNarratives:
         officer = MockTransformResult(
             events=[MockEvent("e1", "individual on Cedar Street")],
         )
-        
+
         result = compare_narratives([
             ("complainant", complainant),
             ("officer", officer),
         ])
-        
+
         assert result.source_count == 2
         # May find agreement on location
-    
+
     def test_finds_unique_claims(self):
         """Should identify claims only in one source."""
         complainant = MockTransformResult(
@@ -112,18 +110,18 @@ class TestCompareNarratives:
         officer = MockTransformResult(
             events=[MockEvent("e1", "I approached the individual")],
         )
-        
+
         result = compare_narratives([
             ("complainant", complainant),
             ("officer", officer),
         ])
-        
+
         assert result.unique_claim_count >= 1
 
 
 class TestComparisonResult:
     """Tests for ComparisonResult model."""
-    
+
     def test_counts_are_correct(self):
         """Summary counts should match findings."""
         complainant = MockTransformResult(
@@ -132,29 +130,29 @@ class TestComparisonResult:
         witness = MockTransformResult(
             events=[MockEvent("e1", "walking on Cedar Street")],
         )
-        
+
         result = compare_narratives([
             ("complainant", complainant),
             ("witness", witness),
         ])
-        
+
         # Counts should match actual findings
         agreement_count = sum(1 for f in result.findings if f.type == ComparisonType.AGREEMENT)
         assert result.agreement_count == agreement_count
-    
+
     def test_consistency_score_range(self):
         """Consistency score should be between 0 and 1."""
         result = compare_narratives([
             ("complainant", MockTransformResult()),
             ("officer", MockTransformResult()),
         ])
-        
+
         assert 0.0 <= result.overall_consistency <= 1.0
 
 
 class TestFormatComparisonReport:
     """Tests for report formatting."""
-    
+
     def test_report_has_header(self):
         """Report should have header."""
         result = ComparisonResult(
@@ -162,11 +160,11 @@ class TestFormatComparisonReport:
             source_labels=["complainant", "officer"],
             findings=[],
         )
-        
+
         report = format_comparison_report(result)
-        
+
         assert "MULTI-NARRATIVE COMPARISON REPORT" in report
-    
+
     def test_report_shows_source_count(self):
         """Report should show source count."""
         result = ComparisonResult(
@@ -174,11 +172,11 @@ class TestFormatComparisonReport:
             source_labels=["complainant", "officer"],
             findings=[],
         )
-        
+
         report = format_comparison_report(result)
-        
+
         assert "Sources Compared: 2" in report
-    
+
     def test_report_shows_consistency(self):
         """Report should show consistency score."""
         result = ComparisonResult(
@@ -187,15 +185,15 @@ class TestFormatComparisonReport:
             findings=[],
             overall_consistency=0.75,
         )
-        
+
         report = format_comparison_report(result)
-        
+
         assert "75%" in report or "0.75" in report
 
 
 class TestNarrativeSource:
     """Tests for NarrativeSource model."""
-    
+
     def test_creates_from_result(self):
         """Should create NarrativeSource from transform result."""
         source = NarrativeSource(
@@ -203,7 +201,7 @@ class TestNarrativeSource:
             events=[MockEvent("e1", "test event")],
             statements=[MockStatement("s1", "test statement")],
         )
-        
+
         assert source.label == "complainant"
         assert len(source.events) == 1
         assert len(source.statements) == 1
@@ -211,7 +209,7 @@ class TestNarrativeSource:
 
 class TestIntegration:
     """Integration tests with real-like data."""
-    
+
     def test_conflicting_narratives(self):
         """Test comparison of conflicting narratives."""
         complainant = MockTransformResult(
@@ -225,7 +223,7 @@ class TestIntegration:
                 MockStatement("s2", "He grabbed my arm"),
             ],
         )
-        
+
         officer = MockTransformResult(
             events=[
                 MockEvent("e1", "I observed individual on Cedar Street"),
@@ -237,12 +235,12 @@ class TestIntegration:
                 MockStatement("s2", "I used minimal force"),
             ],
         )
-        
+
         result = compare_narratives([
             ("complainant", complainant),
             ("officer", officer),
         ])
-        
+
         # Should find some unique claims
         assert result.source_count == 2
         assert len(result.findings) >= 0  # May find unique claims

@@ -7,9 +7,9 @@ Invariants for quote/speech act rendering:
 
 from nnrt.validation.invariants import (
     Invariant,
+    InvariantRegistry,
     InvariantResult,
     InvariantSeverity,
-    InvariantRegistry,
 )
 
 # Pronouns and placeholders that disqualify a speaker
@@ -23,7 +23,7 @@ INVALID_SPEAKERS = {
 def check_quote_has_speaker(speech_act) -> InvariantResult:
     """
     Invariant: Every quote must have a resolved speaker.
-    
+
     Examples:
         ✅ Speaker: Officer Jenkins | "STOP RIGHT THERE!"
         ✅ Speaker: Reporter | "What's the problem?"
@@ -33,7 +33,7 @@ def check_quote_has_speaker(speech_act) -> InvariantResult:
     """
     speaker = getattr(speech_act, 'speaker_label', None)
     content = getattr(speech_act, 'content', '')[:50]
-    
+
     if not speaker:
         return InvariantResult(
             passes=False,
@@ -42,9 +42,9 @@ def check_quote_has_speaker(speech_act) -> InvariantResult:
             failed_content=f'"{content}..."',
             quarantine_bucket="QUOTES_UNRESOLVED"
         )
-    
+
     speaker_lower = speaker.lower().strip()
-    
+
     if speaker_lower in INVALID_SPEAKERS:
         return InvariantResult(
             passes=False,
@@ -53,7 +53,7 @@ def check_quote_has_speaker(speech_act) -> InvariantResult:
             failed_content=f'"{content}..."',
             quarantine_bucket="QUOTES_UNRESOLVED"
         )
-    
+
     return InvariantResult(
         passes=True,
         invariant_id="QUOTE_HAS_SPEAKER",
@@ -64,12 +64,12 @@ def check_quote_has_speaker(speech_act) -> InvariantResult:
 def check_quote_not_nested(speech_act) -> InvariantResult:
     """
     Invariant: Nested quotes should be flagged (soft warning).
-    
+
     Nested quotes often have attribution issues.
     """
     is_nested = getattr(speech_act, 'is_nested', False)
     content = getattr(speech_act, 'content', '')[:50]
-    
+
     if is_nested:
         return InvariantResult(
             passes=False,
@@ -78,7 +78,7 @@ def check_quote_not_nested(speech_act) -> InvariantResult:
             failed_content=f'"{content}..."',
             quarantine_bucket="QUOTES_NEEDS_REVIEW"
         )
-    
+
     return InvariantResult(
         passes=True,
         invariant_id="QUOTE_NOT_NESTED",
@@ -89,7 +89,7 @@ def check_quote_not_nested(speech_act) -> InvariantResult:
 # Register all quote invariants
 def _register_quote_invariants():
     """Register all quote invariants with the registry."""
-    
+
     InvariantRegistry.register(Invariant(
         id="QUOTE_HAS_SPEAKER",
         description="Every quote has resolved speaker (not pronoun/unknown)",
@@ -97,7 +97,7 @@ def _register_quote_invariants():
         check_fn=check_quote_has_speaker,
         quarantine_bucket="QUOTES_UNRESOLVED"
     ))
-    
+
     InvariantRegistry.register(Invariant(
         id="QUOTE_NOT_NESTED",
         description="Nested quotes flagged for review",

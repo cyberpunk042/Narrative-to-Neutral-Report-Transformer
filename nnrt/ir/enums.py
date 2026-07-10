@@ -4,24 +4,23 @@ IR Enums — All semantic labels, roles, and codes.
 No stringly-typed constants scattered across passes.
 """
 
-from enum import Enum
-
+from enum import StrEnum
 
 # ============================================================================
 # Phase 1: Statement Classification
 # ============================================================================
 
-class StatementType(str, Enum):
+class StatementType(StrEnum):
     """
     Classification of statement epistemic status.
-    
+
     This tells us HOW the narrator knows what they're claiming:
     - OBSERVATION: Directly witnessed ("I saw him grab me")
-    - CLAIM: Asserted without explicit witness ("He grabbed me")  
+    - CLAIM: Asserted without explicit witness ("He grabbed me")
     - INTERPRETATION: Inference/opinion ("He wanted to hurt me")
     - QUOTE: Direct speech preserved verbatim
     """
-    
+
     OBSERVATION = "observation"      # "I saw/heard/felt..."
     CLAIM = "claim"                  # Assertion without explicit witness
     INTERPRETATION = "interpretation"  # Inference, opinion, intent
@@ -29,7 +28,7 @@ class StatementType(str, Enum):
     UNKNOWN = "unknown"              # Unable to classify
 
 
-class SpanLabel(str, Enum):
+class SpanLabel(StrEnum):
     """Semantic labels for spans."""
 
     # Factual content
@@ -57,119 +56,119 @@ class SpanLabel(str, Enum):
     UNKNOWN = "unknown"
 
 
-class SegmentContext(str, Enum):
+class SegmentContext(StrEnum):
     """
     High-level context classification for segments.
-    
+
     This tells downstream passes HOW to interpret content,
     enabling context-aware transformation decisions.
     """
-    
+
     # Speech contexts
     DIRECT_QUOTE = "direct_quote"          # Exact words spoken (must preserve)
     REPORTED_SPEECH = "reported_speech"    # Paraphrased speech
-    
+
     # Legal/Accusation contexts
     CHARGE_DESCRIPTION = "charge"          # "charged me with X" - preserve X
     ACCUSATION = "accusation"              # "accused me of X" - preserve X
     OFFICIAL_REPORT = "official_report"    # Police report language
-    
+
     # Physical description
     PHYSICAL_FORCE = "physical_force"      # Observable physical actions
     PHYSICAL_ATTEMPT = "physical_attempt"  # "tried to move/say/breathe"
     INJURY_DESCRIPTION = "injury"          # Description of injuries
-    
+
     # Narrator contexts
     EMOTIONAL_IMPACT = "emotional"         # Narrator's emotional state
     TIMELINE = "timeline"                  # Temporal sequence
     OBSERVATION = "observation"            # Factual observation
     INTERPRETATION = "interpretation"      # Narrator's interpretation
-    
+
     # Meta contexts
     CREDIBILITY_ASSERTION = "credibility"  # "I swear I'm telling the truth"
     SARCASM = "sarcasm"                    # Detected sarcasm/irony
-    
+
     # M3: Meta-detection contexts
     ALREADY_NEUTRAL = "already_neutral"    # No biased language detected
     OPINION_ONLY = "opinion_only"          # No verifiable facts
     AMBIGUOUS = "ambiguous"                # Unclear references
     CONTRADICTS_PREVIOUS = "contradiction" # Conflicts with earlier statement
-    
+
     # Neutral
     NEUTRAL = "neutral"                    # Already neutral content
     UNKNOWN = "unknown"
 
 
-class EntityRole(str, Enum):
+class EntityRole(StrEnum):
     """
     Roles entities play in a narrative.
-    
+
     V4: Expanded taxonomy for proper role classification.
     Replaces the oversimplified AUTHORITY/WITNESS dichotomy.
     """
-    
+
     # The narrator
     REPORTER = "reporter"                # The person telling the narrative (I/me/my)
-    
+
     # Law enforcement involved in incident
     SUBJECT_OFFICER = "subject_officer"  # Officer(s) being described/complained about
     SUPERVISOR = "supervisor"            # Sergeants, commanding officers
     WITNESS_OFFICIAL = "witness_official"  # Other officers present but not subjects
-    
+
     # Civilians
     WITNESS_CIVILIAN = "witness_civilian"  # Third-party civilian observers
     BYSTANDER = "bystander"               # Present but minimal involvement
-    
+
     # Professional roles
     MEDICAL_PROVIDER = "medical_provider" # Doctors, nurses, EMTs, therapists
     LEGAL_COUNSEL = "legal_counsel"       # Attorneys, public defenders
     INVESTIGATOR = "investigator"         # IA detectives, oversight investigators
     WORKPLACE_CONTACT = "workplace_contact"  # Managers, coworkers
-    
+
     # Entities mentioned but not actors
     SUBJECT = "subject"                   # Deprecated: use specific role
     INSTITUTION = "institution"           # Organizations (use EntityType.ORGANIZATION)
-    
+
     # Backward compatibility aliases (DEPRECATED - use specific roles)
     AUTHORITY = "authority"               # DEPRECATED: Use SUBJECT_OFFICER/SUPERVISOR/INVESTIGATOR
     WITNESS = "witness"                   # DEPRECATED: Use WITNESS_CIVILIAN/WITNESS_OFFICIAL
     OBJECT = "object"                     # DEPRECATED
-    
+
     # Fallback
     OTHER = "other"
     UNKNOWN = "unknown"
 
 
-class Participation(str, Enum):
+class Participation(StrEnum):
     """
     V5: When/how an entity participated in the events.
-    
+
     This separates incident participants from post-incident professionals
     and people merely mentioned in the narrative.
     """
-    
+
     # Present at the incident scene
     INCIDENT = "incident"
     # Examples: Reporter, Officers Jenkins/Rodriguez/Williams, Marcus Johnson, Patricia Chen
-    
+
     # Involved after the incident (professional capacity)
     POST_INCIDENT = "post_incident"
     # Examples: Dr. Foster (ER), Detective Monroe (IA), Dr. Thompson (therapist), Attorney Walsh
-    
+
     # Mentioned but not present (reference/verification)
     MENTIONED_ONLY = "mentioned"
     # Examples: Sarah Mitchell (manager for verification), robbery suspect (description)
-    
+
     UNKNOWN = "unknown"
 
 
-class EntityType(str, Enum):
+class EntityType(StrEnum):
     """
     What kind of entity this is.
-    
+
     V4: Added BADGE_NUMBER as distinct type, and FACILITY separate from LOCATION.
     """
-    
+
     PERSON = "person"               # Named individuals
     ORGANIZATION = "organization"   # Departments, foundations, divisions
     FACILITY = "facility"           # Hospitals, police stations, cafes
@@ -180,19 +179,19 @@ class EntityType(str, Enum):
     UNKNOWN = "unknown"
 
 
-class EntitySubtype(str, Enum):
+class EntitySubtype(StrEnum):
     """
     Subtype classification to detect invalid extractions.
-    
+
     V4: Used to REJECT bare titles, roles, and descriptors that
     should not be treated as entities.
     """
-    
+
     # Valid subtypes
     NAMED_INDIVIDUAL = "named_individual"     # "Officer Jenkins", "Dr. Foster"
     ORGANIZATION_PROPER = "organization_proper"  # "Internal Affairs Division"
     FACILITY_PROPER = "facility_proper"       # "St. Mary's Hospital"
-    
+
     # INVALID - should be rejected or attached
     BARE_TITLE = "bare_title"           # "Officer", "Detective", "sergeant"
     BARE_ROLE = "bare_role"             # "partner", "passenger", "suspect", "manager"
@@ -201,7 +200,7 @@ class EntitySubtype(str, Enum):
     BADGE_ONLY = "badge_only"           # Badge number without officer attachment
 
 
-class IdentifierType(str, Enum):
+class IdentifierType(StrEnum):
     """Types of identifiers that can be extracted."""
 
     NAME = "name"
@@ -214,40 +213,40 @@ class IdentifierType(str, Enum):
     OTHER = "other"
 
 
-class TemporalMarkerType(str, Enum):
+class TemporalMarkerType(StrEnum):
     """
     Classification of temporal markers.
-    
+
     V4: Proper typing of time references to prevent artifacts.
     """
-    
+
     # Valid timestamps
     TIMESTAMP = "timestamp"       # "11:30 PM" - specific clock time
     DATE = "date"                 # "January 15th, 2026" - specific date
     DATETIME = "datetime"         # Combined date and time
-    
+
     # Durations
     DURATION = "duration"         # "about 20 minutes", "three hours"
-    
+
     # Relative markers
     RELATIVE = "relative"         # "next day", "three months later"
     SEQUENCE = "sequence"         # "then", "after that", "afterwards"
-    
+
     # Vague (low confidence)
     VAGUE = "vague"               # "night", "hours", "later" (without specifics)
-    
+
     # Invalid (should be rejected)
     ARTIFACT = "artifact"         # "30 PM" - parsing error
     NOT_TEMPORAL = "not_temporal" # "40s" as age, not decade
 
 
-class TimeContext(str, Enum):
+class TimeContext(StrEnum):
     """
     V5: When in the narrative timeline did this time reference occur?
-    
+
     Separates incident time from post-incident time for proper rendering.
     """
-    
+
     INCIDENT = "incident"           # During the main incident
     PRE_INCIDENT = "pre_incident"   # Before the incident (background)
     POST_INCIDENT = "post_incident" # After the incident (follow-up)
@@ -255,13 +254,13 @@ class TimeContext(str, Enum):
     UNKNOWN = "unknown"
 
 
-class LocationType(str, Enum):
+class LocationType(StrEnum):
     """
     V5: Relevance of a location in the narrative.
-    
+
     Separates incident scene from other mentioned locations.
     """
-    
+
     INCIDENT_SCENE = "incident"     # Where the main incident occurred
     SECONDARY = "secondary"         # Other relevant locations
     WORKPLACE = "workplace"         # Reporter's workplace
@@ -274,51 +273,51 @@ class LocationType(str, Enum):
 # V6: Timeline Reconstruction
 # ============================================================================
 
-class AllenRelation(str, Enum):
+class AllenRelation(StrEnum):
     """
     V6: Allen's 13 temporal interval relations.
-    
+
     Complete algebra for reasoning about how time intervals relate.
     Used for precise timeline reconstruction and multi-narrative comparison.
-    
+
     See: Allen, J.F. (1983) "Maintaining Knowledge about Temporal Intervals"
     """
-    
+
     # Basic ordering (most common in narratives)
     BEFORE = "before"               # A ends before B starts (A ─── B)
     AFTER = "after"                 # A starts after B ends (B ─── A)
-    
+
     # Adjacent (no gap between)
     MEETS = "meets"                 # A ends exactly when B starts (A───B)
     MET_BY = "met_by"               # A starts exactly when B ends (B───A)
-    
+
     # Overlapping
     OVERLAPS = "overlaps"           # A starts first, ends during B
     OVERLAPPED_BY = "overlapped_by" # A starts during B, ends after B
-    
+
     # Containment
     DURING = "during"               # A is entirely within B
     CONTAINS = "contains"           # A entirely contains B
-    
+
     # Shared start
     STARTS = "starts"               # A and B start together, A ends first
     STARTED_BY = "started_by"       # A and B start together, B ends first
-    
+
     # Shared end
     FINISHES = "finishes"           # A and B end together, A starts after B
     FINISHED_BY = "finished_by"     # A and B end together, B starts after A
-    
+
     # Identical
     EQUALS = "equals"               # A and B have identical intervals
-    
+
     # Uncertainty
     UNKNOWN = "unknown"
-    
+
     def display_label(self, simplified: bool = True) -> str:
         """Get display label, optionally simplified to 7 relations."""
         if not simplified:
             return self.value.replace('_', ' ')
-        
+
         # Collapse 13 → 7 for simplified display
         DISPLAY_MAP = {
             'before': 'then',
@@ -337,7 +336,7 @@ class AllenRelation(str, Enum):
             'unknown': '(timing unclear)',
         }
         return DISPLAY_MAP.get(self.value, self.value)
-    
+
     def inverse(self) -> "AllenRelation":
         """Get the inverse relation (swap A and B)."""
         INVERSE_MAP = {
@@ -359,13 +358,13 @@ class AllenRelation(str, Enum):
         return INVERSE_MAP.get(self.value, AllenRelation.UNKNOWN)
 
 
-class TemporalExpressionType(str, Enum):
+class TemporalExpressionType(StrEnum):
     """
     V6: Types of temporal expressions (TIMEX3-inspired).
-    
+
     Classifies what kind of time reference was extracted.
     """
-    
+
     DATE = "date"           # Specific date: "January 10th, 2026"
     TIME = "time"           # Specific time: "11:30 PM"
     DATETIME = "datetime"   # Combined: "January 10th at 11:30 PM"
@@ -375,13 +374,13 @@ class TemporalExpressionType(str, Enum):
     VAGUE = "vague"         # Imprecise: "morning", "later that night"
 
 
-class TimeSource(str, Enum):
+class TimeSource(StrEnum):
     """
     V6: How confident we are about a timeline placement.
-    
+
     Indicates the source of temporal information.
     """
-    
+
     EXPLICIT = "explicit"       # Stated directly: "At 11:30 PM"
     RELATIVE = "relative"       # Inferred from marker: "then", "after that"
     INFERRED = "inferred"       # From narrative order only
@@ -389,13 +388,13 @@ class TimeSource(str, Enum):
     CORROBORATED = "corroborated"  # Confirmed by multiple sources
 
 
-class TimeGapType(str, Enum):
+class TimeGapType(StrEnum):
     """
     V6: Classification of gaps between timeline entries.
-    
+
     Used for investigation question generation.
     """
-    
+
     EXPLAINED = "explained"             # Gap has a marker: "20 minutes later"
     UNEXPLAINED = "unexplained"         # Gap with no marker (needs investigation)
     DAY_BOUNDARY = "day_boundary"       # Gap crosses to next day
@@ -403,26 +402,26 @@ class TimeGapType(str, Enum):
     NONE = "none"                       # No significant gap
 
 
-class RelationEvidence(str, Enum):
+class RelationEvidence(StrEnum):
     """
     V6: What evidence supports a temporal relation.
-    
+
     Tracks why we believe two events have a particular relation.
     """
-    
+
     EXPLICIT_MARKER = "explicit_marker"   # "then", "after that", "while"
     TIME_COMPARISON = "time_comparison"   # Compared absolute times
     NARRATIVE_ORDER = "narrative_order"   # Order in text (fallback)
     INFERRED = "inferred"                 # Logical inference
 
 
-class EventType(str, Enum):
+class EventType(StrEnum):
     """
     Types of events that can be extracted.
-    
+
     V4: Expanded with structured event types for law enforcement contexts.
     """
-    
+
     # Physical actions
     ACTION = "action"                    # Generic action
     APPROACH = "approach"                # Officer approached
@@ -430,38 +429,38 @@ class EventType(str, Enum):
     SEARCH = "search"                    # Searched pockets, vehicle
     HANDCUFF = "handcuff"                # Handcuffing
     RELEASE = "release"                  # Released from custody
-    
+
     # Verbal
     VERBAL = "verbal"                    # Generic verbal
     VERBAL_COMMAND = "verbal_command"    # "Stop!", "Get down!"
     VERBAL_THREAT = "verbal_threat"      # Threatening statement
     VERBAL_QUESTION = "verbal_question"  # Asked a question
-    
+
     # Witness actions
     WITNESS_RECORDING = "witness_recording"      # Bystander recording
     WITNESS_INTERVENTION = "witness_intervention"  # Bystander spoke up
-    
+
     # Procedural
     ARREST = "arrest"                    # Formal arrest
     COMPLAINT_FILED = "complaint_filed"  # Filed complaint
     INVESTIGATION = "investigation"      # Investigation action
     DISPOSITION = "disposition"          # Investigation outcome
-    
+
     # Medical
     MEDICAL_TREATMENT = "medical_treatment"  # Hospital/doctor visit
     INJURY_DOCUMENTATION = "injury_documentation"  # Injuries documented
-    
+
     # Movement
     MOVEMENT = "movement"                # Movement/travel
     VEHICLE_STOP = "vehicle_stop"        # Traffic stop
-    
+
     # Other
     OBSERVATION = "observation"
     STATE_CHANGE = "state_change"
     UNKNOWN = "unknown"
 
 
-class SpeechActType(str, Enum):
+class SpeechActType(StrEnum):
     """Types of speech acts."""
 
     STATEMENT = "statement"
@@ -471,7 +470,7 @@ class SpeechActType(str, Enum):
     UNKNOWN = "unknown"
 
 
-class UncertaintyType(str, Enum):
+class UncertaintyType(StrEnum):
     """Types of uncertainty."""
 
     AMBIGUOUS_REFERENCE = "ambiguous_reference"
@@ -481,7 +480,7 @@ class UncertaintyType(str, Enum):
     INCOMPLETE = "incomplete"
 
 
-class PolicyAction(str, Enum):
+class PolicyAction(StrEnum):
     """Actions a policy rule can take."""
 
     ACCEPT = "accept"
@@ -495,7 +494,7 @@ class PolicyAction(str, Enum):
     WARN = "warn"
 
 
-class DiagnosticLevel(str, Enum):
+class DiagnosticLevel(StrEnum):
     """Diagnostic severity levels."""
 
     ERROR = "error"
@@ -503,7 +502,7 @@ class DiagnosticLevel(str, Enum):
     INFO = "info"
 
 
-class TransformStatus(str, Enum):
+class TransformStatus(StrEnum):
     """Overall transformation status."""
 
     SUCCESS = "success"
@@ -516,29 +515,29 @@ class TransformStatus(str, Enum):
 # Phase 3: Semantic Understanding (v3)
 # ============================================================================
 
-class MentionType(str, Enum):
+class MentionType(StrEnum):
     """
     How an entity is mentioned in text.
-    
+
     Used by coreference resolution to track different forms of reference
     to the same entity across the narrative.
     """
-    
+
     PROPER_NAME = "proper_name"    # Full name: "Officer Jenkins"
-    PRONOUN = "pronoun"            # Personal pronoun: "he", "she", "they"  
+    PRONOUN = "pronoun"            # Personal pronoun: "he", "she", "they"
     DESCRIPTOR = "descriptor"      # Descriptive phrase: "the officer", "the man"
     TITLE = "title"                # Title/partial name: "Jenkins", "the sergeant"
     POSSESSIVE = "possessive"      # Possessive reference: "his", "her", "my"
 
 
-class GroupType(str, Enum):
+class GroupType(StrEnum):
     """
     Semantic category of a statement group.
-    
+
     Groups cluster related atomic statements for coherent presentation.
     Each group has a clear semantic purpose.
     """
-    
+
     ENCOUNTER = "encounter"              # Events during the incident
     WITNESS_ACCOUNT = "witness_account"  # Third party's observations
     MEDICAL = "medical"                  # Medical treatment, documented injuries
@@ -550,13 +549,13 @@ class GroupType(str, Enum):
     UNKNOWN = "unknown"
 
 
-class TemporalRelation(str, Enum):
+class TemporalRelation(StrEnum):
     """
     How events relate to each other in time.
-    
+
     Used to build the timeline DAG and determine event ordering.
     """
-    
+
     BEFORE = "before"           # This happened before another event
     AFTER = "after"             # This happened after another event
     DURING = "during"           # Concurrent with another event
@@ -566,37 +565,37 @@ class TemporalRelation(str, Enum):
     UNKNOWN = "unknown"
 
 
-class EvidenceType(str, Enum):
+class EvidenceType(StrEnum):
     """
     Source and reliability classification of evidence.
-    
+
     Enables assessment of how reliable a statement is based on
     its provenance and corroboration.
     """
-    
+
     # Direct evidence (highest reliability)
     DIRECT_WITNESS = "direct_witness"  # Reporter directly saw/heard/felt
     PHYSICAL = "physical"              # Physical evidence (injuries, damage)
     DOCUMENTARY = "documentary"        # Official documents, medical records
-    
+
     # Indirect evidence (medium reliability)
     REPORTED = "reported"              # Someone told the reporter
     VIDEO_AUDIO = "video_audio"        # Recorded but not by reporter
-    
+
     # Interpretive (lower reliability)
     INFERENCE = "inference"            # Reporter's conclusion/interpretation
     OPINION = "opinion"                # Reporter's opinion
-    
+
     UNKNOWN = "unknown"
 
 
-class SourceType(str, Enum):
+class SourceType(StrEnum):
     """
     V5: Who provided the information.
-    
+
     Tracks the original source of each statement for provenance.
     """
-    
+
     REPORTER = "reporter"           # The person filing the narrative
     WITNESS = "witness"             # Third-party observer
     DOCUMENT = "document"           # Official document (letter, record)
@@ -607,13 +606,13 @@ class SourceType(str, Enum):
     UNKNOWN = "unknown"
 
 
-class ProvenanceStatus(str, Enum):
+class ProvenanceStatus(StrEnum):
     """
     V5: Verification status of a claim's provenance.
-    
+
     Indicates whether the source has been verified or is missing.
     """
-    
+
     VERIFIED = "verified"           # Source is documented/corroborated
     CITED = "cited"                 # Source is named but not verified
     MISSING = "missing"             # No source provided (NEEDS provenance)
@@ -621,94 +620,94 @@ class ProvenanceStatus(str, Enum):
     UNVERIFIABLE = "unverifiable"   # Cannot be independently verified
 
 
-class EpistemicType(str, Enum):
+class EpistemicType(StrEnum):
     """
     V4: Fine-grained epistemic classification.
-    
+
     This is the CRITICAL enum for fixing statement classification.
     Every atomic statement must be tagged with its epistemic status
     to enable proper neutralization and flagging.
     """
-    
+
     # =========================================================================
     # DIRECTLY PERCEIVABLE (High confidence, preserve)
     # =========================================================================
-    
+
     DIRECT_OBSERVATION = "direct_observation"
     # Observable external events: "He grabbed my arm"
     # CAN be neutralized but preserved as fact
-    
+
     SENSORY_EXPERIENCE = "sensory_experience"
     # Physical sensation: "I felt pain", "I heard him yell"
     # Subjective but grounded in perception
-    
+
     # =========================================================================
     # INTERNAL STATES (Medium confidence, flag as self-report)
     # =========================================================================
-    
+
     EMOTIONAL_STATE = "emotional_state"
     # "I was terrified", "I felt scared"
     # Valid self-report but not externally verifiable
-    
+
     PHYSICAL_SYMPTOM = "physical_symptom"
     # "My wrists were bleeding", "I couldn't breathe"
     # Self-reported physical state
-    
+
     PSYCHOLOGICAL_CLAIM = "psychological_claim"
     # "I now suffer from PTSD", "I have panic attacks"
     # Medical claim requiring documentation
-    
+
     # =========================================================================
     # REPORTER INTERPRETATION (Low confidence, MUST flag)
     # =========================================================================
-    
+
     INFERENCE = "inference"
     # "She wasn't going to do anything about it"
     # Conclusion based on observation
-    
+
     INTENT_ATTRIBUTION = "intent_attribution"
     # "He wanted to inflict maximum damage" ⚠️ DANGEROUS
     # "clearly looking for trouble" ⚠️ DANGEROUS
     # MUST be flagged - attributes mental state to another
-    
+
     LEGAL_CHARACTERIZATION = "legal_characterization"
     # "This was racial profiling" ⚠️ DANGEROUS
     # "obstruction of justice" ⚠️ DANGEROUS
     # Legal conclusion by non-attorney
-    
+
     CONSPIRACY_CLAIM = "conspiracy_claim"
     # "proves there's a cover-up" ⚠️ DANGEROUS
     # "they were conspiring"
     # Unfalsifiable allegation
-    
+
     # =========================================================================
     # EXTERNAL SOURCES (Variable confidence)
     # =========================================================================
-    
+
     REPORTED_SPEECH = "reported_speech"
     # "He said 'You can go'"
     # Attributed to another speaker
-    
+
     DOCUMENT_CLAIM = "document_claim"
     # "The medical report shows..."
     # Referenced to a document
-    
+
     WITNESS_CLAIM = "witness_claim"
     # "Marcus said he saw..."
     # Attributed to a witness
-    
+
     # =========================================================================
     # DISCARDABLE (No semantic value)
     # =========================================================================
-    
+
     NARRATIVE_GLUE = "narrative_glue"
     # "It all started", "Out of nowhere"
     # Transition phrases, rhetorical connectors
-    
+
     RHETORICAL_EMPHASIS = "rhetorical_emphasis"
     # "which proves", "obviously", "clearly"
     # Persuasion markers, not facts
-    
+
     UNKNOWN = "unknown"
 
 

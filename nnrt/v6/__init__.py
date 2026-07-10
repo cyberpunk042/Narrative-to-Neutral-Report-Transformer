@@ -11,21 +11,20 @@ Usage:
     from nnrt.v6.comparison import compare_narratives, ComparisonResult
 """
 
-from nnrt.v6.questions import (
-    generate_all_questions,
-    QuestionSet,
-    InvestigationQuestion,
-    QuestionPriority,
-    QuestionCategory,
-)
-
 from nnrt.v6.comparison import (
-    compare_narratives,
-    format_comparison_report,
-    ComparisonResult,
     ComparisonFinding,
+    ComparisonResult,
     ComparisonType,
     SeverityLevel,
+    compare_narratives,
+    format_comparison_report,
+)
+from nnrt.v6.questions import (
+    InvestigationQuestion,
+    QuestionCategory,
+    QuestionPriority,
+    QuestionSet,
+    generate_all_questions,
 )
 
 __all__ = [

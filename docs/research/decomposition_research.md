@@ -23,7 +23,7 @@
 | Stanza | Constituency parsing | ✅ Active |
 | ClausIE | Clause-based OIE | Research prototype |
 
-**Recommendation**: 
+**Recommendation**:
 - Use **spaCy dependency parsing** for clause boundaries (we're on right track)
 - Consider **OpenIE / SRL** for extracting atomic facts as (subject, relation, object) tuples
 - Our current approach is valid but needs refinement in token-to-text reconstruction

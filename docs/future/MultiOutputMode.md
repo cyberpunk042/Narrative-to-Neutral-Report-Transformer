@@ -5,7 +5,7 @@ Contains probe but also a massive header of extraction and reconstitition.
 Contains the neutralized report based of atomic interpretation.
 
 ## It will have a raw output mode.
-Contains the neutralized report based of atomic interpretation. 
+Contains the neutralized report based of atomic interpretation.
 (reduced level of transformation for private version of report vs public version of report)
 
 ## It will have a raw structured output mode.

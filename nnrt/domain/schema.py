@@ -14,13 +14,12 @@ A complete domain configuration contains:
 
 from __future__ import annotations
 
-from enum import Enum
-from typing import Optional
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
 
-class Participation(str, Enum):
+class Participation(StrEnum):
     """When an entity participated in the narrative."""
     INCIDENT = "incident"
     POST_INCIDENT = "post_incident"
@@ -33,16 +32,16 @@ class Participation(str, Enum):
 
 class VocabularyTerm(BaseModel):
     """A term with its synonyms and canonical form."""
-    
+
     synonyms: list[str] = Field(default_factory=list, description="Alternative forms of the term")
     derogatory: list[str] = Field(default_factory=list, description="Derogatory forms to replace")
     neutral_form: str = Field(..., description="The neutral/canonical form")
-    context: Optional[str] = Field(None, description="Usage context hint")
+    context: str | None = Field(None, description="Usage context hint")
 
 
 class VocabularyCategory(BaseModel):
     """A category of vocabulary terms."""
-    
+
     terms: dict[str, VocabularyTerm] = Field(
         default_factory=dict,
         description="Map of term_id -> VocabularyTerm"
@@ -51,7 +50,7 @@ class VocabularyCategory(BaseModel):
 
 class DomainVocabulary(BaseModel):
     """Complete vocabulary for a domain."""
-    
+
     actors: dict[str, VocabularyTerm] = Field(
         default_factory=dict,
         description="Actor terms (officer, witness, etc.)"
@@ -68,7 +67,7 @@ class DomainVocabulary(BaseModel):
         default_factory=dict,
         description="Modifier terms (violent, aggressive, etc.)"
     )
-    
+
     def get_synonyms(self, term_id: str) -> list[str]:
         """Get all synonyms for a term ID."""
         for category in [self.actors, self.actions, self.locations, self.modifiers]:
@@ -76,8 +75,8 @@ class DomainVocabulary(BaseModel):
                 term = category[term_id]
                 return term.synonyms + term.derogatory
         return []
-    
-    def get_neutral_form(self, term_id: str) -> Optional[str]:
+
+    def get_neutral_form(self, term_id: str) -> str | None:
         """Get the neutral form for a term ID."""
         for category in [self.actors, self.actions, self.locations, self.modifiers]:
             if term_id in category:
@@ -91,7 +90,7 @@ class DomainVocabulary(BaseModel):
 
 class EntityRolePattern(BaseModel):
     """Pattern for identifying entity roles."""
-    
+
     role: str = Field(..., description="Role enum value (SUBJECT_OFFICER, REPORTER, etc.)")
     patterns: list[str] = Field(
         default_factory=list,
@@ -115,13 +114,13 @@ class EntityRolePattern(BaseModel):
 
 class EventTypeDefinition(BaseModel):
     """Definition of an event type."""
-    
+
     type: str = Field(..., description="Event type (USE_OF_FORCE, ARREST, etc.)")
     verbs: list[str] = Field(default_factory=list, description="Verbs that indicate this event")
     requires_actor: bool = Field(False, description="Must have an actor")
     requires_target: bool = Field(False, description="Must have a target")
     is_camera_friendly: bool = Field(True, description="Observable by camera")
-    typical_actor_role: Optional[str] = Field(None, description="Expected actor role")
+    typical_actor_role: str | None = Field(None, description="Expected actor role")
     participation: Participation = Field(
         Participation.INCIDENT,
         description="When this event type typically occurs"
@@ -134,7 +133,7 @@ class EventTypeDefinition(BaseModel):
 
 class CameraFriendlyConfig(BaseModel):
     """What makes an event camera-friendly (observable)."""
-    
+
     required: list[str] = Field(
         default_factory=list,
         description="All conditions required (has_named_actor, has_physical_action)"
@@ -147,7 +146,7 @@ class CameraFriendlyConfig(BaseModel):
 
 class FollowUpConfig(BaseModel):
     """What makes an event a follow-up action."""
-    
+
     actor_roles: list[str] = Field(
         default_factory=list,
         description="Roles that typically do follow-up (MEDICAL_PROVIDER)"
@@ -160,7 +159,7 @@ class FollowUpConfig(BaseModel):
 
 class ClassificationConfig(BaseModel):
     """Classification rules for the domain."""
-    
+
     camera_friendly: CameraFriendlyConfig = Field(
         default_factory=CameraFriendlyConfig,
         description="Camera-friendly criteria"
@@ -177,10 +176,10 @@ class ClassificationConfig(BaseModel):
 
 class TransformationRule(BaseModel):
     """A transformation rule for neutralization."""
-    
+
     id: str = Field(..., description="Rule ID (le_cop_to_officer)")
     match: list[str] = Field(default_factory=list, description="Patterns to match")
-    replace: Optional[str] = Field(None, description="Replacement text")
+    replace: str | None = Field(None, description="Replacement text")
     remove: bool = Field(False, description="Remove match entirely")
     preserve: bool = Field(False, description="Preserve match (no transformation)")
     context: list[str] = Field(
@@ -196,7 +195,7 @@ class TransformationRule(BaseModel):
 
 class DiagnosticFlag(BaseModel):
     """A diagnostic flag configuration."""
-    
+
     code: str = Field(..., description="Diagnostic code (PHYSICAL_ACTION_DESCRIBED)")
     on_match: list[str] = Field(default_factory=list, description="Patterns that trigger")
     level: str = Field("info", description="Severity level (info, warning, error)")
@@ -205,7 +204,7 @@ class DiagnosticFlag(BaseModel):
 
 class DiagnosticsConfig(BaseModel):
     """Diagnostics configuration for the domain."""
-    
+
     flags: list[DiagnosticFlag] = Field(
         default_factory=list,
         description="Diagnostic flags to emit"
@@ -218,7 +217,7 @@ class DiagnosticsConfig(BaseModel):
 
 class DomainMetadata(BaseModel):
     """Metadata about the domain."""
-    
+
     typical_actors: list[str] = Field(
         default_factory=list,
         description="Common actor roles in this domain"
@@ -239,68 +238,68 @@ class DomainMetadata(BaseModel):
 
 class DomainInfo(BaseModel):
     """Domain identification."""
-    
+
     id: str = Field(..., description="Domain ID (law_enforcement)")
     name: str = Field(..., description="Human-readable name")
     version: str = Field("1.0", description="Domain version")
-    description: Optional[str] = Field(None, description="Domain description")
-    extends: Optional[str] = Field(None, description="Base domain to extend")
+    description: str | None = Field(None, description="Domain description")
+    extends: str | None = Field(None, description="Base domain to extend")
 
 
 class Domain(BaseModel):
     """Complete domain configuration."""
-    
+
     domain: DomainInfo = Field(..., description="Domain identification")
-    
+
     vocabulary: DomainVocabulary = Field(
         default_factory=DomainVocabulary,
         description="Domain vocabulary (synonyms, canonical forms)"
     )
-    
+
     entity_roles: list[EntityRolePattern] = Field(
         default_factory=list,
         description="Entity role patterns"
     )
-    
+
     event_types: list[EventTypeDefinition] = Field(
         default_factory=list,
         description="Event type definitions"
     )
-    
+
     classification: ClassificationConfig = Field(
         default_factory=ClassificationConfig,
         description="Classification rules"
     )
-    
+
     transformations: list[TransformationRule] = Field(
         default_factory=list,
         description="Transformation rules"
     )
-    
+
     diagnostics: DiagnosticsConfig = Field(
         default_factory=DiagnosticsConfig,
         description="Diagnostic configuration"
     )
-    
+
     metadata: DomainMetadata = Field(
         default_factory=DomainMetadata,
         description="Domain metadata"
     )
-    
-    def get_entity_role_pattern(self, role: str) -> Optional[EntityRolePattern]:
+
+    def get_entity_role_pattern(self, role: str) -> EntityRolePattern | None:
         """Get entity role pattern by role name."""
         for pattern in self.entity_roles:
             if pattern.role == role:
                 return pattern
         return None
-    
-    def get_event_type(self, type_name: str) -> Optional[EventTypeDefinition]:
+
+    def get_event_type(self, type_name: str) -> EventTypeDefinition | None:
         """Get event type definition by type name."""
         for evt_type in self.event_types:
             if evt_type.type == type_name:
                 return evt_type
         return None
-    
+
     def get_transformation_rules(self, priority_min: int = 0) -> list[TransformationRule]:
         """Get transformation rules sorted by priority (descending)."""
         return sorted(

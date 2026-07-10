@@ -11,7 +11,7 @@ from nnrt.core.contracts import Validator
 class NoNewFactsValidator(Validator):
     """
     Validates that output doesn't contain facts not in input.
-    
+
     This is a heuristic check - not perfect but catches obvious violations.
     """
 
@@ -22,7 +22,7 @@ class NoNewFactsValidator(Validator):
     def validate(self, ctx: TransformContext) -> list[str]:
         """
         Check that output doesn't introduce new content.
-        
+
         Heuristic: output words should be derivable from input words.
         """
         errors: list[str] = []

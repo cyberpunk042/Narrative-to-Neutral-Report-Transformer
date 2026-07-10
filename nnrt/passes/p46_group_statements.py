@@ -22,7 +22,7 @@ Algorithm:
 
 Group Types:
 - ENCOUNTER: Physical actions during the incident
-- WITNESS_ACCOUNT: Third-party observations  
+- WITNESS_ACCOUNT: Third-party observations
 - MEDICAL: Medical treatment, documented injuries
 - OFFICIAL: Complaints, investigations, official records
 - EMOTIONAL: Psychological/emotional impact
@@ -34,13 +34,13 @@ Group Types:
 from __future__ import annotations
 
 import re
-import structlog
-from typing import Optional
 from collections import defaultdict
 
+import structlog
+
 from nnrt.core.context import TransformContext
-from nnrt.ir.schema_v0_1 import StatementGroup, Entity
-from nnrt.ir.enums import GroupType, EntityRole, StatementType
+from nnrt.ir.enums import EntityRole, GroupType, StatementType
+from nnrt.ir.schema_v0_1 import Entity, StatementGroup
 from nnrt.policy.engine import get_policy_engine
 
 log = structlog.get_logger("nnrt.p46_group_statements")
@@ -132,7 +132,7 @@ AFTERMATH_PATTERNS = [
 def group_statements(ctx: TransformContext) -> TransformContext:
     """
     Group atomic statements into semantic clusters.
-    
+
     This pass:
     1. Classifies each statement by semantic content
     2. Clusters related statements
@@ -142,33 +142,33 @@ def group_statements(ctx: TransformContext) -> TransformContext:
         log.info("no_statements", pass_name=PASS_NAME, message="No statements to group")
         ctx.add_trace(PASS_NAME, "skipped", after="No statements")
         return ctx
-    
+
     # =========================================================================
     # Phase 1: Classify Each Statement
     # =========================================================================
-    
+
     # Map statement_id -> group_type
     statement_groups_map: dict[str, GroupType] = {}
-    
+
     for stmt in ctx.atomic_statements:
         group_type = _classify_statement(stmt, ctx.entities)
         statement_groups_map[stmt.id] = group_type
-    
+
     # =========================================================================
     # Phase 2: Cluster Consecutive Statements
     # =========================================================================
-    
+
     # Group adjacent statements of the same type
     groups: list[StatementGroup] = []
-    
+
     # Track statements by group type for building groups
-    current_type: Optional[GroupType] = None
+    current_type: GroupType | None = None
     current_statements: list[str] = []
-    current_entity_id: Optional[str] = None
-    
+    current_entity_id: str | None = None
+
     for stmt in ctx.atomic_statements:
         stmt_type = statement_groups_map[stmt.id]
-        
+
         # Check if this statement continues the current group
         if stmt_type == current_type:
             current_statements.append(stmt.id)
@@ -176,34 +176,34 @@ def group_statements(ctx: TransformContext) -> TransformContext:
             # Save current group if exists
             if current_statements and current_type:
                 group = _create_group(
-                    current_type, 
-                    current_statements, 
+                    current_type,
+                    current_statements,
                     len(groups),
                     current_entity_id,
                     ctx
                 )
                 groups.append(group)
-            
+
             # Start new group
             current_type = stmt_type
             current_statements = [stmt.id]
             current_entity_id = _find_primary_entity(stmt, ctx.entities)
-    
+
     # Don't forget the last group
     if current_statements and current_type:
         group = _create_group(
-            current_type, 
-            current_statements, 
+            current_type,
+            current_statements,
             len(groups),
             current_entity_id,
             ctx
         )
         groups.append(group)
-    
+
     # =========================================================================
     # Phase 3: Merge Small Adjacent Groups
     # =========================================================================
-    
+
     # Optionally merge very small groups of the same type
     merged_groups: list[StatementGroup] = []
     for group in groups:
@@ -212,15 +212,15 @@ def group_statements(ctx: TransformContext) -> TransformContext:
             merged_groups[-1].statement_ids.extend(group.statement_ids)
         else:
             merged_groups.append(group)
-    
+
     # Store results
     ctx.statement_groups = merged_groups
-    
+
     # Log summary
     type_counts = defaultdict(int)
     for g in merged_groups:
         type_counts[g.group_type.value] += 1
-    
+
     log.info(
         "grouped",
         pass_name=PASS_NAME,
@@ -229,30 +229,30 @@ def group_statements(ctx: TransformContext) -> TransformContext:
         total_statements=len(ctx.atomic_statements),
         **dict(type_counts),
     )
-    
+
     ctx.add_trace(
         PASS_NAME,
         "statements_grouped",
         after=f"{len(merged_groups)} groups from {len(ctx.atomic_statements)} statements",
     )
-    
+
     return ctx
 
 
 def _classify_statement(stmt, entities: list[Entity]) -> GroupType:
     """
     Classify a statement into a group type based on content and context.
-    
+
     V7 / Stage 4: Uses PolicyEngine YAML rules if USE_YAML_RULES is True.
     """
     # Check statement type first (QUOTE is preserved)
     if hasattr(stmt, 'type_hint') and stmt.type_hint == StatementType.QUOTE:
         return GroupType.QUOTE
-    
+
     # V7 / Stage 4: Use YAML rules for classification
     if USE_YAML_RULES:
         return _classify_statement_yaml(stmt, entities)
-    
+
     # Legacy: Use Python patterns
     return _classify_statement_legacy(stmt, entities)
 
@@ -260,15 +260,15 @@ def _classify_statement(stmt, entities: list[Entity]) -> GroupType:
 def _classify_statement_yaml(stmt, entities: list[Entity]) -> GroupType:
     """
     V7 / Stage 4: Classify using PolicyEngine YAML rules.
-    
+
     Uses apply_group_rules() which reads from _grouping/statement_groups.yaml.
     """
     text = stmt.text if hasattr(stmt, 'text') else ""
-    
+
     # Try PolicyEngine classification
     engine = get_policy_engine()
     group_name = engine.apply_group_rules(text)
-    
+
     if group_name:
         # Map YAML group names to GroupType enum
         group_map = {
@@ -281,14 +281,14 @@ def _classify_statement_yaml(stmt, entities: list[Entity]) -> GroupType:
             "aftermath": GroupType.AFTERMATH,
         }
         return group_map.get(group_name, GroupType.ENCOUNTER)
-    
+
     # Fallback: Check witness entity mentions (entity-based, not pattern-based)
     text_lower = text.lower()
     for entity in entities:
         if entity.role == EntityRole.WITNESS:
             if entity.label and entity.label.lower() in text_lower:
                 return GroupType.WITNESS_ACCOUNT
-    
+
     # Default: ENCOUNTER (most common for incident narratives)
     return GroupType.ENCOUNTER
 
@@ -296,47 +296,47 @@ def _classify_statement_yaml(stmt, entities: list[Entity]) -> GroupType:
 def _classify_statement_legacy(stmt, entities: list[Entity]) -> GroupType:
     """
     DEPRECATED: Legacy classification using Python patterns.
-    
+
     This function will be removed once YAML rules are fully validated.
     """
     text = stmt.text.lower() if hasattr(stmt, 'text') else ""
-    
+
     # Check for pattern matches (priority order)
-    
+
     # MEDICAL has high priority - clear indicators
     if _matches_any(text, MEDICAL_PATTERNS):
         return GroupType.MEDICAL
-    
+
     # OFFICIAL - administrative/legal language
     if _matches_any(text, OFFICIAL_PATTERNS):
         return GroupType.OFFICIAL
-    
+
     # EMOTIONAL - psychological impact
     if _matches_any(text, EMOTIONAL_PATTERNS):
         return GroupType.EMOTIONAL
-    
+
     # WITNESS - check for witness entity mentions
     for entity in entities:
         if entity.role == EntityRole.WITNESS:
             if entity.label and entity.label.lower() in text:
                 return GroupType.WITNESS_ACCOUNT
-    
+
     # WITNESS - pattern matching
     if _matches_any(text, WITNESS_PATTERNS):
         return GroupType.WITNESS_ACCOUNT
-    
+
     # BACKGROUND - before incident
     if _matches_any(text, BACKGROUND_PATTERNS):
         return GroupType.BACKGROUND
-    
+
     # AFTERMATH - after incident
     if _matches_any(text, AFTERMATH_PATTERNS):
         return GroupType.AFTERMATH
-    
+
     # ENCOUNTER - default for physical actions
     if _matches_any(text, ENCOUNTER_PATTERNS):
         return GroupType.ENCOUNTER
-    
+
     # Default: ENCOUNTER (most common for incident narratives)
     return GroupType.ENCOUNTER
 
@@ -349,14 +349,14 @@ def _matches_any(text: str, patterns: list[str]) -> bool:
     return False
 
 
-def _find_primary_entity(stmt, entities: list[Entity]) -> Optional[str]:
+def _find_primary_entity(stmt, entities: list[Entity]) -> str | None:
     """Find the primary entity mentioned in a statement."""
     text = stmt.text.lower() if hasattr(stmt, 'text') else ""
-    
+
     for entity in entities:
         if entity.label and entity.label.lower() in text:
             return entity.id
-    
+
     return None
 
 
@@ -364,17 +364,17 @@ def _create_group(
     group_type: GroupType,
     statement_ids: list[str],
     sequence: int,
-    primary_entity_id: Optional[str],
+    primary_entity_id: str | None,
     ctx: TransformContext,
 ) -> StatementGroup:
     """Create a StatementGroup with appropriate metadata."""
-    
+
     # Generate title based on group type
     title = _generate_title(group_type, sequence, primary_entity_id, ctx)
-    
+
     # Calculate evidence strength
     evidence_strength = _calculate_evidence_strength(statement_ids, ctx)
-    
+
     return StatementGroup(
         id=f"grp_{sequence:04d}",
         group_type=group_type,
@@ -387,20 +387,20 @@ def _create_group(
 
 
 def _generate_title(
-    group_type: GroupType, 
-    sequence: int, 
-    primary_entity_id: Optional[str],
+    group_type: GroupType,
+    sequence: int,
+    primary_entity_id: str | None,
     ctx: TransformContext,
 ) -> str:
     """Generate a human-readable title for a group."""
-    
+
     # Try to get entity name for personalized title
     entity_name = None
     if primary_entity_id:
         entity = next((e for e in ctx.entities if e.id == primary_entity_id), None)
         if entity and entity.label:
             entity_name = entity.label
-    
+
     titles = {
         GroupType.ENCOUNTER: "Incident Description",
         GroupType.WITNESS_ACCOUNT: f"{entity_name}'s Account" if entity_name else "Witness Account",
@@ -412,9 +412,9 @@ def _generate_title(
         GroupType.QUOTE: "Direct Quote",
         GroupType.UNKNOWN: "Other",
     }
-    
+
     base_title = titles.get(group_type, "Details")
-    
+
     # Add sequence indicator if multiple groups of same type
     # (This would require scanning all groups, simplified for now)
     return base_title
@@ -423,7 +423,7 @@ def _generate_title(
 def _calculate_evidence_strength(statement_ids: list[str], ctx: TransformContext) -> float:
     """
     Calculate evidence strength based on statement characteristics.
-    
+
     Higher strength for:
     - More statements (more detail)
     - OBSERVATION type statements (direct witness)
@@ -431,23 +431,23 @@ def _calculate_evidence_strength(statement_ids: list[str], ctx: TransformContext
     """
     if not statement_ids:
         return 0.5
-    
+
     # Base score
     score = 0.5
-    
+
     # More statements = more detail
     if len(statement_ids) >= 3:
         score += 0.1
     if len(statement_ids) >= 5:
         score += 0.1
-    
+
     # Check for observation-type statements
     for stmt in ctx.atomic_statements:
         if stmt.id in statement_ids:
             if hasattr(stmt, 'type_hint') and stmt.type_hint == StatementType.OBSERVATION:
                 score += 0.1
                 break
-    
+
     return min(score, 1.0)
 
 
@@ -456,13 +456,13 @@ def _should_merge(group1: StatementGroup, group2: StatementGroup) -> bool:
     # Only merge if same type and both small
     if group1.group_type != group2.group_type:
         return False
-    
+
     # Don't merge if combined would be too large
     if len(group1.statement_ids) + len(group2.statement_ids) > 10:
         return False
-    
+
     # Merge small adjacent groups of same type
     if len(group1.statement_ids) <= 2 and len(group2.statement_ids) <= 2:
         return True
-    
+
     return False

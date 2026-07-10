@@ -227,7 +227,7 @@ IN:  "belongings like a criminal"
 OUT: "belongings criminal"  ❌
 ```
 
-**Root Cause:** 
+**Root Cause:**
 1. `simile_criminal` removes "like a criminal"
 2. But wait - there's no "like a criminal" pattern!
 3. Actually `legal_criminal_noun` also fires

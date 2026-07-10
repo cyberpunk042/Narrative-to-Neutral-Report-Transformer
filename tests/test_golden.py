@@ -11,21 +11,9 @@ from pathlib import Path
 import pytest
 import yaml
 
-from nnrt.core.context import TransformRequest
-from nnrt.core.engine import Engine, Pipeline
 from nnrt.cli.main import setup_default_pipeline
-from nnrt.passes import (
-
-    augment_ir,
-    build_ir,
-    evaluate_policy,
-    extract_identifiers,
-    normalize,
-    package,
-    render,
-    segment,
-    tag_spans,
-)
+from nnrt.core.context import TransformRequest
+from nnrt.core.engine import Engine
 
 pytestmark = pytest.mark.golden
 
@@ -65,13 +53,13 @@ class TestGoldenCases:
         """Verify expected content is preserved."""
         text = golden_case["input"]
         expected_preserved = golden_case.get("expected_preserved", [])
-        
+
         if not expected_preserved:
             pytest.skip("No preserved content defined")
-        
+
         request = TransformRequest(text=text)
         result = engine.transform(request)
-        
+
         for expected in expected_preserved:
             assert expected in result.rendered_text, (
                 f"Expected '{expected}' to be preserved in output.\n"
@@ -82,24 +70,24 @@ class TestGoldenCases:
         """Verify validation rules are satisfied."""
         text = golden_case["input"]
         validation_rules = golden_case.get("validation_rules", [])
-        
+
         if not validation_rules:
             pytest.skip("No validation rules defined")
-        
+
         request = TransformRequest(text=text)
         result = engine.transform(request)
-        
+
         # V7: For 'must not contain' rules, check only the RAW NEUTRALIZED NARRATIVE section
         # V2 structured output includes original text in sections like REPORTER INFERENCES
         full_output = result.rendered_text
         full_output_lower = full_output.lower()
-        
+
         if "raw neutralized narrative" in full_output_lower:
             raw_idx = full_output_lower.find("raw neutralized narrative")
             prose_output = full_output[raw_idx:]
         else:
             prose_output = full_output
-        
+
         for rule in validation_rules:
             # Parse rule syntax
             if "must not contain" in rule.lower():
@@ -124,17 +112,17 @@ class TestGoldenCases:
         """Verify expected diagnostics are generated."""
         text = golden_case["input"]
         expected_diagnostics = golden_case.get("expected_diagnostics", [])
-        
+
         if not expected_diagnostics:
             pytest.skip("No diagnostics expectations defined")
-        
+
         request = TransformRequest(text=text)
         result = engine.transform(request)
-        
+
         for expected in expected_diagnostics:
             code = expected.get("code")
             min_count = expected.get("min_count", 1)
-            
+
             matching = [d for d in result.diagnostics if d.code == code]
             assert len(matching) >= min_count, (
                 f"Expected at least {min_count} diagnostics with code '{code}', "
