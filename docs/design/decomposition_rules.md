@@ -4,7 +4,7 @@
 ## Core Principle
 
 > One statement = one verifiable fact OR one claim OR one interpretation
-> 
+>
 > If you need "and" or "because" to describe it, it's probably multiple statements.
 
 ---
@@ -59,7 +59,7 @@
 
 ### Use spaCy Dependency Parsing
 1. Find ROOT verb(s)
-2. Find coordinating conjunctions (cc) 
+2. Find coordinating conjunctions (cc)
 3. Find conjuncts (conj)
 4. Find adverbial clauses (advcl) — often causal
 5. Split at clause boundaries

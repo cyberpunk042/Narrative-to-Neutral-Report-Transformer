@@ -71,7 +71,7 @@ This document tracks the instrumentation of passes with channel-aware logging.
 - **INFO**: Identifiers found by type (badge, date, location)
 - **VERBOSE**: Individual identifier details
 
-### p32_extract_entities (EXTRACT) 
+### p32_extract_entities (EXTRACT)
 - **INFO**: Entity count, role distribution
 - **VERBOSE**: Pronoun resolution decisions
 - **DEBUG**: NER results, mention linking

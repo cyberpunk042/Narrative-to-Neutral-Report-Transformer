@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-NNRT v1 successfully performs **lexical neutralization** (softening inflammatory language) but fails at **structural decomposition** (separating observation from interpretation). 
+NNRT v1 successfully performs **lexical neutralization** (softening inflammatory language) but fails at **structural decomposition** (separating observation from interpretation).
 
 The current output is a **cautious paraphrase**, not a **neutral representation**.
 

@@ -60,7 +60,7 @@ camera-friendly log. It's still "raw sentences that sounded factual."
 **Solution**: New pass `p43_resolve_actors.py`
 - Pronoun → Entity: "He grabbed" → "Officer Jenkins grabbed"
 - Fragment Isolation: "but then he…" → separate statement
-- Quote/Narrative Split: `"Stop!" he yelled, clearly hostile` → 
+- Quote/Narrative Split: `"Stop!" he yelled, clearly hostile` →
   `[QUOTE: "Stop!"]` + `[INFERENCE: reporter perceived hostility]`
 
 **Exit Criteria**:
@@ -102,7 +102,7 @@ epistemic classes together.
 
 **Status**: ✅ IMPLEMENTED (2026-01-16)
 - Split `LEGAL_CLAIM_PATTERNS` into 4 sub-categories in `p27_epistemic_tag.py`
-- New patterns: `LEGAL_CLAIM_DIRECT_PATTERNS`, `LEGAL_CLAIM_ADMIN_PATTERNS`, 
+- New patterns: `LEGAL_CLAIM_DIRECT_PATTERNS`, `LEGAL_CLAIM_ADMIN_PATTERNS`,
   `LEGAL_CLAIM_CAUSATION_PATTERNS`, `LEGAL_CLAIM_ATTORNEY_PATTERNS`
 - Updated `_classify_epistemic()` to return sub-types
 - 21 tests added in `test_p27_legal_taxonomy.py`

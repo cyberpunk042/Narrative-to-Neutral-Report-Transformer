@@ -128,13 +128,13 @@ statements:
 
 1. **Observation**: Physical actions that could be verified by video
    - "grabbed", "twisted", "vocalized" ✓
-   
+
 2. **Claim**: Reporter's assertions about their own state
    - "experienced pain" — only reporter can know ✓
-   
+
 3. **Interpretation**: Inferences about others' intent/motive
    - "deliberately", "intentionally", "wanted to" → all flagged ✓
-   
+
 4. **Reported Speech**: Direct quotes preserved verbatim
    - "You're hurting me!" → kept exactly ✓
 
